@@ -1,0 +1,32 @@
+[
+  {
+    "term": "Factorización",
+    "definition": "Proceso de descomponer una expresión matemática en un producto de términos más simples llamados factores.",
+    "example": "x² - 9 = (x + 3)(x - 3)",
+    "maña": "Siempre busca primero un factor común antes de aplicar otros métodos."
+  },
+  {
+    "term": "Puntos Críticos",
+    "definition": "Valores que hacen que una expresión sea cero o esté indefinida. Se usan para analizar cambios de signo.",
+    "example": "En (x-2)/(x+5), los puntos críticos son x=2 y x=-5.",
+    "maña": "Recuerda que los puntos que vienen del denominador siempre son abiertos en el conjunto solución."
+  },
+  {
+    "term": "Inecuación",
+    "definition": "Una desigualdad entre dos expresiones algebraicas.",
+    "example": "2x + 1 > 5  =>  2x > 4  =>  x > 2",
+    "maña": "Si multiplicas o divides por un número negativo, ¡el sentido de la desigualdad cambia!"
+  },
+  {
+    "term": "Logaritmo",
+    "definition": "El exponente al cual se debe elevar una base para obtener un número determinado.",
+    "example": "log₂(8) = 3 porque 2³ = 8",
+    "maña": "El argumento de un logaritmo siempre debe ser mayor que cero."
+  },
+  {
+    "term": "Monomios Semejantes",
+    "definition": "Dos o más monomios son semejantes entre sí si tienen exactamente el mismo factor literal (mismas letras con mismos exponentes).",
+    "example": "5xy³ y 6y³x son semejantes.",
+    "maña": "El orden de las letras no importa, ¡lo que importa es que sean las mismas y tengan los mismos exponentes!"
+  }
+]

@@ -1,0 +1,1365 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict 9qRdEV0ye3tb5qbbBivTZlXcrX97vbdNImio1SFKHBooMzAEhjkG0QTf5wQxa0s
+
+-- Dumped from database version 18.3
+-- Dumped by pg_dump version 18.3
+
+-- Started on 2026-05-13 19:44:50
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- TOC entry 234 (class 1259 OID 123149)
+-- Name: api_config; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.api_config (
+    id integer NOT NULL,
+    user_id integer,
+    proveedor character varying(50) NOT NULL,
+    api_key_encrypted text,
+    activa boolean DEFAULT true,
+    prioridad integer DEFAULT 0,
+    fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.api_config OWNER TO postgres;
+
+--
+-- TOC entry 233 (class 1259 OID 123148)
+-- Name: api_config_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.api_config_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.api_config_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5205 (class 0 OID 0)
+-- Dependencies: 233
+-- Name: api_config_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.api_config_id_seq OWNED BY public.api_config.id;
+
+
+--
+-- TOC entry 230 (class 1259 OID 123113)
+-- Name: exercise_history; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.exercise_history (
+    id integer NOT NULL,
+    user_id integer,
+    exercise_id integer,
+    topic_id character varying(50) NOT NULL,
+    correcto boolean NOT NULL,
+    tiempo_segundos integer,
+    hp_antes integer,
+    hp_despues integer,
+    dificultad character varying(20),
+    "timestamp" timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.exercise_history OWNER TO postgres;
+
+--
+-- TOC entry 229 (class 1259 OID 123112)
+-- Name: exercise_history_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.exercise_history_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.exercise_history_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5206 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: exercise_history_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.exercise_history_id_seq OWNED BY public.exercise_history.id;
+
+
+--
+-- TOC entry 238 (class 1259 OID 123195)
+-- Name: exercises; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.exercises (
+    id integer NOT NULL,
+    topic_id character varying(50) NOT NULL,
+    question text NOT NULL,
+    latex_content text,
+    options jsonb NOT NULL,
+    solution_steps jsonb NOT NULL,
+    difficulty character varying(20) DEFAULT 'basico'::character varying,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    theory text,
+    category character varying(50) DEFAULT 'ejercicio'::character varying,
+    exam_year integer,
+    source character varying(100)
+);
+
+
+ALTER TABLE public.exercises OWNER TO postgres;
+
+--
+-- TOC entry 237 (class 1259 OID 123194)
+-- Name: exercises_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.exercises_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.exercises_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5207 (class 0 OID 0)
+-- Dependencies: 237
+-- Name: exercises_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.exercises_id_seq OWNED BY public.exercises.id;
+
+
+--
+-- TOC entry 236 (class 1259 OID 123170)
+-- Name: game_sessions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.game_sessions (
+    id integer NOT NULL,
+    user_id integer,
+    inicio timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    fin timestamp without time zone,
+    ejercicios_completados integer DEFAULT 0,
+    ejercicios_correctos integer DEFAULT 0,
+    xp_ganada integer DEFAULT 0,
+    juego_descanso boolean DEFAULT false
+);
+
+
+ALTER TABLE public.game_sessions OWNER TO postgres;
+
+--
+-- TOC entry 235 (class 1259 OID 123169)
+-- Name: game_sessions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.game_sessions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.game_sessions_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5208 (class 0 OID 0)
+-- Dependencies: 235
+-- Name: game_sessions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.game_sessions_id_seq OWNED BY public.game_sessions.id;
+
+
+--
+-- TOC entry 232 (class 1259 OID 123129)
+-- Name: leaderboard; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.leaderboard (
+    id integer NOT NULL,
+    user_id integer,
+    xp_total integer DEFAULT 0,
+    ejercicios_resueltos integer DEFAULT 0,
+    tasa_exito numeric(5,2) DEFAULT 0,
+    racha_maxima integer DEFAULT 0,
+    posicion_global integer,
+    ultima_actualizacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.leaderboard OWNER TO postgres;
+
+--
+-- TOC entry 231 (class 1259 OID 123128)
+-- Name: leaderboard_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.leaderboard_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.leaderboard_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5209 (class 0 OID 0)
+-- Dependencies: 231
+-- Name: leaderboard_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.leaderboard_id_seq OWNED BY public.leaderboard.id;
+
+
+--
+-- TOC entry 242 (class 1259 OID 123227)
+-- Name: missions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.missions (
+    id integer NOT NULL,
+    name character varying(100) NOT NULL,
+    description text,
+    topic_ids text[],
+    exercise_count integer DEFAULT 10,
+    time_limit_min integer,
+    hp_reward integer DEFAULT 20,
+    xp_reward integer DEFAULT 500,
+    difficulty character varying(20) DEFAULT 'basico'::character varying,
+    category character varying(50) DEFAULT 'mision'::character varying,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.missions OWNER TO postgres;
+
+--
+-- TOC entry 241 (class 1259 OID 123226)
+-- Name: missions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.missions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.missions_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5210 (class 0 OID 0)
+-- Dependencies: 241
+-- Name: missions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.missions_id_seq OWNED BY public.missions.id;
+
+
+--
+-- TOC entry 226 (class 1259 OID 123073)
+-- Name: parent_child_relations; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.parent_child_relations (
+    id integer NOT NULL,
+    parent_id integer,
+    child_id integer
+);
+
+
+ALTER TABLE public.parent_child_relations OWNER TO postgres;
+
+--
+-- TOC entry 225 (class 1259 OID 123072)
+-- Name: parent_child_relations_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.parent_child_relations_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.parent_child_relations_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5211 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: parent_child_relations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.parent_child_relations_id_seq OWNED BY public.parent_child_relations.id;
+
+
+--
+-- TOC entry 240 (class 1259 OID 123212)
+-- Name: topic_content; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.topic_content (
+    id integer NOT NULL,
+    topic_id character varying(50) NOT NULL,
+    title character varying(100) NOT NULL,
+    description text,
+    theory_html text,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.topic_content OWNER TO postgres;
+
+--
+-- TOC entry 239 (class 1259 OID 123211)
+-- Name: topic_content_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.topic_content_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topic_content_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5212 (class 0 OID 0)
+-- Dependencies: 239
+-- Name: topic_content_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.topic_content_id_seq OWNED BY public.topic_content.id;
+
+
+--
+-- TOC entry 228 (class 1259 OID 123093)
+-- Name: topic_progress; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.topic_progress (
+    id integer NOT NULL,
+    user_id integer,
+    topic_id character varying(50) NOT NULL,
+    ejercicios_completados integer DEFAULT 0,
+    ejercicios_correctos integer DEFAULT 0,
+    fallos_acumulados integer DEFAULT 0,
+    ultima_practica timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.topic_progress OWNER TO postgres;
+
+--
+-- TOC entry 227 (class 1259 OID 123092)
+-- Name: topic_progress_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.topic_progress_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topic_progress_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5213 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: topic_progress_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.topic_progress_id_seq OWNED BY public.topic_progress.id;
+
+
+--
+-- TOC entry 220 (class 1259 OID 122873)
+-- Name: topics; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.topics (
+    id integer NOT NULL,
+    name character varying(100) NOT NULL,
+    parcial_num integer NOT NULL,
+    description text
+);
+
+
+ALTER TABLE public.topics OWNER TO postgres;
+
+--
+-- TOC entry 219 (class 1259 OID 122872)
+-- Name: topics_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.topics_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topics_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5214 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: topics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.topics_id_seq OWNED BY public.topics.id;
+
+
+--
+-- TOC entry 244 (class 1259 OID 123244)
+-- Name: user_missions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_missions (
+    id integer NOT NULL,
+    user_id integer,
+    mission_id integer,
+    status character varying(20) DEFAULT 'pendiente'::character varying,
+    score integer DEFAULT 0,
+    hp_remaining integer,
+    completed_at timestamp without time zone,
+    started_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.user_missions OWNER TO postgres;
+
+--
+-- TOC entry 243 (class 1259 OID 123243)
+-- Name: user_missions_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.user_missions_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.user_missions_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5215 (class 0 OID 0)
+-- Dependencies: 243
+-- Name: user_missions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.user_missions_id_seq OWNED BY public.user_missions.id;
+
+
+--
+-- TOC entry 222 (class 1259 OID 122902)
+-- Name: user_progress; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_progress (
+    id integer NOT NULL,
+    user_id integer,
+    exercise_id integer,
+    is_correct boolean,
+    xp_earned integer DEFAULT 0,
+    attempt_date timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.user_progress OWNER TO postgres;
+
+--
+-- TOC entry 221 (class 1259 OID 122901)
+-- Name: user_progress_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.user_progress_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.user_progress_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5216 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: user_progress_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.user_progress_id_seq OWNED BY public.user_progress.id;
+
+
+--
+-- TOC entry 224 (class 1259 OID 123045)
+-- Name: users; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.users (
+    id integer NOT NULL,
+    username character varying(50) NOT NULL,
+    password_hash character varying(255) NOT NULL,
+    nombre character varying(100) NOT NULL,
+    email character varying(100),
+    rol character varying(20) NOT NULL,
+    xp integer DEFAULT 0,
+    nivel integer DEFAULT 1,
+    hp integer DEFAULT 100,
+    racha_actual integer DEFAULT 0,
+    racha_maxima integer DEFAULT 0,
+    tiempo_practica integer DEFAULT 0,
+    fecha_registro timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    ultimo_acceso timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    activo boolean DEFAULT true,
+    CONSTRAINT users_rol_check CHECK (((rol)::text = ANY ((ARRAY['estudiante'::character varying, 'padre'::character varying, 'admin'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- TOC entry 223 (class 1259 OID 123044)
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.users_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
+
+--
+-- TOC entry 5217 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- TOC entry 4944 (class 2604 OID 123152)
+-- Name: api_config id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.api_config ALTER COLUMN id SET DEFAULT nextval('public.api_config_id_seq'::regclass);
+
+
+--
+-- TOC entry 4936 (class 2604 OID 123116)
+-- Name: exercise_history id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.exercise_history ALTER COLUMN id SET DEFAULT nextval('public.exercise_history_id_seq'::regclass);
+
+
+--
+-- TOC entry 4954 (class 2604 OID 123198)
+-- Name: exercises id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.exercises ALTER COLUMN id SET DEFAULT nextval('public.exercises_id_seq'::regclass);
+
+
+--
+-- TOC entry 4948 (class 2604 OID 123173)
+-- Name: game_sessions id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.game_sessions ALTER COLUMN id SET DEFAULT nextval('public.game_sessions_id_seq'::regclass);
+
+
+--
+-- TOC entry 4938 (class 2604 OID 123132)
+-- Name: leaderboard id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.leaderboard ALTER COLUMN id SET DEFAULT nextval('public.leaderboard_id_seq'::regclass);
+
+
+--
+-- TOC entry 4960 (class 2604 OID 123230)
+-- Name: missions id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.missions ALTER COLUMN id SET DEFAULT nextval('public.missions_id_seq'::regclass);
+
+
+--
+-- TOC entry 4930 (class 2604 OID 123076)
+-- Name: parent_child_relations id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parent_child_relations ALTER COLUMN id SET DEFAULT nextval('public.parent_child_relations_id_seq'::regclass);
+
+
+--
+-- TOC entry 4958 (class 2604 OID 123215)
+-- Name: topic_content id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_content ALTER COLUMN id SET DEFAULT nextval('public.topic_content_id_seq'::regclass);
+
+
+--
+-- TOC entry 4931 (class 2604 OID 123096)
+-- Name: topic_progress id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_progress ALTER COLUMN id SET DEFAULT nextval('public.topic_progress_id_seq'::regclass);
+
+
+--
+-- TOC entry 4916 (class 2604 OID 122876)
+-- Name: topics id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topics ALTER COLUMN id SET DEFAULT nextval('public.topics_id_seq'::regclass);
+
+
+--
+-- TOC entry 4967 (class 2604 OID 123247)
+-- Name: user_missions id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_missions ALTER COLUMN id SET DEFAULT nextval('public.user_missions_id_seq'::regclass);
+
+
+--
+-- TOC entry 4917 (class 2604 OID 122905)
+-- Name: user_progress id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_progress ALTER COLUMN id SET DEFAULT nextval('public.user_progress_id_seq'::regclass);
+
+
+--
+-- TOC entry 4920 (class 2604 OID 123048)
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- TOC entry 5189 (class 0 OID 123149)
+-- Dependencies: 234
+-- Data for Name: api_config; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.api_config (id, user_id, proveedor, api_key_encrypted, activa, prioridad, fecha_creacion) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5185 (class 0 OID 123113)
+-- Dependencies: 230
+-- Data for Name: exercise_history; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.exercise_history (id, user_id, exercise_id, topic_id, correcto, tiempo_segundos, hp_antes, hp_despues, dificultad, "timestamp") FROM stdin;
+1	4	\N	factorizacion	t	30	100	100	basico	2026-05-13 18:44:17.375532
+2	4	\N	factorizacion	t	30	100	100	basico	2026-05-13 18:44:31.074423
+3	4	\N	factorizacion	f	30	80	80	basico	2026-05-13 18:44:35.102319
+4	4	\N	factorizacion	f	30	60	60	basico	2026-05-13 18:45:24.213205
+5	4	\N	factorizacion	f	30	40	40	basico	2026-05-13 18:45:29.229665
+6	4	\N	factorizacion	f	30	20	20	basico	2026-05-13 18:45:32.373726
+7	4	\N	factorizacion	f	30	0	0	basico	2026-05-13 18:45:35.089174
+8	4	\N	factorizacion	t	30	5	5	basico	2026-05-13 18:45:38.992262
+9	4	\N	factorizacion	t	30	10	10	basico	2026-05-13 18:45:43.104623
+10	4	\N	factorizacion	f	30	0	0	basico	2026-05-13 18:45:45.738632
+\.
+
+
+--
+-- TOC entry 5193 (class 0 OID 123195)
+-- Dependencies: 238
+-- Data for Name: exercises; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.exercises (id, topic_id, question, latex_content, options, solution_steps, difficulty, created_at, theory, category, exam_year, source) FROM stdin;
+122	factorizacion	Factorice: x² - 16	x^2 - 16	["(x+4)(x-4)", "(x+2)(x-8)", "(x-4)²", "x(x-16)"]	[{"expl": "Diferencia de cuadrados: a=x, b=4", "math": "a^2-b^2=(a+b)(a-b)"}, {"expl": "Resultado final", "math": "(x+4)(x-4)"}]	basico	2026-05-13 18:19:18.067996	Diferencia de cuadrados: a²-b²=(a+b)(a-b)	ejercicio	\N	\N
+123	factorizacion	Factorice: x² + 6x + 9	x^2+6x+9	["(x+3)²", "(x+9)(x+1)", "(x+6)(x+3)", "(x-3)²"]	[{"expl": "Cuadrado perfecto: a=x, b=3", "math": "x^2+2(3)x+3^2"}, {"expl": "Aplicar fórmula (a+b)²", "math": "(x+3)^2"}]	basico	2026-05-13 18:19:18.085346	Trinomio cuadrado perfecto: a²+2ab+b²=(a+b)²	ejercicio	\N	\N
+124	factorizacion	Factorice completamente: 2x² - 8	2x^2-8	["2(x+2)(x-2)", "2(x-2)²", "(2x+4)(x-2)", "2(x²-4)"]	[{"expl": "Factor común 2", "math": "2(x^2-4)"}, {"expl": "Diferencia de cuadrados", "math": "2(x+2)(x-2)"}]	basico	2026-05-13 18:19:18.086171	Primero factor común, luego diferencia de cuadrados	ejercicio	\N	\N
+125	factorizacion	Factorice: x² - 5x + 6	x^2-5x+6	["(x-2)(x-3)", "(x+2)(x+3)", "(x-6)(x+1)", "(x-1)(x-6)"]	[{"expl": "Factores de 6 que sumen -5: -2 y -3", "math": "\\\\text{Buscar: }a+b=-5, ab=6"}, {"expl": "Resultado", "math": "(x-2)(x-3)"}]	basico	2026-05-13 18:19:18.086709	Para trinomio x²+bx+c buscar dos números que sumen b y multipliquen c	ejercicio	\N	\N
+126	factorizacion	Factorice: 3x² + 9x	3x^2+9x	["3x(x+3)", "3(x²+3x)", "x(3x+9)", "3x²(1+3)"]	[{"expl": "Factor común: 3x", "math": "3x(x+3)"}]	basico	2026-05-13 18:19:18.087161	Factor común: sacar el máximo factor común de todos los términos	ejercicio	\N	\N
+127	factorizacion	Factorice: 4x² - 12x + 9	4x^2-12x+9	["(2x-3)²", "(4x-9)(x-1)", "(2x+3)²", "(2x-3)(2x+3)"]	[{"expl": "Reconocer cuadrado perfecto a=2x, b=3", "math": "(2x)^2 - 2(2x)(3) + 3^2"}, {"expl": "Resultado", "math": "(2x-3)^2"}]	basico	2026-05-13 18:19:18.087551	Trinomio cuadrado perfecto: a²-2ab+b²=(a-b)²	ejercicio	\N	\N
+128	factorizacion	Factorice: x³ - 8	x^3-8	["(x-2)(x²+2x+4)", "(x-2)³", "(x-8)(x²+1)", "(x-2)(x²-4)"]	[{"expl": "Diferencia de cubos: a=x, b=2", "math": "a^3-b^3=(a-b)(a^2+ab+b^2)"}, {"expl": "Resultado", "math": "(x-2)(x^2+2x+4)"}]	basico	2026-05-13 18:19:18.087936	Diferencia de cubos: a³-b³=(a-b)(a²+ab+b²)	ejercicio	\N	\N
+129	factorizacion	Factorice: x² + 8x + 16	x^2+8x+16	["(x+4)²", "(x+2)(x+8)", "(x+16)(x+1)", "(x+4)(x-4)"]	[{"expl": "Cuadrado perfecto con b=4", "math": "(x+4)^2"}]	basico	2026-05-13 18:19:18.088338	Reconocer (a+b)²=a²+2ab+b²	ejercicio	\N	\N
+130	factorizacion	Factorice: 9x² - 25	9x^2-25	["(3x+5)(3x-5)", "(9x+5)(x-5)", "(3x-5)²", "3(3x²-25)"]	[{"expl": "Diferencia de cuadrados: a=3x, b=5", "math": "(3x)^2 - 5^2"}, {"expl": "Resultado", "math": "(3x+5)(3x-5)"}]	basico	2026-05-13 18:19:18.088768	Diferencia de cuadrados	ejercicio	\N	\N
+131	factorizacion	Factorice: 6x² + 7x + 2	6x^2+7x+2	["(2x+1)(3x+2)", "(6x+1)(x+2)", "(2x+2)(3x+1)", "(3x-1)(2x-2)"]	[{"expl": "Método ac: 3+4=7, 3·4=12", "math": "ac=12, b=7: \\\\text{ buscar }3\\\\cdot4"}, {"expl": "Agrupar", "math": "6x^2+3x+4x+2 = 3x(2x+1)+2(2x+1)"}, {"expl": "Factor común (2x+1)", "math": "(3x+2)(2x+1)"}]	basico	2026-05-13 18:19:18.089255	Factorización por agrupación (método ac)	ejercicio	\N	\N
+132	factorizacion	Factorice: x⁴ - 1	x^4-1	["(x²+1)(x+1)(x-1)", "(x²-1)²", "(x²+1)²", "(x-1)(x+1)(x²-1)"]	[{"expl": "Diferencia de cuadrados", "math": "(x^2+1)(x^2-1)"}, {"expl": "Factorizar x²-1 de nuevo", "math": "(x^2+1)(x+1)(x-1)"}]	basico	2026-05-13 18:19:18.089633	Aplicar diferencia de cuadrados en cascada	ejercicio	\N	\N
+133	factorizacion	Factorice: 2x³ + 6x² - 8x	2x^3+6x^2-8x	["2x(x+4)(x-1)", "2x(x-4)(x+1)", "2(x³+3x²-4x)", "x(2x²+6x-8)"]	[{"expl": "Factor común 2x", "math": "2x(x^2+3x-4)"}, {"expl": "Factorizar trinomio: buscar 4 y -1", "math": "2x(x+4)(x-1)"}]	basico	2026-05-13 18:19:18.089981	Siempre extraer el factor común antes de otros métodos	ejercicio	\N	\N
+134	factorizacion	Factorice: 8x³ + 27	8x^3+27	["(2x+3)(4x²-6x+9)", "(2x+3)³", "(2x-3)(4x²+6x+9)", "(8x+27)(x-1)"]	[{"expl": "Suma de cubos: a=2x, b=3", "math": "(2x)^3+3^3"}, {"expl": "a³+b³=(a+b)(a²-ab+b²)", "math": "(2x+3)(4x^2-6x+9)"}]	basico	2026-05-13 18:19:18.090297	Suma de cubos: a³+b³=(a+b)(a²-ab+b²)	ejercicio	\N	\N
+135	factorizacion	Simplifique: (x²-4)/(x+2)	\\frac{x^2-4}{x+2}	["x-2", "x+2", "x²-2", "(x-2)(x+2)"]	[{"expl": "Factorizar numerador", "math": "\\\\frac{(x+2)(x-2)}{x+2}"}, {"expl": "Cancelar (x+2), con x≠-2", "math": "x-2"}]	basico	2026-05-13 18:19:18.090636	Simplificación de fracciones algebraicas	ejercicio	\N	\N
+136	factorizacion	Factorice: ax + ay - bx - by	ax+ay-bx-by	["(a-b)(x+y)", "(a+b)(x-y)", "a(x+y)-b(x+y)", "(ax+ay)(bx+by)"]	[{"expl": "Agrupar y sacar factor común", "math": "a(x+y) - b(x+y)"}, {"expl": "Factor común (x+y)", "math": "(a-b)(x+y)"}]	basico	2026-05-13 18:19:18.090978	Factorización por agrupación de términos	ejercicio	\N	\N
+137	ecuaciones	Resuelva: 2x + 3 = 11	2x+3=11	["x=4", "x=7", "x=3", "x=5"]	[{"expl": "Restar 3 a ambos lados", "math": "2x=8"}, {"expl": "Dividir por 2", "math": "x=4"}]	basico	2026-05-13 18:19:18.091307	Propiedad de igualdad: lo que se hace a un lado se hace al otro	ejercicio	\N	\N
+138	ecuaciones	Resuelva: x/3 + 2 = 5	\\frac{x}{3}+2=5	["x=9", "x=3", "x=21", "x=1"]	[{"expl": "Restar 2", "math": "x/3=3"}, {"expl": "Multiplicar por 3", "math": "x=9"}]	basico	2026-05-13 18:19:18.091649	Despejar la variable paso a paso	ejercicio	\N	\N
+139	ecuaciones	Resuelva: 3(x-2) = 9	3(x-2)=9	["x=5", "x=3", "x=7", "x=1"]	[{"expl": "Distributiva", "math": "3x-6=9"}, {"expl": "Suma 6, divide por 3", "math": "x=5"}]	basico	2026-05-13 18:19:18.091996	Primero aplicar distributiva, luego despejar	ejercicio	\N	\N
+140	ecuaciones	Resuelva: x² = 25	x^2=25	["x=±5", "x=5", "x=25", "x=12.5"]	[{"expl": "Raíz cuadrada de ambos lados", "math": "x=\\\\pm\\\\sqrt{25}"}, {"expl": "Dos soluciones", "math": "x=5 \\\\text{ o } x=-5"}]	basico	2026-05-13 18:19:18.092343	Ecuación cuadrática simple: recordar las dos soluciones	ejercicio	\N	\N
+141	ecuaciones	Resuelva: 2x² - 8 = 0	2x^2-8=0	["x=±2", "x=2", "x=4", "x=±4"]	[{"expl": "Sumar 8, dividir por 2", "math": "x^2=4"}, {"expl": "Raíz cuadrada", "math": "x=\\\\pm 2"}]	basico	2026-05-13 18:19:18.092646	Aislar x² antes de aplicar raíz	ejercicio	\N	\N
+142	ecuaciones	Resuelva por fórmula cuadrática: x² - 5x + 6 = 0	x^2-5x+6=0	["x=2 o x=3", "x=1 o x=6", "x=-2 o x=-3", "x=5 o x=1"]	[{"expl": "Fórmula: x=(-b±√(b²-4ac))/2a con a=1,b=-5,c=6", "math": "x=\\\\frac{5\\\\pm\\\\sqrt{25-24}}{2}"}, {"expl": "Soluciones", "math": "x=3 \\\\text{ o } x=2"}]	basico	2026-05-13 18:19:18.093023	Fórmula cuadrática: x=(-b±√(b²-4ac))/2a	ejercicio	\N	\N
+143	ecuaciones	Resuelva: |x - 3| = 5	|x-3|=5	["x=8 o x=-2", "x=8", "x=2 o x=-8", "x=-2"]	[{"expl": "Caso positivo", "math": "x-3=5 \\\\Rightarrow x=8"}, {"expl": "Caso negativo", "math": "x-3=-5 \\\\Rightarrow x=-2"}]	basico	2026-05-13 18:19:18.093379	Valor absoluto genera dos ecuaciones	ejercicio	\N	\N
+144	ecuaciones	Resuelva: log(x) = 2	\\log(x)=2	["x=100", "x=20", "x=10²", "x=1000"]	[{"expl": "Definición de logaritmo base 10", "math": "x=10^2"}, {"expl": "Resultado", "math": "x=100"}]	basico	2026-05-13 18:19:18.093798	log(x)=n significa x=10ⁿ	ejercicio	\N	\N
+145	ecuaciones	Resuelva: e^x = 7	e^x=7	["x=ln(7)", "x=log(7)", "x=7/e", "x=e^7"]	[{"expl": "Aplicar ln a ambos lados", "math": "x=\\\\ln(7)"}]	basico	2026-05-13 18:19:18.09418	Para despejar e^x aplicar logaritmo natural	ejercicio	\N	\N
+146	ecuaciones	Resuelva el sistema: x+y=5, x-y=1	x+y=5, \\quad x-y=1	["x=3, y=2", "x=4, y=1", "x=2, y=3", "x=5, y=0"]	[{"expl": "Sumar las ecuaciones", "math": "2x=6 \\\\Rightarrow x=3"}, {"expl": "Sustituir x=3", "math": "y=5-3=2"}]	basico	2026-05-13 18:19:18.094601	Método de eliminación: sumar/restar ecuaciones para eliminar una variable	ejercicio	\N	\N
+147	inecuaciones	Resuelva: 2x - 3 > 5	2x-3>5	["x>4", "x<4", "x>1", "x>8"]	[{"expl": "Sumar 3", "math": "2x>8"}, {"expl": "Dividir por 2 (positivo, no cambia signo)", "math": "x>4"}]	basico	2026-05-13 18:19:18.094962	Al dividir por negativo el signo de la inecuación se invierte	ejercicio	\N	\N
+148	inecuaciones	Resuelva: -3x ≤ 9	-3x \\leq 9	["x≥-3", "x≤-3", "x≤3", "x≥3"]	[{"expl": "Dividir por -3: el signo ≤ se convierte en ≥", "math": "x \\\\geq -3"}]	basico	2026-05-13 18:19:18.095335	Al dividir por un número negativo, el signo de desigualdad se invierte	ejercicio	\N	\N
+149	inecuaciones	Resuelva: x² < 9	x^2<9	["-3<x<3", "x>3", "x<-3", "x>-3"]	[{"expl": "Raíz cuadrada de la inecuación", "math": "|x|<3"}, {"expl": "Solución intervalo", "math": "-3<x<3"}]	basico	2026-05-13 18:19:18.095767	x²<a² equivale a |x|<a, es decir -a<x<a	ejercicio	\N	\N
+150	inecuaciones	Resuelva: (x-1)(x+3) > 0	(x-1)(x+3)>0	["x<-3 o x>1", "x>1", "−3<x<1", "x<1"]	[{"expl": "Igualar cada factor a cero", "math": "\\\\text{Puntos críticos: }x=1, x=-3"}, {"expl": "Analizar signos del producto en cada intervalo", "math": "x<-3 \\\\text{ o } x>1"}]	basico	2026-05-13 18:19:18.096197	Para inecuaciones con producto, analizar el signo en cada intervalo	ejercicio	\N	\N
+151	inecuaciones	Resuelva: |2x + 1| ≤ 5	|2x+1|\\leq 5	["-3≤x≤2", "x≤2", "x≥-3", "|x|≤2"]	[{"expl": "Definición de valor absoluto", "math": "-5 \\\\leq 2x+1 \\\\leq 5"}, {"expl": "Restar 1 y dividir por 2", "math": "-3 \\\\leq x \\\\leq 2"}]	basico	2026-05-13 18:19:18.096604	|f(x)|≤a equivale a -a≤f(x)≤a	ejercicio	\N	\N
+152	exp-log	Simplifique: 2³ × 2⁴	2^3 \\times 2^4	["2⁷", "2¹²", "4⁷", "2⁷⁴"]	[{"expl": "Propiedad: aᵐ×aⁿ=aᵐ⁺ⁿ", "math": "2^{3+4}=2^7"}]	basico	2026-05-13 18:19:18.096954	Producto de potencias con igual base: sumar exponentes	ejercicio	\N	\N
+153	exp-log	Simplifique: (3²)³	(3^2)^3	["3⁶", "3⁵", "9³", "3²³"]	[{"expl": "Potencia de potencia: multiplicar exponentes", "math": "3^{2 \\\\times 3}=3^6"}]	basico	2026-05-13 18:19:18.0973	Potencia de potencia: (aᵐ)ⁿ=aᵐⁿ	ejercicio	\N	\N
+154	exp-log	Evalúe: log₂(32)	\\log_2(32)	["5", "4", "6", "16"]	[{"expl": "Buscar x tal que 2^x=32", "math": "2^x=32=2^5"}, {"expl": "Resultado", "math": "x=5"}]	basico	2026-05-13 18:19:18.097691	Definición de logaritmo: log_b(x)=n ↔ bⁿ=x	ejercicio	\N	\N
+28	factorizacion	Sume los polinomios: (4x - 3 + 8y) + (3x - y + 1)	(4x - 3 + 8y) + (3x - y + 1)	["7x + 7y - 2", "7x + 9y - 4", "x + 7y - 2", "7x + 7y + 2"]	[{"expl": "Agrupar semejantes.", "math": "(4x + 3x) + (8y - y) + (-3 + 1)"}, {"expl": "Sumar coeficientes.", "math": "7x + 7y - 2"}]	basico	2026-05-13 17:27:15.950914	Agrupación de términos semejantes.	ejercicio	\N	\N
+29	ecuaciones	Resuelva: 3x + 5 = 17	3x + 5 = 17	["x = 4", "x = 3", "x = 6", "x = 2"]	[{"expl": "Restar 5.", "math": "3x = 12"}, {"expl": "Dividir por 3.", "math": "x = 4"}]	basico	2026-05-13 17:27:15.961271	Despeje de ecuaciones lineales.	ejercicio	\N	\N
+30	calculo	Calcule el límite: lim_{x->0} (8x + sen(7x)) / (4x - sen(x))	\\lim_{x \to 0} \frac{8x + sin(7x)}{4x - sin(x)}	["5", "3", "7", "1"]	[{"expl": "Aplicar regla de LHôpital.", "math": "\\text{LHopital}: lim \\frac{8+7cos(7x)}{4-cos(x)}"}, {"expl": "Evaluar en x=0.", "math": "\\frac{8+7}{4-1} = 5"}]	basico	2026-05-13 17:27:15.962131	Regla de LHôpital para límites indeterminados 0/0.	ejercicio	\N	\N
+31	calculo	Determine la derivada de f(x) = sqrt(x^2 + 5)	f(x) = sqrt{x^2 + 5}	["x / sqrt{x^2+5}", "1 / sqrt{x^2+5}", "2x / sqrt{x^2+5}", "x"]	[{"expl": "Regla de la cadena.", "math": "f'(x) = \\frac{1}{2sqrt{x^2+5}} cdot 2x"}, {"expl": "Simplificar.", "math": "\\frac{x}{sqrt{x^2+5}}"}]	basico	2026-05-13 17:27:15.962802	Derivada de una función compuesta.	ejercicio	\N	\N
+155	exp-log	Expanda: log(xy/z)	\\log\\left(\\frac{xy}{z}\\right)	["log x+log y-log z", "log x·log y/log z", "log(x+y-z)", "log x-log y+log z"]	[{"expl": "Propiedad producto y cociente", "math": "\\\\log x + \\\\log y - \\\\log z"}]	basico	2026-05-13 18:19:18.098091	log(xy)=log x+log y; log(x/y)=log x-log y	ejercicio	\N	\N
+156	exp-log	Resuelva: 2^(x+1) = 16	2^{x+1}=16	["x=3", "x=4", "x=2", "x=5"]	[{"expl": "16=2⁴", "math": "2^{x+1}=2^4"}, {"expl": "Igualar exponentes", "math": "x+1=4 \\\\Rightarrow x=3"}]	basico	2026-05-13 18:19:18.098427	Cuando las bases son iguales, igualar los exponentes	ejercicio	\N	\N
+157	exp-log	Simplifique: log(100) + log(10)	\\log(100)+\\log(10)	["3", "4", "10", "2.1"]	[{"expl": "log(100)=2, log(10)=1", "math": "2+1=3"}]	basico	2026-05-13 18:19:18.098747	Logaritmos en base 10 de potencias de 10	ejercicio	\N	\N
+158	trigonometria	¿Cuánto vale sen(30°)?	\\sin(30°)	["1/2", "√2/2", "√3/2", "1"]	[{"expl": "Valor exacto: ángulo 30° en el triángulo especial 30-60-90", "math": "\\\\sin(30°)=\\\\frac{1}{2}"}]	basico	2026-05-13 18:19:18.099076	Ángulos especiales: sen(30°)=1/2, cos(30°)=√3/2	ejercicio	\N	\N
+159	trigonometria	¿Cuánto vale cos(60°)?	\\cos(60°)	["1/2", "√3/2", "√2/2", "0"]	[{"expl": "Ángulo especial 60°", "math": "\\\\cos(60°)=\\\\frac{1}{2}"}]	basico	2026-05-13 18:19:18.099388	cos(60°)=1/2, comparte valor con sen(30°)	ejercicio	\N	\N
+160	trigonometria	Simplifique: sen²(x) + cos²(x)	\\sin^2(x)+\\cos^2(x)	["1", "0", "2", "sen(2x)"]	[{"expl": "Identidad pitagórica fundamental", "math": "=1"}]	basico	2026-05-13 18:19:18.099698	Identidad pitagórica: sen²(x)+cos²(x)=1 siempre	ejercicio	\N	\N
+161	trigonometria	Si sen(x)=3/5, ¿cuánto vale cos(x) en el primer cuadrante?	\\sin(x)=\\frac{3}{5}	["4/5", "5/3", "3/4", "2/5"]	[{"expl": "Identidad pitagórica", "math": "\\\\cos^2(x)=1-9/25=16/25"}, {"expl": "Raíz positiva (1er cuadrante)", "math": "\\\\cos(x)=4/5"}]	basico	2026-05-13 18:19:18.100068	Usar identidad pitagórica para encontrar la función complementaria	ejercicio	\N	\N
+162	trigonometria	¿Cuánto vale tan(45°)?	\\tan(45°)	["1", "√2", "√3/2", "0"]	[{"expl": "Definición de tangente", "math": "\\\\tan(45°)=\\\\frac{\\\\sin(45°)}{\\\\cos(45°)}=\\\\frac{\\\\sqrt{2}/2}{\\\\sqrt{2}/2}=1"}]	basico	2026-05-13 18:19:18.100422	tan(x)=sen(x)/cos(x). Para 45°, sen=cos=√2/2	ejercicio	\N	\N
+163	calculo	Calcule: lim_{x→2} (x² - 4)/(x - 2)	\\lim_{x \\to 2} \\frac{x^2-4}{x-2}	["4", "0", "2", "indefinido"]	[{"expl": "Factorizar numerador", "math": "\\\\lim_{x\\\\to 2}\\\\frac{(x+2)(x-2)}{x-2}"}, {"expl": "Cancelar (x-2) y evaluar", "math": "\\\\lim_{x\\\\to 2}(x+2)=4"}]	basico	2026-05-13 18:19:18.100764	Límite indeterminado 0/0: factorizar y cancelar	ejercicio	\N	\N
+164	calculo	Derive: f(x) = x³ + 2x	f(x)=x^3+2x	["f'(x)=3x²+2", "f'(x)=3x+2", "f'(x)=x²+2", "f'(x)=3x²"]	[{"expl": "Regla de la potencia: d/dx(xⁿ)=nxⁿ⁻¹", "math": "f'(x)=3x^2+2"}]	basico	2026-05-13 18:19:18.10135	Regla de la potencia y derivada de suma	ejercicio	\N	\N
+165	calculo	Derive: f(x) = sen(x)	f(x)=\\sin(x)	["f'(x)=cos(x)", "f'(x)=-cos(x)", "f'(x)=-sen(x)", "f'(x)=1"]	[{"expl": "Derivada del seno es el coseno", "math": "f'(x)=\\\\cos(x)"}]	basico	2026-05-13 18:19:18.101759	Derivadas trigonométricas: d/dx(sen x)=cos x	ejercicio	\N	\N
+166	calculo	Calcule la integral: ∫2x dx	\\int 2x\\,dx	["x²+C", "2x²+C", "x+C", "2+C"]	[{"expl": "Regla de la potencia inversa", "math": "\\\\int 2x\\\\,dx = \\\\frac{2x^2}{2}+C"}, {"expl": "Simplificar", "math": "x^2+C"}]	basico	2026-05-13 18:19:18.102199	∫xⁿdx = xⁿ⁺¹/(n+1)+C	ejercicio	\N	\N
+167	calculo	Calcule: lim_{x→∞} 1/x	\\lim_{x \\to \\infty} \\frac{1}{x}	["0", "1", "∞", "indefinido"]	[{"expl": "El denominador crece sin límite, el cociente se acerca a 0", "math": "\\\\lim_{x\\\\to\\\\infty}\\\\frac{1}{x}=0"}]	basico	2026-05-13 18:19:18.102576	Límites al infinito: 1/x→0 cuando x→∞	ejercicio	\N	\N
+168	calculo	Calcule la integral: ∫cos(x) dx	\\int \\cos(x)\\,dx	["sen(x)+C", "-sen(x)+C", "cos(x)+C", "tan(x)+C"]	[{"expl": "Integral del coseno es el seno", "math": "\\\\int \\\\cos(x)\\\\,dx = \\\\sin(x)+C"}]	basico	2026-05-13 18:19:18.102928	Integrales trigonométricas básicas: ∫cos(x)dx=sen(x)+C	ejercicio	\N	\N
+169	fracciones-alg	Simplifique: (x²-1)/(x-1)	\\frac{x^2-1}{x-1}	["x+1", "x-1", "x²+1", "1"]	[{"expl": "Factorizar diferencia de cuadrados y cancelar", "math": "\\\\frac{(x+1)(x-1)}{x-1}=x+1"}]	basico	2026-05-13 18:19:18.103246	Simplificación: factorizar y cancelar factores comunes	ejercicio	\N	\N
+170	fracciones-alg	Sume: 1/x + 1/y	\\frac{1}{x}+\\frac{1}{y}	["(x+y)/(xy)", "2/(x+y)", "(x+y)/x", "1/(xy)"]	[{"expl": "MCM = xy, equivalente a (x+y)/xy", "math": "\\\\frac{y+x}{xy}"}]	basico	2026-05-13 18:19:18.103546	Para sumar fracciones, encontrar el MCM de los denominadores	ejercicio	\N	\N
+171	fracciones-alg	Simplifique: (x²-9)/(x+3)	\\frac{x^2-9}{x+3}	["x-3", "x+3", "x²-3", "3-x"]	[{"expl": "Diferencia de cuadrados y cancelación", "math": "\\\\frac{(x+3)(x-3)}{x+3}=x-3"}]	basico	2026-05-13 18:19:18.103897	Factorizar numerador para simplificar	ejercicio	\N	\N
+172	fracciones-alg	Multiplique: (x/2) × (4/x)	\\frac{x}{2} \\times \\frac{4}{x}	["2", "2x", "4/x", "x/2"]	[{"expl": "Multiplicar numeradores y denominadores, cancelar x", "math": "\\\\frac{x \\\\cdot 4}{2 \\\\cdot x}=\\\\frac{4}{2}=2"}]	basico	2026-05-13 18:19:18.104256	Multiplicación de fracciones: multiplicar cruzado y simplificar	ejercicio	\N	\N
+173	fracciones-alg	Divida: (x/3) ÷ (x²/6)	\\frac{x}{3} \\div \\frac{x^2}{6}	["2/x", "x/2", "2x", "1/x"]	[{"expl": "Multiplicar por el recíproco", "math": "\\\\frac{x}{3} \\\\times \\\\frac{6}{x^2}=\\\\frac{6x}{3x^2}=\\\\frac{2}{x}"}]	basico	2026-05-13 18:19:18.104537	División de fracciones: multiplicar por el recíproco del divisor	ejercicio	\N	\N
+174	factorizacion	Factorice: x² - 25	x^2-25	["(x+5)(x-5)", "(x-5)^2", "x(x-25)", "(x+5)^2"]	[{"expl": "Identificar la forma a²-b² con a=x y b=5. Esta es una DIFERENCIA DE CUADRADOS.", "math": "x^2 - 5^2"}, {"expl": "Aplicar la fórmula: a²-b²=(a+b)(a-b). Verificar: (x+5)(x-5)=x²-5x+5x-25=x²-25 ✓", "math": "(x+5)(x-5)"}]	basico	2026-05-13 19:01:53.157063	Diferencia de cuadrados a²-b²=(a+b)(a-b). Reconócela cuando tienes DOS términos cuadrados con signo NEGATIVO entre ellos.	ejercicio	\N	\N
+175	factorizacion	Factorice: 4x² - 36	4x^2-36	["4(x+3)(x-3)", "(2x+6)(2x-6)", "4(x²-9)", "2(2x²-18)"]	[{"expl": "Paso 1: Extraer el FACTOR COMÚN 4 (siempre hazlo primero). 4x²÷4=x², 36÷4=9", "math": "4(x^2 - 9)"}, {"expl": "Paso 2: Factorizar x²-9 como diferencia de cuadrados con a=x, b=3", "math": "4(x+3)(x-3)"}]	basico	2026-05-13 19:01:53.171065	REGLA DE ORO: Siempre extrae el factor común monomio ANTES de aplicar cualquier otra fórmula.	ejercicio	\N	\N
+176	factorizacion	Factorice: x² + 10x + 25	x^2+10x+25	["(x+5)²", "(x+5)(x-5)", "(x+10)(x+25)", "(x+25)(x+1)"]	[{"expl": "Verificar que es cuadrado perfecto: el término del medio debe ser 2ab. Aquí b=5 porque 25=5²", "math": "a=x, \\\\; b=5: \\\\quad 2ab=2\\\\cdot x\\\\cdot 5=10x \\\\checkmark"}, {"expl": "Trinomio cuadrado perfecto: a²+2ab+b²=(a+b)². Aplicar con a=x, b=5", "math": "(x+5)^2"}]	basico	2026-05-13 19:01:53.171905	Trinomio cuadrado perfecto a²+2ab+b²=(a+b)². TRUCO: Toma raíz cuadrada del primer y último término. ¿El medio es el doble del producto? Entonces es cuadrado perfecto.	ejercicio	\N	\N
+177	factorizacion	Factorice por agrupación: ax + ay + bx + by	ax+ay+bx+by	["(a+b)(x+y)", "(ax+b)(y+1)", "a(x+y)+b", "xy(a+b)"]	[{"expl": "Agrupar: (ax+ay)+(bx+by). Del primer grupo sacar a, del segundo sacar b", "math": "a(x+y) + b(x+y)"}, {"expl": "El binomio (x+y) es el FACTOR COMÚN de los dos grupos. Sacarlo da (a+b)(x+y)", "math": "(a+b)(x+y)"}]	basico	2026-05-13 19:01:53.172631	Factorización por agrupación: 1) Agrupar en pares, 2) Extraer factor de cada par, 3) El factor común resultante es el factor final.	ejercicio	\N	\N
+178	factorizacion	Factorice: x³ + 27	x^3+27	["(x+3)(x²-3x+9)", "(x+3)³", "(x+3)(x²+9)", "(x+27)(x²-1)"]	[{"expl": "Identificar la forma suma de cubos: a³+b³", "math": "a=x, \\\\; b=3, \\\\; \\\\text{ya que } 27=3^3"}, {"expl": "Fórmula: a³+b³=(a+b)(a²-ab+b²). Con a=x, b=3: (x+3)(x²-3x+9). TRUCO: el signo del trinomio SIEMPRE sigue el patrón -,+", "math": "(x+3)(x^2-3x+9)"}]	basico	2026-05-13 19:01:53.173383	Suma de cubos: a³+b³=(a+b)(a²-ab+b²). Regla mnemotécnica SOAP: Same sign, Opposite sign, Always Positive.	ejercicio	\N	\N
+179	ecuaciones	Resuelva: 5(x-2) = 3(x+4)	5(x-2)=3(x+4)	["x=11", "x=7", "x=1", "x=-11"]	[{"expl": "Aplicar propiedad distributiva en ambos lados", "math": "5x - 10 = 3x + 12"}, {"expl": "Agrupar: términos con x a la izquierda, constantes a la derecha", "math": "5x - 3x = 12 + 10"}, {"expl": "Simplificar y dividir por 2. VERIFICAR: 5(11-2)=45 y 3(11+4)=45 ✓", "math": "2x = 22 \\\\Rightarrow x = 11"}]	basico	2026-05-13 19:01:53.174163	Ecuaciones con paréntesis: 1) Distribuir, 2) Agrupar semejantes, 3) Despejar x, 4) Verificar sustituyendo en la ecuación original.	ejercicio	\N	\N
+180	ecuaciones	Resuelva: x² + x - 6 = 0	x^2+x-6=0	["x=2 o x=-3", "x=-2 o x=3", "x=6 o x=-1", "x=2 o x=3"]	[{"expl": "Para factorizar x²+bx+c, buscar dos números que sumen 1 (coef. de x) y multipliquen -6 (término independiente)", "math": "\\\\text{Buscar: } a+b=1 \\\\text{ y } ab=-6"}, {"expl": "Los números son 3 y -2", "math": "a=3, b=-2: \\\\quad 3+(-2)=1 \\\\checkmark, \\\\quad 3\\\\cdot(-2)=-6 \\\\checkmark"}, {"expl": "Factorizar y aplicar propiedad del producto cero: si ab=0, entonces a=0 o b=0", "math": "(x+3)(x-2)=0 \\\\Rightarrow x=-3 \\\\text{ o } x=2"}]	basico	2026-05-13 19:01:53.174762	Ecuación cuadrática por factorización: busca dos números cuyo PRODUCTO sea el término independiente y cuya SUMA sea el coeficiente de x.	ejercicio	\N	\N
+181	ecuaciones	Resuelva con la fórmula: 2x² - 3x - 2 = 0	2x^2-3x-2=0	["x=2 o x=-1/2", "x=-2 o x=1/2", "x=3 o x=-2", "x=1 o x=-1"]	[{"expl": "Fórmula cuadrática: x=(-b±√(b²-4ac))/2a. Con a=2, b=-3, c=-2: discriminante=9+16=25", "math": "x=\\\\frac{3\\\\pm\\\\sqrt{9+16}}{4}=\\\\frac{3\\\\pm\\\\sqrt{25}}{4}"}, {"expl": "Dos soluciones. Verificar ambas en la ecuación original.", "math": "x=\\\\frac{3+5}{4}=2 \\\\quad \\\\text{o} \\\\quad x=\\\\frac{3-5}{4}=-\\\\frac{1}{2}"}]	basico	2026-05-13 19:01:53.175262	Fórmula cuadrática x=(-b±√(b²-4ac))/2a. El DISCRIMINANTE (b²-4ac): positivo=2 soluciones, cero=1 solución, negativo=sin solución real.	ejercicio	\N	\N
+182	inecuaciones	Resuelva: x² - 4 < 0	x^2 - 4 < 0	["-2 < x < 2", "x > 2 o x < -2", "x > 2", "x < -2"]	[{"expl": "Factorizar: x²-4=(x+2)(x-2). Puntos críticos: x=-2 y x=2", "math": "(x+2)(x-2) < 0"}, {"expl": "Analizar cada intervalo: x<-2 → (+)(-)<0 NO... espera: (x+2)<0 y (x-2)<0, producto positivo. Para -2<x<2: (x+2)>0 y (x-2)<0, producto NEGATIVO ✓", "math": "\\\\text{Tabla de signos: para } -2<x<2, \\\\text{ el producto es negativo}"}, {"expl": "Solución es el intervalo donde el producto es negativo", "math": "-2 < x < 2 \\\\quad \\\\text{(intervalo abierto)}"}]	basico	2026-05-13 19:01:53.176139	Inecuaciones cuadráticas: factorizar, encontrar puntos críticos, y analizar el SIGNO del producto en cada intervalo con tabla de signos.	ejercicio	\N	\N
+183	inecuaciones	Resuelva: |3x - 6| > 9	|3x-6|>9	["x > 5 o x < -1", "x > 5", "-1 < x < 5", "x < -1"]	[{"expl": "Cuando |f(x)|>a: el contenido es MAYOR que a O MENOR que -a (dos condiciones separadas por \\"o\\")", "math": "3x-6 > 9 \\\\quad \\\\text{o} \\\\quad 3x-6 < -9"}, {"expl": "Resolver cada inecuación por separado", "math": "3x > 15 \\\\Rightarrow x > 5 \\\\quad \\\\text{o} \\\\quad 3x < -3 \\\\Rightarrow x < -1"}]	basico	2026-05-13 19:01:53.176724	|f(x)|>a → f(x)>a o f(x)<-a (unión). |f(x)|<a → -a<f(x)<a (intersección). TRUCO: el signo > da "o"; el signo < da "y".	ejercicio	\N	\N
+184	exp-log	Resuelva: log₂(x+3) + log₂(x-1) = 3	\\log_2(x+3)+\\log_2(x-1)=3	["x=3", "x=1", "x=5", "x=-5"]	[{"expl": "Propiedad: log(a)+log(b)=log(ab). Combinar los dos logaritmos en uno", "math": "\\\\log_2[(x+3)(x-1)] = 3"}, {"expl": "Convertir de forma logarítmica a exponencial: log_b(x)=n ↔ x=b^n", "math": "(x+3)(x-1) = 2^3 = 8"}, {"expl": "(3+3)(3-1)=6·2=12... revisar. (x+3)(x-1)=x²+2x-3=8 → x²+2x-11=0 → x=3 ✓ (descartamos x negativo pues haría log negativo)", "math": "x^2+2x-3=8 \\\\Rightarrow x^2+2x-11=0... \\\\text{ verificar } x=3"}]	basico	2026-05-13 19:01:53.177232	Ecuaciones logarítmicas: usar propiedades para combinar logs, luego convertir a forma exponencial. SIEMPRE verificar que el argumento quede positivo.	ejercicio	\N	\N
+185	exp-log	Encuentre log₃(81) sin calculadora	\\log_3(81)	["4", "3", "27", "9"]	[{"expl": "Preguntar: ¿a qué potencia hay que elevar 3 para obtener 81?", "math": "3^? = 81"}, {"expl": "Calcular potencias de 3 hasta llegar a 81", "math": "3^1=3, 3^2=9, 3^3=27, 3^4=81"}, {"expl": "El exponente es 4. Respuesta: 4", "math": "\\\\log_3(81) = 4"}]	basico	2026-05-13 19:01:53.177694	Para evaluar log_b(x) sin calculadora: calcular potencias sucesivas de b hasta alcanzar x. El resultado es el exponente usado.	ejercicio	\N	\N
+186	trigonometria	Verifique la identidad: tan²(x) + 1 = sec²(x)	\\tan^2(x)+1=\\sec^2(x)	["Verdadera, es identidad pitagórica", "Falsa para todo x", "Solo válida para x=45°", "Solo cuando tan(x)=1"]	[{"expl": "Sustituir tan(x)=sin(x)/cos(x)", "math": "\\\\tan^2(x)+1 = \\\\frac{\\\\sin^2(x)}{\\\\cos^2(x)}+1"}, {"expl": "Numerador: usar identidad fundamental sen²+cos²=1", "math": "= \\\\frac{\\\\sin^2(x)+\\\\cos^2(x)}{\\\\cos^2(x)} = \\\\frac{1}{\\\\cos^2(x)}"}, {"expl": "Definición de secante: sec(x)=1/cos(x). Identidad verificada.", "math": "= \\\\sec^2(x) \\\\checkmark"}]	basico	2026-05-13 19:01:53.178115	Identidades pitagóricas derivadas: tan²x+1=sec²x y cot²x+1=csc²x. Se derivan dividiendo sen²x+cos²x=1 por cos²x y sen²x respectivamente.	ejercicio	\N	\N
+187	trigonometria	Exprese cos(75°) usando la suma de ángulos	\\cos(75°)=\\cos(45°+30°)	["(√6-√2)/4", "(√6+√2)/4", "√3/2", "√2/2"]	[{"expl": "Fórmula de suma: cos(A+B)=cosA·cosB-sinA·sinB", "math": "\\\\cos(45°+30°)=\\\\cos45°\\\\cos30°-\\\\sin45°\\\\sin30°"}, {"expl": "Sustituir valores exactos: cos45°=√2/2, cos30°=√3/2, sin45°=√2/2, sin30°=1/2", "math": "=\\\\frac{\\\\sqrt{2}}{2}\\\\cdot\\\\frac{\\\\sqrt{3}}{2}-\\\\frac{\\\\sqrt{2}}{2}\\\\cdot\\\\frac{1}{2}"}, {"expl": "Multiplicar y combinar fracciones", "math": "=\\\\frac{\\\\sqrt{6}-\\\\sqrt{2}}{4}"}]	basico	2026-05-13 19:01:53.178547	Fórmulas de adición: cos(A+B)=cosAcosB-sinAsinB. Útiles para calcular ángulos exactos que no son ángulos especiales estándar.	ejercicio	\N	\N
+188	calculo	Use regla de la cadena: f(x) = (3x² + 1)⁵	f(x)=(3x^2+1)^5	["f'(x)=5(3x²+1)⁴·6x", "f'(x)=5(3x²+1)⁴", "f'(x)=30x(3x²+1)⁴", "f'(x)=6x(3x²+1)⁵"]	[{"expl": "Regla de la cadena: d/dx[u^n] = n·u^(n-1)·u'. Aquí u=3x²+1, n=5", "math": "f'(x)=5(3x^2+1)^4 \\\\cdot \\\\frac{d}{dx}(3x^2+1)"}, {"expl": "Derivar la función interior: d/dx(3x²+1)=6x+0=6x", "math": "\\\\frac{d}{dx}(3x^2+1) = 6x"}, {"expl": "Multiplicar. Nota: AMBAS respuestas a y c son equivalentes; la forma simplificada es 30x(3x²+1)⁴", "math": "f'(x)=5(3x^2+1)^4 \\\\cdot 6x = 30x(3x^2+1)^4"}]	basico	2026-05-13 19:01:53.178932	Regla de la cadena: d/dx[f(g(x))]=f'(g(x))·g'(x). TRUCO: "derivada del exterior dejando el interior igual, multiplicado por derivada del interior".	ejercicio	\N	\N
+189	calculo	Evalúe la integral definida: ∫₀² x² dx	\\int_0^2 x^2\\,dx	["8/3", "4", "2", "3"]	[{"expl": "Antiderivada de x² es x³/3 (regla de la potencia inversa: ∫xⁿdx=xⁿ⁺¹/(n+1))", "math": "\\\\left[\\\\frac{x^3}{3}\\\\right]_0^2"}, {"expl": "Teorema fundamental del cálculo: evaluar la antiderivada en los límites y restar", "math": "\\\\frac{2^3}{3} - \\\\frac{0^3}{3} = \\\\frac{8}{3} - 0"}, {"expl": "Resultado. Representa el área bajo la parábola y=x² entre x=0 y x=2", "math": "\\\\frac{8}{3}"}]	basico	2026-05-13 19:01:53.179324	Integral definida ∫ₐᵇf(x)dx=[F(x)]ₐᵇ=F(b)-F(a). Antiderivada de xⁿ es xⁿ⁺¹/(n+1). Siempre evaluar en límite superior MENOS límite inferior.	ejercicio	\N	\N
+190	fracciones-alg	Divide: (x²-4)/(x+3) ÷ (x-2)/(x+3)	\\frac{x^2-4}{x+3} \\div \\frac{x-2}{x+3}	["x+2", "x-2", "1", "(x+2)(x-2)"]	[{"expl": "División = multiplicar por el recíproco: invertir la segunda fracción y cambiar ÷ por ×", "math": "\\\\frac{x^2-4}{x+3} \\\\cdot \\\\frac{x+3}{x-2}"}, {"expl": "Factorizar x²-4=(x+2)(x-2) en el numerador", "math": "\\\\frac{(x+2)(x-2)}{x+3} \\\\cdot \\\\frac{x+3}{x-2}"}, {"expl": "Cancelar factores comunes (x+3) y (x-2). Resultado: x+2, con x≠2 y x≠-3", "math": "\\\\frac{(x+2)\\\\cancel{(x-2)}}{\\\\cancel{x+3}} \\\\cdot \\\\frac{\\\\cancel{x+3}}{\\\\cancel{x-2}} = x+2"}]	basico	2026-05-13 19:01:53.179785	División de fracciones algebraicas: multiplicar por el recíproco, factorizar numeradores y denominadores, cancelar factores comunes.	ejercicio	\N	\N
+191	fracciones-alg	Reste: 3/(x²-1) - 1/(x+1)	\\frac{3}{x^2-1}-\\frac{1}{x+1}	["(4-x)/((x+1)(x-1))", "2/(x-1)", "(3-x)/(x²-1)", "2/(x²-1)"]	[{"expl": "Factorizar x²-1=(x+1)(x-1). El MCM es (x+1)(x-1)", "math": "\\\\frac{3}{(x+1)(x-1)} - \\\\frac{1}{x+1}"}, {"expl": "Convertir la segunda fracción: multiplicar por (x-1)/(x-1). OJO: el signo negativo afecta a TODA la expresión", "math": "\\\\frac{3 - (x-1)}{(x+1)(x-1)} = \\\\frac{3-x+1}{(x+1)(x-1)}"}, {"expl": "3-x+1=4-x. Resultado final.", "math": "\\\\frac{4-x}{(x+1)(x-1)}"}]	basico	2026-05-13 19:01:53.180182	Resta de fracciones con denominadores relacionados: factorizar, encontrar MCM, llevar al mismo denominador, y CUIDAR el signo de la resta.	ejercicio	\N	\N
+192	factorizacion	Factorice: 2x² + 5x + 3	2x^2+5x+3	["(2x+3)(x+1)", "(2x+1)(x+3)", "(x+3)(x+1)", "2(x+3)(x+1)"]	[{"expl": "Método ac: multiplicar a=2 por c=3 para obtener 6. Buscar dos números que sumen 5 y multipliquen 6", "math": "a\\\\cdot c = 2\\\\cdot 3 = 6, \\\\quad b = 5"}, {"expl": "Los números son 2 y 3. Reescribir 5x = 2x + 3x", "math": "2+3=5 \\\\checkmark \\\\quad 2\\\\cdot 3=6 \\\\checkmark"}, {"expl": "Agrupar y factorizar por grupos", "math": "2x^2+2x+3x+3 = 2x(x+1)+3(x+1) = (2x+3)(x+1)"}]	basico	2026-05-13 19:01:53.180669	Factorización de trinomio ax²+bx+c (a≠1): método AC. Multiplica a·c, busca dos factores de ese producto que sumen b, luego factoriza por agrupación.	ejercicio	\N	\N
+193	ecuaciones	Resuelva el sistema: 2x + 3y = 12, x - y = 1	2x+3y=12, \\; x-y=1	["x=3, y=2", "x=4, y=3", "x=2, y=1", "x=5, y=4"]	[{"expl": "Método de sustitución: despejar x de la ecuación más simple", "math": "x = y + 1 \\\\text{ (de la segunda ecuación)}"}, {"expl": "Sustituir x=y+1 en la primera ecuación y resolver para y", "math": "2(y+1) + 3y = 12 \\\\Rightarrow 5y = 10 \\\\Rightarrow y = 2"}, {"expl": "Sustituir y=2 para encontrar x. VERIFICAR: 2(3)+3(2)=12 ✓ y 3-2=1 ✓", "math": "x = 2 + 1 = 3"}]	basico	2026-05-13 19:01:53.180987	Sistema de ecuaciones por sustitución: 1) Despejar una variable, 2) Sustituir en la otra ecuación, 3) Resolver, 4) Encontrar la segunda variable, 5) Verificar.	ejercicio	\N	\N
+\.
+
+
+--
+-- TOC entry 5191 (class 0 OID 123170)
+-- Dependencies: 236
+-- Data for Name: game_sessions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.game_sessions (id, user_id, inicio, fin, ejercicios_completados, ejercicios_correctos, xp_ganada, juego_descanso) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5187 (class 0 OID 123129)
+-- Dependencies: 232
+-- Data for Name: leaderboard; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.leaderboard (id, user_id, xp_total, ejercicios_resueltos, tasa_exito, racha_maxima, posicion_global, ultima_actualizacion) FROM stdin;
+1	4	0	0	0.00	0	\N	2026-05-13 15:41:33.203571
+\.
+
+
+--
+-- TOC entry 5197 (class 0 OID 123227)
+-- Dependencies: 242
+-- Data for Name: missions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.missions (id, name, description, topic_ids, exercise_count, time_limit_min, hp_reward, xp_reward, difficulty, category, created_at) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5181 (class 0 OID 123073)
+-- Dependencies: 226
+-- Data for Name: parent_child_relations; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.parent_child_relations (id, parent_id, child_id) FROM stdin;
+1	3	2
+\.
+
+
+--
+-- TOC entry 5195 (class 0 OID 123212)
+-- Dependencies: 240
+-- Data for Name: topic_content; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.topic_content (id, topic_id, title, description, theory_html, created_at) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5183 (class 0 OID 123093)
+-- Dependencies: 228
+-- Data for Name: topic_progress; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.topic_progress (id, user_id, topic_id, ejercicios_completados, ejercicios_correctos, fallos_acumulados, ultima_practica) FROM stdin;
+1	4	factorizacion	10	4	6	2026-05-13 18:45:45.740226
+\.
+
+
+--
+-- TOC entry 5175 (class 0 OID 122873)
+-- Dependencies: 220
+-- Data for Name: topics; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.topics (id, name, parcial_num, description) FROM stdin;
+1	Factorización Profunda	1	\N
+2	Inecuaciones Racionales	2	\N
+3	Valor Absoluto y Propiedades	1	Despejes con distancias y análisis geométrico inicial
+\.
+
+
+--
+-- TOC entry 5199 (class 0 OID 123244)
+-- Dependencies: 244
+-- Data for Name: user_missions; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.user_missions (id, user_id, mission_id, status, score, hp_remaining, completed_at, started_at) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5177 (class 0 OID 122902)
+-- Dependencies: 222
+-- Data for Name: user_progress; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.user_progress (id, user_id, exercise_id, is_correct, xp_earned, attempt_date) FROM stdin;
+\.
+
+
+--
+-- TOC entry 5179 (class 0 OID 123045)
+-- Dependencies: 224
+-- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.users (id, username, password_hash, nombre, email, rol, xp, nivel, hp, racha_actual, racha_maxima, tiempo_practica, fecha_registro, ultimo_acceso, activo) FROM stdin;
+1	admin	$2b$10$YourHashedPasswordHere	Administrador	admin@mathmaty.com	admin	0	1	100	0	0	0	2026-05-13 15:13:00.114248	2026-05-13 15:13:00.114248	t
+2	matias	$2b$10$YourHashedPasswordHere	Matías	matias@example.com	estudiante	0	1	100	0	0	0	2026-05-13 15:13:00.117509	2026-05-13 15:13:00.117509	t
+3	padre	$2b$10$YourHashedPasswordHere	Padre de Matías	padre@example.com	padre	0	1	100	0	0	0	2026-05-13 15:13:00.117824	2026-05-13 15:13:00.117824	t
+4	jesquiv	$2b$10$pLalhyqVXe2wc6L7LKnzUeSwruwNNdJhjFQsh9VB6lJhrL4ijE7De	Jorge Esquivel	\N	padre	0	1	100	0	0	0	2026-05-13 15:41:33.200942	2026-05-13 19:36:11.934038	t
+\.
+
+
+--
+-- TOC entry 5218 (class 0 OID 0)
+-- Dependencies: 233
+-- Name: api_config_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.api_config_id_seq', 2, true);
+
+
+--
+-- TOC entry 5219 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: exercise_history_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.exercise_history_id_seq', 10, true);
+
+
+--
+-- TOC entry 5220 (class 0 OID 0)
+-- Dependencies: 237
+-- Name: exercises_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.exercises_id_seq', 193, true);
+
+
+--
+-- TOC entry 5221 (class 0 OID 0)
+-- Dependencies: 235
+-- Name: game_sessions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.game_sessions_id_seq', 1, false);
+
+
+--
+-- TOC entry 5222 (class 0 OID 0)
+-- Dependencies: 231
+-- Name: leaderboard_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.leaderboard_id_seq', 1, true);
+
+
+--
+-- TOC entry 5223 (class 0 OID 0)
+-- Dependencies: 241
+-- Name: missions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.missions_id_seq', 1, false);
+
+
+--
+-- TOC entry 5224 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: parent_child_relations_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.parent_child_relations_id_seq', 3, true);
+
+
+--
+-- TOC entry 5225 (class 0 OID 0)
+-- Dependencies: 239
+-- Name: topic_content_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.topic_content_id_seq', 1, false);
+
+
+--
+-- TOC entry 5226 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: topic_progress_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.topic_progress_id_seq', 1, true);
+
+
+--
+-- TOC entry 5227 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: topics_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.topics_id_seq', 2, true);
+
+
+--
+-- TOC entry 5228 (class 0 OID 0)
+-- Dependencies: 243
+-- Name: user_missions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.user_missions_id_seq', 1, false);
+
+
+--
+-- TOC entry 5229 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: user_progress_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.user_progress_id_seq', 1, false);
+
+
+--
+-- TOC entry 5230 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.users_id_seq', 10, true);
+
+
+--
+-- TOC entry 5003 (class 2606 OID 123161)
+-- Name: api_config api_config_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.api_config
+    ADD CONSTRAINT api_config_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5005 (class 2606 OID 123163)
+-- Name: api_config api_config_user_id_proveedor_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.api_config
+    ADD CONSTRAINT api_config_user_id_proveedor_key UNIQUE (user_id, proveedor);
+
+
+--
+-- TOC entry 4994 (class 2606 OID 123122)
+-- Name: exercise_history exercise_history_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.exercise_history
+    ADD CONSTRAINT exercise_history_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5009 (class 2606 OID 123209)
+-- Name: exercises exercises_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.exercises
+    ADD CONSTRAINT exercises_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5007 (class 2606 OID 123181)
+-- Name: game_sessions game_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.game_sessions
+    ADD CONSTRAINT game_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4999 (class 2606 OID 123140)
+-- Name: leaderboard leaderboard_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.leaderboard
+    ADD CONSTRAINT leaderboard_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5001 (class 2606 OID 123142)
+-- Name: leaderboard leaderboard_user_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.leaderboard
+    ADD CONSTRAINT leaderboard_user_id_key UNIQUE (user_id);
+
+
+--
+-- TOC entry 5015 (class 2606 OID 123242)
+-- Name: missions missions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.missions
+    ADD CONSTRAINT missions_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4985 (class 2606 OID 123081)
+-- Name: parent_child_relations parent_child_relations_parent_id_child_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parent_child_relations
+    ADD CONSTRAINT parent_child_relations_parent_id_child_id_key UNIQUE (parent_id, child_id);
+
+
+--
+-- TOC entry 4987 (class 2606 OID 123079)
+-- Name: parent_child_relations parent_child_relations_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parent_child_relations
+    ADD CONSTRAINT parent_child_relations_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5011 (class 2606 OID 123223)
+-- Name: topic_content topic_content_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_content
+    ADD CONSTRAINT topic_content_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5013 (class 2606 OID 123225)
+-- Name: topic_content topic_content_topic_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_content
+    ADD CONSTRAINT topic_content_topic_id_key UNIQUE (topic_id);
+
+
+--
+-- TOC entry 4990 (class 2606 OID 123104)
+-- Name: topic_progress topic_progress_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_progress
+    ADD CONSTRAINT topic_progress_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4992 (class 2606 OID 123106)
+-- Name: topic_progress topic_progress_user_id_topic_id_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_progress
+    ADD CONSTRAINT topic_progress_user_id_topic_id_key UNIQUE (user_id, topic_id);
+
+
+--
+-- TOC entry 4973 (class 2606 OID 122883)
+-- Name: topics topics_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 5017 (class 2606 OID 123253)
+-- Name: user_missions user_missions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_missions
+    ADD CONSTRAINT user_missions_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4975 (class 2606 OID 122910)
+-- Name: user_progress user_progress_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_progress
+    ADD CONSTRAINT user_progress_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4979 (class 2606 OID 123071)
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_key UNIQUE (email);
+
+
+--
+-- TOC entry 4981 (class 2606 OID 123067)
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 4983 (class 2606 OID 123069)
+-- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_username_key UNIQUE (username);
+
+
+--
+-- TOC entry 4995 (class 1259 OID 123191)
+-- Name: idx_exercise_history_timestamp; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_exercise_history_timestamp ON public.exercise_history USING btree ("timestamp");
+
+
+--
+-- TOC entry 4996 (class 1259 OID 123190)
+-- Name: idx_exercise_history_user; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_exercise_history_user ON public.exercise_history USING btree (user_id);
+
+
+--
+-- TOC entry 4997 (class 1259 OID 123192)
+-- Name: idx_leaderboard_xp; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_leaderboard_xp ON public.leaderboard USING btree (xp_total DESC);
+
+
+--
+-- TOC entry 4988 (class 1259 OID 123189)
+-- Name: idx_topic_progress_user; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_topic_progress_user ON public.topic_progress USING btree (user_id);
+
+
+--
+-- TOC entry 4976 (class 1259 OID 123188)
+-- Name: idx_users_rol; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_users_rol ON public.users USING btree (rol);
+
+
+--
+-- TOC entry 4977 (class 1259 OID 123187)
+-- Name: idx_users_username; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_users_username ON public.users USING btree (username);
+
+
+--
+-- TOC entry 5023 (class 2606 OID 123164)
+-- Name: api_config api_config_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.api_config
+    ADD CONSTRAINT api_config_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5021 (class 2606 OID 123123)
+-- Name: exercise_history exercise_history_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.exercise_history
+    ADD CONSTRAINT exercise_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5024 (class 2606 OID 123182)
+-- Name: game_sessions game_sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.game_sessions
+    ADD CONSTRAINT game_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5022 (class 2606 OID 123143)
+-- Name: leaderboard leaderboard_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.leaderboard
+    ADD CONSTRAINT leaderboard_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5018 (class 2606 OID 123087)
+-- Name: parent_child_relations parent_child_relations_child_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parent_child_relations
+    ADD CONSTRAINT parent_child_relations_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5019 (class 2606 OID 123082)
+-- Name: parent_child_relations parent_child_relations_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parent_child_relations
+    ADD CONSTRAINT parent_child_relations_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5020 (class 2606 OID 123107)
+-- Name: topic_progress topic_progress_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.topic_progress
+    ADD CONSTRAINT topic_progress_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- TOC entry 5025 (class 2606 OID 123259)
+-- Name: user_missions user_missions_mission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_missions
+    ADD CONSTRAINT user_missions_mission_id_fkey FOREIGN KEY (mission_id) REFERENCES public.missions(id);
+
+
+--
+-- TOC entry 5026 (class 2606 OID 123254)
+-- Name: user_missions user_missions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_missions
+    ADD CONSTRAINT user_missions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+
+-- Completed on 2026-05-13 19:44:51
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 9qRdEV0ye3tb5qbbBivTZlXcrX97vbdNImio1SFKHBooMzAEhjkG0QTf5wQxa0s
+
