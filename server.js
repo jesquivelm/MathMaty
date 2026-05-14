@@ -948,8 +948,10 @@ app.delete('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-app.listen(port, () => {
-  console.log(`====================================================`);
-  console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
-  console.log(`====================================================`);
-});
+if (process.env.VERCEL) {
+  module.exports = app;
+} else {
+  app.listen(port, () => {
+    console.log(`MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}`);
+  });
+}
