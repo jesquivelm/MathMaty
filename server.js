@@ -25,6 +25,15 @@ app.use(express.static('public'));
 // SERVIR KATEX LOCALMENTE DESDE NODE_MODULES (Evita bloqueos de CDN / Tracking Prevention)
 app.use('/katex', express.static(path.join(__dirname, 'node_modules/katex/dist')));
 
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    env: process.env.VERCEL ? 'vercel' : 'local',
+    hasDatabaseUrl: !!process.env.DATABASE_URL
+  });
+});
+
+
 // Middleware de autenticación
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
