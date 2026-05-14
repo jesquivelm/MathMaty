@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const app = express();
+
 const port = process.env.PORT || 3030;
 
 const pool = new Pool({
@@ -16,13 +17,6 @@ const pool = new Pool({
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'mathmaty',
-  password: 'Calg.1984', 
-  port: 5432,
-});
 
 app.use(cors());
 app.use(express.json());
