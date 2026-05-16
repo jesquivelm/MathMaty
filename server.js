@@ -26,9 +26,17 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 // Try multiple possible public paths for Vercel compatibility
-const publicPath = fs.existsSync(path.join(__dirname, 'public'))
-  ? path.join(__dirname, 'public')
-  : path.join(process.cwd(), 'public');
+const possiblePaths = [
+  path.join(__dirname, 'public'),
+  path.join(process.cwd(), 'public'),
+  path.join(__dirname, '..', 'public'),
+];
+let publicPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
+console.log('[MathMaty] Public path:', publicPath);
+console.log('[MathMaty] __dirname:', __dirname);
+console.log('[MathMaty] cwd:', process.cwd());
+console.log('[MathMaty] index.html exists:', fs.existsSync(path.join(publicPath, 'index.html')));
+
 app.use(express.static(publicPath));
 
 // Root route - must be before other routes for Vercel
@@ -37,7 +45,8 @@ app.get('/', (req, res) => {
   if (fs.existsSync(indexPath)) {
     res.sendFile(indexPath);
   } else {
-    res.status(200).send('<html><body><h1>MathMaty</h1><p>Cargando...</p><script>window.location.href="/index.html";</script></body></html>');
+    // Fallback: try to read and send
+    res.type('html').send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MathMaty</title></head><body><h1>MathMaty TEC</h1><p>Si ves esto, el servidor funciona pero no encuentra index.html</p><script>fetch('/index.html').then(r=>r.text()).then(h=>{document.open();document.write(h);document.close()})</script></body></html>`);
   }
 });
 app.get('/health', (req, res) => {
