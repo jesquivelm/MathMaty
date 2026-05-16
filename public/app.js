@@ -204,7 +204,7 @@ async function handleLogin(e) {
   } else { document.getElementById('auth-error').textContent = data.error; }
 }
 
-function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; showAuth(); }
+function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; window.location.reload(); }
 
 // ============================================================
 // NAVEGACI&Oacute;N
@@ -213,7 +213,11 @@ function showView(view) {
   state.view = view;
   document.getElementById('auth-container')?.classList.add('hidden');
   document.getElementById('app-container')?.classList.remove('hidden');
-  document.getElementById('doom-widget')?.classList.remove('hidden');
+  const dw = document.getElementById('doom-widget');
+  if (dw) {
+    dw.classList.remove('hidden');
+    dw.style.display = 'flex';
+  }
   document.getElementById('sidebar')?.classList.remove('mobile-open');
   
   const main = document.getElementById('main-content');
