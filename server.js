@@ -1851,29 +1851,31 @@ app.get('/api/dashboard/completo', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
-    // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
-    const check = await pool.query(`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'knowledge_library'
-      )
-    `);
-    
-    if (!check.rows[0].exists) {
-      console.log('⚠️  Tablas no encontradas. Ejecutando schema automáticamente...');
-      const schemaPath = path.join(__dirname, 'database_schema.sql');
-      if (fs.existsSync(schemaPath)) {
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-        const statements = schemaSql.split(';').filter(s => s.trim().length > 0);
-        for (const stmt of statements) {
-          try { await pool.query(stmt); } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+    const schemaPath = path.join(__dirname, 'database_schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+      // Remove comments and split by semicolons for safe execution
+      const cleanSql = schemaSql.replace(/--.*$/gm, '').trim();
+      // Execute each CREATE TABLE separately, others as batch
+      const statements = cleanSql.split(';').filter(s => s.trim().length > 0);
+      let executed = 0;
+      for (const stmt of statements) {
+        const trimmed = stmt.trim();
+        if (trimmed.toUpperCase().startsWith('CREATE TABLE')) {
+          try { await pool.query(trimmed + ';'); executed++; }
+          catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
         }
-        console.log('✅  Schema ejecutado');
-      } else {
-        console.log('❌  No se encuentra database_schema.sql');
       }
+      // Run remaining DML (INSERT, etc.) with error tolerance
+      for (const stmt of statements) {
+        const trimmed = stmt.trim();
+        if (!trimmed.toUpperCase().startsWith('CREATE TABLE') && !trimmed.toUpperCase().startsWith('CREATE INDEX') && !trimmed.toUpperCase().startsWith('TRUNCATE')) {
+          try { await pool.query(trimmed + ';'); } catch (e) { /* skip expected errors */ }
+        }
+      }
+      console.log('✅  Base de datos: ' + executed + ' tablas verificadas');
     } else {
-      console.log('✅  Base de datos: todas las tablas presentes');
+      console.log('❌  No se encuentra database_schema.sql');
     }
     // Ensure doom_videos table exists
     await pool.query(`
@@ -1883,6 +1885,7 @@ async function initDatabase() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    console.log('✅  doom_videos table ready');
   } catch (err) {
     console.error('⚠️  Error de base de datos:');
     console.error('   Mensaje:', JSON.stringify(err.message));
