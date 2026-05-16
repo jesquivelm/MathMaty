@@ -25,6 +25,17 @@ const pool = new Pool(
 // Log database connection mode
 console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
 console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
+}
+
+// Test connection immediately
+pool.query('SELECT 1 as test').then(r => {
+  console.log('[DB] ✅ Connection test OK');
+}).catch(err => {
+  console.error('[DB] ❌ Connection test FAILED:', err.message);
+  console.error('[DB] Error code:', err.code);
+});
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -1865,8 +1876,10 @@ async function initDatabase() {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
   } catch (err) {
-    console.error('⚠️  Error verificando base de datos:', err.message || JSON.stringify(err));
-    console.error('   Stack:', err.stack || 'no stack');
+    console.error('⚠️  Error de base de datos:');
+    console.error('   Mensaje:', JSON.stringify(err.message));
+    console.error('   Code:', err.code);
+    console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
   }
 }
 
