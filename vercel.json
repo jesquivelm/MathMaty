@@ -7,21 +7,8 @@
     }
   ],
   "routes": [
-    {
-      "src": "/katex/(.*)",
-      "dest": "server.js"
-    },
-    {
-      "src": "/uploads/(.*)",
-      "dest": "server.js"
-    },
-    {
-      "src": "/img/(.*)",
-      "dest": "server.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "server.js"
-    }
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "server.js" },
+    { "src": "/(.*)", "dest": "server.js" }
   ]
 }

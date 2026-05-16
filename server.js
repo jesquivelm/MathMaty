@@ -25,21 +25,13 @@ const pool = new Pool(
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Try multiple possible public paths for Vercel compatibility
-const publicPath = fs.existsSync(path.join(__dirname, 'public'))
-  ? path.join(__dirname, 'public')
-  : path.join(process.cwd(), 'public');
-app.use(express.static(publicPath));
+const publicDir = path.join(__dirname, 'public');
+const publicDirExists = fs.existsSync(publicDir);
+console.log('[MathMaty] Public dir:', publicDir, 'exists:', publicDirExists);
 
-// Root route - must be before other routes for Vercel
-app.get('/', (req, res) => {
-  const indexPath = path.join(publicPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(200).send('<html><body><h1>MathMaty</h1><p>Cargando...</p><script>window.location.href="/index.html";</script></body></html>');
-  }
-});
+if (publicDirExists) {
+  app.use(express.static(publicDir));
+}
 app.get('/health', (req, res) => {
   res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
