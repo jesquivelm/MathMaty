@@ -3,136 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MathMaty — Tutor de Matemáticas TEC</title>
-    <meta name="description" content="Aprende matemáticas del TEC con explicaciones paso a paso, gamificación y tutoría por IA.">
+    <title>MathMaty - Tutor de Matem&aacute;ticas TEC</title>
+    <meta name="description" content="Aprende matem&aacute;ticas del TEC con explicaciones paso a paso, gamificaci&oacute;n y tutor&iacute;a por IA.">
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="/katex/katex.min.css">
+    <script defer src="/katex/katex.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="auth-container" class="container">
-        <!-- Login / Register screens will go here -->
-    </div>
+    <div id="auth-container" class="container"></div>
 
     <div id="app-container" class="app-layout hidden">
         <header>
             <div class="header-left">
-                <h1>MathMaty <span style="color: var(--color-primary);">TEC</span></h1>
+                <button id="mobile-menu-btn" class="btn btn-outline btn-sm mobile-only" onclick="toggleMobileMenu()"><i class="ti ti-menu-2"></i></button>
+                <h1>MathMaty <span style="color:var(--color-primary);">TEC</span></h1>
             </div>
-            <div class="header-right" style="display: flex; gap: 1rem; align-items: center;">
+            <div class="header-right">
                 <div class="global-stats">
-                    <span id="global-rank" class="btn btn-outline" style="font-size: 0.8rem;">
-                        <i class="ti ti-trophy"></i> Rank: #--
-                    </span>
-                    <span id="user-xp" class="btn btn-outline" style="font-size: 0.8rem;">
-                        <i class="ti ti-star"></i> 0 XP
-                    </span>
+                    <span id="global-rank" class="btn btn-outline btn-xs"><i class="ti ti-trophy"></i> <span class="stat-label">#--</span></span>
+                    <span id="user-xp" class="btn btn-outline btn-xs"><i class="ti ti-star"></i> <span class="stat-label">0 XP</span></span>
+                    <span id="user-level" class="btn btn-outline btn-xs"><i class="ti ti-certificate"></i> <span class="stat-label">Lv 1</span></span>
                 </div>
-                <div class="user-menu" style="display: flex; gap: 0.5rem;">
-                    <button class="btn btn-outline" onclick="showView('reports')"><i class="ti ti-chart-bar"></i></button>
-                    <button class="btn btn-outline" onclick="showView('config')"><i class="ti ti-settings"></i></button>
-                    <button class="btn btn-outline" onclick="logout()"><i class="ti ti-logout"></i></button>
+                <div class="header-actions">
+                    <button class="btn btn-outline btn-xs" onclick="openSolver()" title="Resolver"><i class="ti ti-robot"></i> <span class="action-label">Resolver</span></button>
+                    <button class="btn btn-outline btn-xs" onclick="toggleWhiteboard()" title="Pizarra"><i class="ti ti-pencil"></i></button>
+                    <button class="btn btn-outline btn-xs" onclick="showView('reports')" title="Reportes"><i class="ti ti-chart-bar"></i></button>
+                    <button class="btn btn-outline btn-xs" onclick="showView('config')" title="Configuraci&oacute;n"><i class="ti ti-settings"></i></button>
+                    <button class="btn btn-outline btn-xs" onclick="logout()" title="Salir"><i class="ti ti-logout"></i></button>
                 </div>
             </div>
         </header>
 
-        <aside>
-            <nav style="display: flex; flex-direction: column; gap: 0.5rem;">
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('home')">
-                    <i class="ti ti-smart-home"></i> Inicio
-                </button>
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('topics')">
-                    <i class="ti ti-book"></i> Temas y Materia
-                </button>
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('missions')">
-                    <i class="ti ti-sword"></i> Misiones
-                </button>
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('exams')">
-                    <i class="ti ti-clipboard-list"></i> Pruebas y Exámenes
-                </button>
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('leaderboard')">
-                    <i class="ti ti-award"></i> Clasificación
-                </button>
-                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('admin')">
-                    <i class="ti ti-database"></i> Banco de Ejercicios
-                </button>
-                <button id="parent-btn" class="btn btn-outline hidden" style="justify-content: flex-start;" onclick="showView('parent-dashboard')">
-                    <i class="ti ti-users"></i> Mis Hijos
-                </button>
+        <aside id="sidebar">
+            <nav>
+                <button class="btn btn-outline nav-btn" onclick="showView('home')"><i class="ti ti-smart-home"></i><span>Inicio</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('topics')"><i class="ti ti-book"></i><span>Temas</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('missions')"><i class="ti ti-sword"></i><span>Misiones</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i><span>Ex&aacute;menes</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('events')"><i class="ti ti-flame"></i><span>Eventos</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('leaderboard')"><i class="ti ti-award"></i><span>Clasificaci&oacute;n</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('knowledge')"><i class="ti ti-library"></i><span>Biblioteca</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('badges')"><i class="ti ti-medal"></i><span>Logros</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('shop')"><i class="ti ti-shopping-bag"></i><span>Tienda</span></button>
+                <button class="btn btn-outline nav-btn" onclick="showView('admin')"><i class="ti ti-database"></i><span>Banco</span></button>
+                <button id="parent-btn" class="btn btn-outline nav-btn hidden" onclick="showView('parent-dashboard')"><i class="ti ti-users"></i><span>Mis Hijos</span></button>
+                <button id="game-catalog-btn" class="btn btn-outline nav-btn hidden" onclick="showView('game-catalog')"><i class="ti ti-device-gamepad-2"></i><span>Cat&aacute;logo Juegos</span></button>
             </nav>
-
-            <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
-                <h4 style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Próximo Descanso</h4>
-                <div class="hp-bar-container" style="width: 100%;">
-                    <div id="break-progress" class="hp-bar-fill" style="width: 0%; background: var(--color-primary);"></div>
-                </div>
-                <p style="font-size: 0.7rem; color: var(--color-text-secondary); margin-top: 0.5rem;">0/10 ejercicios para el juego</p>
+            <div class="sidebar-footer">
+                <h4>Pausa Activa</h4>
+                <div class="hp-bar-container"><div id="break-progress" class="hp-bar-fill"></div></div>
+                <p id="break-text" style="font-size:.7rem;color:var(--color-text-secondary);margin-top:.25rem;">0/10</p>
             </div>
         </aside>
 
-        <main id="main-content">
-            <!-- Dynamic views here -->
-        </main>
+        <nav id="bottom-nav" class="bottom-nav mobile-only">
+            <button class="bottom-nav-btn" onclick="showView('home')"><i class="ti ti-smart-home"></i><span>Inicio</span></button>
+            <button class="bottom-nav-btn" onclick="showView('topics')"><i class="ti ti-book"></i><span>Temas</span></button>
+            <button class="bottom-nav-btn" onclick="showView('missions')"><i class="ti ti-sword"></i><span>Misiones</span></button>
+            <button class="bottom-nav-btn" onclick="showView('events')"><i class="ti ti-flame"></i><span>Eventos</span></button>
+            <button class="bottom-nav-btn" onclick="showView('leaderboard')"><i class="ti ti-award"></i><span>Ranking</span></button>
+        </nav>
+
+        <main id="main-content"></main>
     </div>
 
-    <!-- Doom Guy Widget -->
+    <!-- Doom Widget (Video-based) -->
     <div id="doom-widget" class="doom-widget hidden">
-        <div id="doom-face" class="doom-face"></div>
-        <div class="hp-bar-container">
-            <div id="hp-fill" class="hp-bar-fill"></div>
+        <div class="doom-float-handle"></div>
+        <div id="doom-face" class="doom-face" onclick="toggleInventory()" title="Inventario" style="background-image:var(--doom-bg);background-size:cover;background-position:center;background-blend-mode:overlay;cursor:pointer;">
+            <video id="doom-video" muted loop playsinline style="width:100%;height:100%;object-fit:cover;border-radius:6px;pointer-events:none;"></video>
         </div>
-        <div style="display: flex; justify-content: space-between; width: 100%; font-size: 0.7rem; font-weight: bold;">
-            <span>HP</span>
-            <span id="hp-text">100/100</span>
-        </div>
-        <button id="pizarra-btn" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 0.5rem;" onclick="toggleWhiteboard()">
-            <i class="ti ti-pencil"></i> Pizarra
-        </button>
+        <div id="doom-hp-display" class="doom-hp-display">100</div>
     </div>
 
-    <!-- Whiteboard Modal -->
-    <div id="whiteboard-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; flex-direction: column;">
-        <div style="padding: 1rem; display: flex; justify-content: space-between; align-items: center; background: var(--color-surface);">
-            <h3>Pizarra de Apoyo</h3>
-            <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-outline btn-sm" onclick="clearWhiteboard()">Limpiar</button>
-                <button class="btn btn-primary btn-sm" onclick="saveWhiteboard()">Guardar</button>
-                <button class="btn btn-outline btn-sm" onclick="toggleWhiteboard()">Cerrar</button>
+    <!-- Solver Modal -->
+    <div id="solver-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1002;display:flex;align-items:center;justify-content:center;">
+        <div class="card" style="max-width:620px;width:92%;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header-sticky"><h2><i class="ti ti-robot"></i> Resolver</h2><button class="modal-close-x" onclick="closeSolver()">&times;</button></div>
+            <div style="margin:1rem 0;">
+                <div style="display:flex;gap:6px;">
+                    <input type="text" id="solver-input" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;font-size:15px;" placeholder="Ej: x^2-9, 3x+5=17, sin(x)">
+                    <button class="btn btn-primary" onclick="solveExpression()" title="Calcular"><i class="ti ti-player-play"></i></button>
+                </div>
+                <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">
+                    <button class="btn btn-outline btn-xs" onclick="setSolverExample('x^2 - 9')">x&sup2;-9</button>
+                    <button class="btn btn-outline btn-xs" onclick="setSolverExample('3x + 5 = 17')">3x+5=17</button>
+                    <button class="btn btn-outline btn-xs" onclick="setSolverExample('x^2 - 5x + 6 = 0')">x&sup2;-5x+6=0</button>
+                    <button class="btn btn-outline btn-xs" onclick="setSolverExample('sin(x)')">sen(x)</button>
+                </div>
             </div>
-        </div>
-        <canvas id="whiteboard-canvas" style="flex: 1; touch-action: none; cursor: crosshair; background: #111;"></canvas>
-    </div>
-
-    <!-- Modals -->
-    <div id="game-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;">
-        <div class="card" style="max-width: 500px; width: 90%; text-align: center;">
-            <h2>¡Hora de un descanso!</h2>
-            <p style="margin-bottom: 1.5rem;">Has resuelto 10 ejercicios correctamente. Disfruta 5 minutos de juego.</p>
-            <div id="game-canvas-container" style="background: #000; height: 300px; margin-bottom: 1.5rem; position: relative;">
-                <canvas id="game-canvas"></canvas>
+            <div id="solver-results" class="hidden">
+                <div id="solver-steps"></div>
+                <div id="solver-answer" style="margin-top:1rem;padding:1rem;background:var(--color-surface-hover);border-radius:var(--radius-md);"></div>
+                <div id="solver-graph-container" style="margin-top:1rem;width:100%;height:220px;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             </div>
-            <button class="btn btn-primary" onclick="closeGame()">Volver a estudiar</button>
+            <div id="solver-loading" class="hidden" style="text-align:center;padding:2rem;"><p style="color:var(--color-text-muted);">Resolviendo...</p></div>
         </div>
     </div>
 
-    <div id="glossary-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1001; display: flex; align-items: center; justify-content: center;">
-        <div class="card" style="max-width: 450px; width: 90%;">
-            <h2 id="glossary-title" style="color: var(--color-primary); margin-bottom: 1rem;">Término</h2>
-            <p id="glossary-def" style="margin-bottom: 1rem; line-height: 1.6;"></p>
-            <div style="background: var(--color-surface-hover); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
-                <strong style="display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--color-success);">Ejemplo:</strong>
-                <code id="glossary-example" style="font-family: var(--font-mono); color: var(--color-text-primary);"></code>
+    <!-- Game Modal -->
+    <div id="game-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:1000;display:flex;align-items:center;justify-content:center;">
+        <div class="card" style="max-width:600px;width:95%;max-height:95vh;overflow-y:auto;">
+            <div class="modal-header-sticky"><h2><span id="game-modal-title">Juego</span></h2><button class="modal-close-x" onclick="closeGame()">&times;</button></div>
+            <div id="game-status-bar" style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:var(--color-text-secondary);">
+                <span id="game-modal-desc"></span>
+                <span id="game-score-display" style="color:var(--color-warning);font-weight:700;">XP: 0</span>
             </div>
-            <div id="glossary-mana-box" style="border-left: 3px solid var(--color-warning); padding-left: 1rem; margin-bottom: 1.5rem;">
-                <strong style="display: block; font-size: 0.8rem; color: var(--color-warning); margin-bottom: 0.2rem;">Maña:</strong>
-                <p id="glossary-mana" style="font-size: 0.9rem; font-style: italic;"></p>
+            <div id="game-container" style="width:100%;min-height:300px;background:#000;border-radius:var(--radius-md);overflow:hidden;"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                <button class="btn btn-primary" style="flex:1;" onclick="closeGame()">Volver</button>
+                <button class="btn btn-outline" style="flex:1;" onclick="restartGame()">Reiniciar</button>
+                <button class="btn btn-outline btn-sm" onclick="nextGame()">Otro juego</button>
             </div>
-            <button class="btn btn-outline" style="width: 100%;" onclick="closeGlossary()">Entendido</button>
         </div>
     </div>
 
+    <!-- Glossary Modal -->
+    <div id="glossary-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1001;display:flex;align-items:center;justify-content:center;">
+        <div class="card" style="max-width:500px;width:90%;max-height:85vh;overflow-y:auto;">
+            <div class="modal-header-sticky"><h2 id="glossary-title">T&eacute;rmino</h2><button class="modal-close-x" onclick="closeGlossary()">&times;</button></div>
+            <p id="glossary-def" style="margin:1rem 0;line-height:1.6;"></p>
+            <div style="background:var(--color-surface-hover);padding:1rem;border-radius:var(--radius-md);margin-bottom:1rem;">
+                <strong style="font-size:.8rem;color:var(--color-success);">Ejemplo:</strong>
+                <code id="glossary-example" style="display:block;margin-top:.25rem;color:var(--color-text-primary);"></code>
+            </div>
+            <div id="glossary-mana-box" style="border-left:3px solid var(--color-warning);padding-left:1rem;margin-bottom:1rem;">
+                <strong style="font-size:.8rem;color:var(--color-warning);">Ma&ntilde;a:</strong>
+                <p id="glossary-mana" style="font-size:.9rem;font-style:italic;margin-top:.25rem;"></p>
+            </div>
+            <button class="btn btn-outline" style="width:100%;" onclick="closeGlossary()">Entendido</button>
+        </div>
+    </div>
+
+    <!-- Knowledge Modal -->
+    <div id="knowledge-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1003;display:flex;align-items:center;justify-content:center;">
+        <div class="card" style="max-width:700px;width:90%;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header-sticky"><h2 id="kmodal-title" style="color:var(--color-primary);"></h2><button class="modal-close-x" onclick="closeKnowledgeModal()">&times;</button></div>
+            <div id="kmodal-content" style="line-height:1.7;margin-top:1rem;"></div>
+            <div id="kmodal-ejemplos" style="margin-top:1.5rem;"></div>
+            <div id="kmodal-manas" style="margin-top:1rem;border-left:3px solid var(--color-warning);padding-left:1rem;"></div>
+            <button class="btn btn-primary" style="width:100%;margin-top:1.5rem;" onclick="startExerciseFromKnowledge()">Practicar Este Tema</button>
+        </div>
+    </div>
+
+    <!-- Whiteboard Modal - Movable Window -->
+    <div id="whiteboard-modal" class="hidden">
+        <div class="whiteboard-window" id="whiteboard-window">
+            <div class="wb-header" id="wb-header">
+                <h3 style="font-size:.88rem;"><i class="ti ti-pencil"></i> Pizarra</h3>
+                <div class="wb-controls">
+                    <button class="btn btn-outline btn-sm" onclick="toggleWhiteboard()" title="Cerrar"><i class="ti ti-x"></i></button>
+                </div>
+            </div>
+            <div class="wb-toolbar">
+                <button class="wb-tool-btn active" data-mode="pen" onclick="setWhiteboardMode('pen')" title="Lápiz"><i class="ti ti-pencil"></i></button>
+                <button class="wb-tool-btn" data-mode="eraser" onclick="setWhiteboardMode('eraser')" title="Borrador"><i class="ti ti-eraser"></i></button>
+                <div style="width:1px;height:20px;background:var(--color-border);margin:0 4px;"></div>
+                <input type="color" id="wb-color-picker" value="#3b82f6" onchange="changeWhiteboardColor(this.value)" style="width:28px;height:24px;padding:0;border:none;background:none;cursor:pointer;">
+                <div style="display:flex;gap:3px;" id="wb-swatches">
+                    <div class="wb-swatch active" data-color="#3b82f6" style="background:#3b82f6;" onclick="changeWhiteboardColor('#3b82f6')"></div>
+                    <div class="wb-swatch" data-color="#ef4444" style="background:#ef4444;" onclick="changeWhiteboardColor('#ef4444')"></div>
+                    <div class="wb-swatch" data-color="#10b981" style="background:#10b981;" onclick="changeWhiteboardColor('#10b981')"></div>
+                    <div class="wb-swatch" data-color="#f59e0b" style="background:#f59e0b;" onclick="changeWhiteboardColor('#f59e0b')"></div>
+                    <div class="wb-swatch" data-color="#a855f7" style="background:#a855f7;" onclick="changeWhiteboardColor('#a855f7')"></div>
+                    <div class="wb-swatch" data-color="#ffffff" style="background:#ffffff;border:1px solid #555;" onclick="changeWhiteboardColor('#ffffff')"></div>
+                </div>
+                <div style="width:1px;height:20px;background:var(--color-border);margin:0 4px;"></div>
+                <span style="font-size:.7rem;color:var(--color-text-muted);">Tamaño:</span>
+                <input type="range" class="wb-slider" min="1" max="30" value="3" oninput="setWhiteboardSize(this.value)">
+                <span id="wb-size-value" style="font-size:.7rem;color:var(--color-text-muted);min-width:18px;">3</span>
+                <div style="flex:1;"></div>
+                <button class="btn btn-outline btn-xs" onclick="clearWhiteboard()" title="Limpiar todo"><i class="ti ti-trash"></i></button>
+                <button class="btn btn-primary btn-xs" onclick="saveWhiteboard()" title="Guardar"><i class="ti ti-device-floppy"></i></button>
+            </div>
+            <div class="wb-body">
+                <canvas id="whiteboard-canvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Modal -->
+    <div id="event-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1004;display:flex;align-items:center;justify-content:center;">
+        <div class="card" style="max-width:550px;width:90%;max-height:90vh;overflow-y:auto;"><div id="event-modal-content"></div></div>
+    </div>
+
+    <script src="math-keyboard.js"></script>
+    <script src="math-graph.js"></script>
+    <script src="games.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

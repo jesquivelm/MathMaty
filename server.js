@@ -1,44 +1,61 @@
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const app = express();
-
-const port = process.env.PORT || 3030;
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+const port = 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 
+const pool = new Pool({
+  user: 'postgres',
+  host: 'localhost',
+  database: 'mathmaty',
+  password: 'Calg.1984', 
+  port: 5432,
+});
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Endpoint para subir imagenes
+const fs = require('fs');
+const crypto = require('crypto');
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+app.post('/api/upload/image', (req, res) => {
+  try {
+    const { image, isVideo } = req.body;
+    if (!image) return res.status(400).json({ error: 'No se proporciono archivo' });
+    
+    let matches, ext;
+    if (isVideo) {
+      matches = image.match(/^data:video\/(mp4|webm|ogg);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: 'Formato de video invalido. Use MP4 o WebM.' });
+      ext = matches[1];
+    } else {
+      matches = image.match(/^data:image\/(png|jpg|jpeg|gif|svg+xml);base64,(.+)$/);
+      if (!matches) return res.status(400).json({ error: 'Formato de imagen invalido' });
+      ext = matches[1] === 'svg+xml' ? 'svg' : matches[1];
+    }
+    const data = Buffer.from(matches[2], 'base64');
+    const filename = crypto.randomBytes(8).toString('hex') + '.' + ext;
+    const filepath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filepath, data);
+    res.json({ url: '/uploads/' + filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // SERVIR KATEX LOCALMENTE DESDE NODE_MODULES (Evita bloqueos de CDN / Tracking Prevention)
 app.use('/katex', express.static(path.join(__dirname, 'node_modules/katex/dist')));
 
-app.get('/health', (req, res) => {
-  res.json({
-    ok: true,
-    env: process.env.VERCEL ? 'vercel' : 'local',
-    hasDatabaseUrl: !!process.env.DATABASE_URL
-  });
-});
-
-
-// Middleware de autenticación
+// Middleware de autenticaci&oacute;n
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -49,14 +66,14 @@ const authenticateToken = (req, res, next) => {
   
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Token inválido' });
+      return res.status(403).json({ error: 'Token inv&aacute;lido' });
     }
     req.user = user;
     next();
   });
 };
 
-// ENDPOINTS DE AUTENTICACIÓN
+// ENDPOINTS DE AUTENTICACI&Oacute;N
 
 // Registro de usuario
 app.post('/api/auth/register', async (req, res) => {
@@ -68,7 +85,7 @@ app.post('/api/auth/register', async (req, res) => {
     }
     
     if (!['estudiante', 'padre'].includes(rol)) {
-      return res.status(400).json({ error: 'Rol inválido' });
+      return res.status(400).json({ error: 'Rol inv&aacute;lido' });
     }
     
     // Verificar si el usuario ya existe
@@ -81,7 +98,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(409).json({ error: 'El usuario o email ya existe' });
     }
     
-    // Hash de la contraseña
+    // Hash de la contrase&ntilde;a
     const passwordHash = await bcrypt.hash(password, 10);
     
     // Insertar nuevo usuario
@@ -122,19 +139,19 @@ app.post('/api/auth/login', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
     }
     
     const user = result.rows[0];
     
-    // Verificar contraseña
+    // Verificar contrase&ntilde;a
     const validPassword = await bcrypt.compare(password, user.password_hash);
     
     if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales inválidas' });
+      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
     }
     
-    // Actualizar último acceso
+    // Actualizar &uacute;ltimo acceso
     await pool.query(
       'UPDATE users SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
@@ -163,7 +180,7 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Error en login:', err);
-    res.status(500).json({ error: 'Error al iniciar sesión' });
+    res.status(500).json({ error: 'Error al iniciar sesi&oacute;n' });
   }
 });
 
@@ -186,7 +203,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   }
 });
 
-// Relación padre-hijo
+// Relaci&oacute;n padre-hijo
 app.post('/api/auth/parent-child', authenticateToken, async (req, res) => {
   try {
     const { child_username } = req.body;
@@ -207,16 +224,16 @@ app.post('/api/auth/parent-child', authenticateToken, async (req, res) => {
     
     const childId = childResult.rows[0].id;
     
-    // Crear relación
+    // Crear relaci&oacute;n
     await pool.query(
       'INSERT INTO parent_child_relations (parent_id, child_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [req.user.id, childId]
     );
     
-    res.json({ message: 'Relación creada exitosamente' });
+    res.json({ message: 'Relaci&oacute;n creada exitosamente' });
   } catch (err) {
-    console.error('Error creando relación:', err);
-    res.status(500).json({ error: 'Error al crear relación' });
+    console.error('Error creando relaci&oacute;n:', err);
+    res.status(500).json({ error: 'Error al crear relaci&oacute;n' });
   }
 });
 
@@ -252,7 +269,7 @@ app.get('/api/usuario/:username', async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error al cargar usuario:", err);
-    res.status(500).send("Error de conexión");
+    res.status(500).send("Error de conexi&oacute;n");
   }
 });
 
@@ -261,7 +278,7 @@ app.get('/api/usuario/:username', async (req, res) => {
 // Obtener leaderboard global
 app.get('/api/leaderboard', async (req, res) => {
   try {
-    // Calcular clasificación directo desde users + exercise_history
+    // Calcular clasificaci&oacute;n directo desde users + exercise_history
     const result = await pool.query(
       `SELECT u.id, u.username, u.nombre, u.xp, u.nivel, u.racha_actual,
          COUNT(eh.id) as ejercicios_resueltos,
@@ -281,7 +298,7 @@ app.get('/api/leaderboard', async (req, res) => {
   }
 });
 
-// Obtener posición del usuario actual en el leaderboard
+// Obtener posici&oacute;n del usuario actual en el leaderboard
 app.get('/api/leaderboard/mi-posicion', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
@@ -303,8 +320,8 @@ app.get('/api/leaderboard/mi-posicion', authenticateToken, async (req, res) => {
       total_jugadores: totalUsers.rows[0].total
     });
   } catch (err) {
-    console.error('Error obteniendo posición:', err);
-    res.status(500).json({ error: 'Error al obtener posición' });
+    console.error('Error obteniendo posici&oacute;n:', err);
+    res.status(500).json({ error: 'Error al obtener posici&oacute;n' });
   }
 });
 
@@ -330,7 +347,7 @@ app.post('/api/leaderboard/actualizar', authenticateToken, async (req, res) => {
       const nuevosEjercicios = data.ejercicios_resueltos + 1;
       const nuevoXP = data.xp_total + (xp_ganada || 0);
       
-      // Calcular nueva tasa de éxito
+      // Calcular nueva tasa de &eacute;xito
       let nuevaTasaExito;
       if (correcto) {
         const ejerciciosCorrectos = (data.tasa_exito * data.ejercicios_resueltos / 100) + 1;
@@ -340,7 +357,7 @@ app.post('/api/leaderboard/actualizar', authenticateToken, async (req, res) => {
         nuevaTasaExito = (ejerciciosCorrectos / nuevosEjercicios) * 100;
       }
       
-      // Obtener racha máxima del usuario
+      // Obtener racha m&aacute;xima del usuario
       const userRacha = await pool.query(
         'SELECT racha_maxima FROM users WHERE id = $1',
         [req.user.id]
@@ -359,12 +376,12 @@ app.post('/api/leaderboard/actualizar', authenticateToken, async (req, res) => {
   }
 });
 
-// ENDPOINTS DE REPORTERÍA
+// ENDPOINTS DE REPORTER&Iacute;A
 
 // Obtener reporte de progreso del estudiante (para el propio estudiante)
 app.get('/api/reporte/mi-progreso', authenticateToken, async (req, res) => {
   try {
-    // Estadísticas generales desde exercise_history
+    // Estad&iacute;sticas generales desde exercise_history
     const stats = await pool.query(
       `SELECT 
          COUNT(*) as total_ejercicios,
@@ -386,7 +403,7 @@ app.get('/api/reporte/mi-progreso', authenticateToken, async (req, res) => {
       [req.user.id]
     );
 
-    // Areas debiles (topics con más fallos)
+    // Areas debiles (topics con m&aacute;s fallos)
     const weakAreas = topicProgress.rows.filter(r => r.fallos > 0).slice(0, 5);
 
     // Historial reciente
@@ -426,7 +443,7 @@ app.get('/api/reporte/hijo/:child_id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'No tienes permiso para ver este reporte' });
     }
     
-    // Información del hijo
+    // Informaci&oacute;n del hijo
     const childInfo = await pool.query(
       'SELECT id, username, nombre, xp, nivel, hp, racha_actual, racha_maxima, tiempo_practica FROM users WHERE id = $1',
       [childId]
@@ -458,7 +475,7 @@ app.get('/api/reporte/hijo/:child_id', authenticateToken, async (req, res) => {
       [childId]
     );
     
-    // Estadísticas generales
+    // Estad&iacute;sticas generales
     const stats = await pool.query(
       `SELECT 
          COUNT(*) as total_ejercicios,
@@ -470,7 +487,7 @@ app.get('/api/reporte/hijo/:child_id', authenticateToken, async (req, res) => {
       [childId]
     );
     
-    // Áreas de fallo
+    // &Aacute;reas de fallo
     const weakAreas = await pool.query(
       `SELECT tp.topic_id, t.name as tema_nombre, tp.fallos_acumulados,
               CASE WHEN tp.ejercicios_completados > 0 
@@ -497,16 +514,16 @@ app.get('/api/reporte/hijo/:child_id', authenticateToken, async (req, res) => {
   }
 });
 
-// ENDPOINTS DE REFUERZO EN ÁREAS DE FALLO
+// ENDPOINTS DE REFUERZO EN &Aacute;REAS DE FALLO
 
-// Obtener ejercicios de refuerzo basados en áreas débiles
+// Obtener ejercicios de refuerzo basados en &aacute;reas d&eacute;biles
 app.get('/api/refuerzo/ejercicios', authenticateToken, async (req, res) => {
   try {
     if (req.user.rol !== 'estudiante') {
       return res.status(403).json({ error: 'Solo estudiantes pueden obtener ejercicios de refuerzo' });
     }
     
-    // Obtener áreas débiles del estudiante
+    // Obtener &aacute;reas d&eacute;biles del estudiante
     const weakAreas = await pool.query(
       `SELECT tp.topic_id, t.name as tema_nombre, tp.fallos_acumulados,
               CASE WHEN tp.ejercicios_completados > 0 
@@ -521,10 +538,10 @@ app.get('/api/refuerzo/ejercicios', authenticateToken, async (req, res) => {
     );
     
     if (weakAreas.rows.length === 0) {
-      return res.json({ message: 'No hay áreas de mejora identificadas', ejercicios: [] });
+      return res.json({ message: 'No hay &aacute;reas de mejora identificadas', ejercicios: [] });
     }
     
-    // Obtener ejercicios de los temas débiles
+    // Obtener ejercicios de los temas d&eacute;biles
     const topicIds = weakAreas.rows.map(row => row.topic_id);
     const exercises = await pool.query(
       `SELECT e.id, e.difficulty, e.question, e.math_expression, e.hint, 
@@ -554,7 +571,7 @@ app.get('/api/refuerzo/sugerir', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Solo estudiantes pueden recibir sugerencias' });
     }
     
-    // Verificar si hay áreas que necesitan refuerzo
+    // Verificar si hay &aacute;reas que necesitan refuerzo
     const weakAreas = await pool.query(
       `SELECT COUNT(*) as count
        FROM topic_progress
@@ -568,12 +585,12 @@ app.get('/api/refuerzo/sugerir', authenticateToken, async (req, res) => {
     if (necesitaRefuerzo) {
       res.json({
         sugerir_refuerzo: true,
-        mensaje: 'Detectamos áreas donde puedes mejorar. ¿Quieres practicar ejercicios de refuerzo?'
+        mensaje: 'Detectamos &aacute;reas donde puedes mejorar. &iquest;Quieres practicar ejercicios de refuerzo?'
       });
     } else {
       res.json({
         sugerir_refuerzo: false,
-        mensaje: '¡Vas muy bien! Sigue practicando a tu ritmo.'
+        mensaje: '&iexcl;Vas muy bien! Sigue practicando a tu ritmo.'
       });
     }
   } catch (err) {
@@ -624,7 +641,7 @@ app.post('/api/reporte/registrar-ejercicio', authenticateToken, async (req, res)
   }
 });
 
-// ENDPOINTS DE CONFIGURACIÓN DE APIs
+// ENDPOINTS DE CONFIGURACI&Oacute;N DE APIs
 
 // Obtener configuraciones de APIs del usuario
 app.get('/api/config/apis', authenticateToken, async (req, res) => {
@@ -641,7 +658,7 @@ app.get('/api/config/apis', authenticateToken, async (req, res) => {
   }
 });
 
-// Agregar configuración de API
+// Agregar configuraci&oacute;n de API
 app.post('/api/config/apis', authenticateToken, async (req, res) => {
   try {
     const { proveedor, api_key, prioridad } = req.body;
@@ -652,10 +669,10 @@ app.post('/api/config/apis', authenticateToken, async (req, res) => {
     
     const proveedoresValidos = ['openai', 'anthropic', 'grok', 'huggingface', 'ollama'];
     if (!proveedoresValidos.includes(proveedor)) {
-      return res.status(400).json({ error: 'Proveedor inválido' });
+      return res.status(400).json({ error: 'Proveedor inv&aacute;lido' });
     }
     
-    // Encriptar la API key (usando una simple codificación base64 por ahora, en producción usar bcrypt o crypto)
+    // Encriptar la API key (usando una simple codificaci&oacute;n base64 por ahora, en producci&oacute;n usar bcrypt o crypto)
     const apiKeyEncriptada = Buffer.from(api_key).toString('base64');
     
     await pool.query(
@@ -663,27 +680,27 @@ app.post('/api/config/apis', authenticateToken, async (req, res) => {
       [req.user.id, proveedor, apiKeyEncriptada, prioridad || 0]
     );
     
-    res.json({ message: 'Configuración de API guardada exitosamente' });
+    res.json({ message: 'Configuraci&oacute;n de API guardada exitosamente' });
   } catch (err) {
-    console.error('Error guardando configuración de API:', err);
-    res.status(500).json({ error: 'Error al guardar configuración de API' });
+    console.error('Error guardando configuraci&oacute;n de API:', err);
+    res.status(500).json({ error: 'Error al guardar configuraci&oacute;n de API' });
   }
 });
 
-// Actualizar configuración de API
+// Actualizar configuraci&oacute;n de API
 app.put('/api/config/apis/:id', authenticateToken, async (req, res) => {
   try {
     const { activa, prioridad } = req.body;
     const configId = parseInt(req.params.id);
     
-    // Verificar que la configuración pertenece al usuario
+    // Verificar que la configuraci&oacute;n pertenece al usuario
     const existing = await pool.query(
       'SELECT * FROM api_config WHERE id = $1 AND user_id = $2',
       [configId, req.user.id]
     );
     
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Configuración no encontrada' });
+      return res.status(404).json({ error: 'Configuraci&oacute;n no encontrada' });
     }
     
     await pool.query(
@@ -691,57 +708,57 @@ app.put('/api/config/apis/:id', authenticateToken, async (req, res) => {
       [activa !== undefined ? activa : existing.rows[0].activa, prioridad !== undefined ? prioridad : existing.rows[0].prioridad, configId]
     );
     
-    res.json({ message: 'Configuración de API actualizada' });
+    res.json({ message: 'Configuraci&oacute;n de API actualizada' });
   } catch (err) {
-    console.error('Error actualizando configuración de API:', err);
-    res.status(500).json({ error: 'Error al actualizar configuración de API' });
+    console.error('Error actualizando configuraci&oacute;n de API:', err);
+    res.status(500).json({ error: 'Error al actualizar configuraci&oacute;n de API' });
   }
 });
 
-// Eliminar configuración de API
+// Eliminar configuraci&oacute;n de API
 app.delete('/api/config/apis/:id', authenticateToken, async (req, res) => {
   try {
     const configId = parseInt(req.params.id);
     
-    // Verificar que la configuración pertenece al usuario
+    // Verificar que la configuraci&oacute;n pertenece al usuario
     const existing = await pool.query(
       'SELECT * FROM api_config WHERE id = $1 AND user_id = $2',
       [configId, req.user.id]
     );
     
     if (existing.rows.length === 0) {
-      return res.status(404).json({ error: 'Configuración no encontrada' });
+      return res.status(404).json({ error: 'Configuraci&oacute;n no encontrada' });
     }
     
     await pool.query('DELETE FROM api_config WHERE id = $1', [configId]);
     
-    res.json({ message: 'Configuración de API eliminada' });
+    res.json({ message: 'Configuraci&oacute;n de API eliminada' });
   } catch (err) {
-    console.error('Error eliminando configuración de API:', err);
-    res.status(500).json({ error: 'Error al eliminar configuración de API' });
+    console.error('Error eliminando configuraci&oacute;n de API:', err);
+    res.status(500).json({ error: 'Error al eliminar configuraci&oacute;n de API' });
   }
 });
 
-// Probar conexión con API
+// Probar conexi&oacute;n con API
 app.post('/api/config/apis/test', authenticateToken, async (req, res) => {
   try {
     const { proveedor, api_key } = req.body;
     
-    // Simular prueba de conexión (en producción, hacer una llamada real a la API)
+    // Simular prueba de conexi&oacute;n (en producci&oacute;n, hacer una llamada real a la API)
     let resultado = false;
     let mensaje = '';
     
     switch(proveedor) {
       case 'openai':
-        mensaje = 'Conexión con OpenAI simulada exitosamente';
+        mensaje = 'Conexi&oacute;n con OpenAI simulada exitosamente';
         resultado = true;
         break;
       case 'anthropic':
-        mensaje = 'Conexión con Anthropic simulada exitosamente';
+        mensaje = 'Conexi&oacute;n con Anthropic simulada exitosamente';
         resultado = true;
         break;
       case 'grok':
-        mensaje = 'Conexión con Grok simulada exitosamente';
+        mensaje = 'Conexi&oacute;n con Grok simulada exitosamente';
         resultado = true;
         break;
       default:
@@ -751,8 +768,8 @@ app.post('/api/config/apis/test', authenticateToken, async (req, res) => {
     
     res.json({ exito: resultado, mensaje });
   } catch (err) {
-    console.error('Error probando conexión:', err);
-    res.status(500).json({ error: 'Error al probar conexión' });
+    console.error('Error probando conexi&oacute;n:', err);
+    res.status(500).json({ error: 'Error al probar conexi&oacute;n' });
   }
 });
 
@@ -766,7 +783,7 @@ app.get('/api/misiones', async (req, res) => {
                 e.question, 
                 e.math_expression, 
                 e.hint, 
-                e.mana_tip AS maña,
+                e.mana_tip AS ma&ntilde;a,
                 e.correct_solution, 
                 t.name AS nombre_tema
             FROM exercises e
@@ -777,7 +794,7 @@ app.get('/api/misiones', async (req, res) => {
         res.json(resultado.rows);
     } catch (err) {
         console.error("Error en misiones:", err);
-        res.status(500).json({ error: "Fallo de telemetría de red" });
+        res.status(500).json({ error: "Fallo de telemetr&iacute;a de red" });
     }
 });
 
@@ -859,44 +876,69 @@ async function callLLM(userId, prompt, systemPrompt = '') {
 
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
-    const { topic, difficulty } = req.body;
+    const { topic, difficulty, excludeIds = [] } = req.body;
     console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}`);
     
     // 1. Intentar obtener de la DB
-    const dbRes = await pool.query(
-      'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL) ORDER BY RANDOM() LIMIT 1',
-      [topic, difficulty || 'basico']
-    );
+    const excluded = Array.isArray(excludeIds)
+      ? excludeIds.map(Number).filter(Number.isInteger)
+      : [];
+    const params = [topic, difficulty || 'basico'];
+    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL)';
+    if (excluded.length > 0) {
+      params.push(excluded);
+      dbQuery += ' AND NOT (id = ANY($3::int[]))';
+    }
+    dbQuery += ' ORDER BY RANDOM() LIMIT 1';
+    const dbRes = await pool.query(dbQuery, params);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
+      let imageUrl = null;
+      if (ex.question && ex.question.includes('<img src="')) {
+        const match = ex.question.match(/<img src="([^"]+)"/);
+        if (match) imageUrl = match[1];
+      }
       return res.json({
         id: ex.id,
         pregunta: ex.question,
         latex: ex.latex_content,
         opciones: ex.options,
         pasos: ex.solution_steps,
-        theory: ex.theory
+        theory: ex.theory,
+        source: ex.source,
+        category: ex.category,
+        exam_year: ex.exam_year,
+        image: imageUrl
       });
     }
 
-    // 2. Si no hay en la DB, intentar generar con IA solo si hay llaves
+    // 2. Si no hay en la DB, ofrecer ejercicios de respaldo
     const configRes = await pool.query('SELECT * FROM api_config ORDER BY prioridad DESC LIMIT 1');
     if (configRes.rows.length === 0 && !process.env.ANTHROPIC_API_KEY) {
-      return res.status(404).json({ error: 'No hay ejercicios en la base de datos para este tema y no hay API Key configurada para generar uno nuevo.' });
+      // Fallback: ejercicios genericos locales
+      const fallbacks = {
+        'factorizacion': { pregunta:'Factoriza la expresion: x² - 9', latex:'x^2 - 9', opciones:['(x+3)(x-3)','(x+9)(x-9)','(x-3)²','x²-9'], pasos:[{math:'x² - 9',expl:'Identificamos una diferencia de cuadrados: a² - b² = (a+b)(a-b)'},{math:'(x+3)(x-3)',expl:'Donde a=x y b=3. Verifica: (x+3)(x-3) = x² - 3x + 3x - 9 = x² - 9'}], theory:'La diferencia de cuadrados es uno de los metodos de factorizacion mas importantes.' },
+        'ecuaciones': { pregunta:'Resuelve: 3x + 7 = 22', latex:'3x + 7 = 22', opciones:['x=5','x=3','x=7','x=15'], pasos:[{math:'3x + 7 = 22',expl:'Restamos 7 en ambos lados'},{math:'3x = 15',expl:'Simplificamos: 22-7=15'},{math:'x = 5',expl:'Dividimos entre 3: 15/3=5'}], theory:'Para resolver ecuaciones lineales, despeja la variable usando operaciones inversas.' },
+        'inecuaciones': { pregunta:'Resuelve: 2x - 4 > 6', latex:'2x - 4 > 6', opciones:['x>5','x<5','x>2','x<2'], pasos:[{math:'2x - 4 > 6',expl:'Sumamos 4 en ambos lados'},{math:'2x > 10',expl:'Simplificamos'},{math:'x > 5',expl:'Dividimos entre 2, el signo no cambia porque 2 es positivo'}], theory:'Las inecuaciones se resuelven como ecuaciones, pero al multiplicar/dividir por negativo se invierte el signo.' },
+        'trigonometria': { pregunta:'Calcula: sen(30°) + cos(60°)', latex:'sen(30°) + cos(60°)', opciones:['1','0.5','1.5','0'], pasos:[{math:'sen(30°) = 1/2',expl:'Valor exacto de seno de 30 grados'},{math:'cos(60°) = 1/2',expl:'Valor exacto de coseno de 60 grados'},{math:'1/2 + 1/2 = 1',expl:'Sumamos ambos valores'}], theory:'Los valores exactos de seno y coseno de angulos notables (30°, 45°, 60°) deben memorizarse.' },
+        'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
+      };
+      const fb = fallbacks[topic] || fallbacks['ecuaciones'];
+      return res.json({ ...fb, id: -1 });
     }
-    const systemPrompt = `Eres un tutor de matemáticas experto del TEC de Costa Rica. 
-    Tu objetivo es ayudar a estudiantes de Precálculo.
+    const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
+    Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
     Genera un ejercicio desafiante pero resoluble de ${topic} nivel ${difficulty}.
-    Incluye explicaciones paso a paso de tipo WolframAlpha y trucos ("mañas") para resolverlo más rápido.
-    Añade una sección de "theory" que resuma los conceptos necesarios para resolverlo.
-    Responde ÚNICAMENTE en formato JSON:
+    Incluye explicaciones paso a paso de tipo WolframAlpha y trucos ("ma&ntilde;as") para resolverlo m&aacute;s r&aacute;pido.
+    A&ntilde;ade una secci&oacute;n de "theory" que resuma los conceptos necesarios para resolverlo.
+    Responde &Uacute;NICAMENTE en formato JSON:
     {
       "pregunta": "enunciado",
-      "latex": "expresión principal",
+      "latex": "expresi&oacute;n principal",
       "opciones": ["correcta", "distractor1", "distractor2", "distractor3"],
       "pasos": [
-        {"math": "latex del paso", "expl": "explicación detallada del porqué y mañas"}
+        {"math": "latex del paso", "expl": "explicaci&oacute;n detallada del porqu&eacute; y ma&ntilde;as"}
       ],
       "theory": "resumen de conceptos clave"
     }`;
@@ -922,8 +964,8 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
 app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   try {
     const { message, context } = req.body;
-    const systemPrompt = `Eres el asistente de MathMaty. Ayudas al estudiante con sus dudas de matemáticas del TEC. 
-    Contexto actual: ${JSON.stringify(context)}. Sé conciso, motivador y explica paso a paso.`;
+    const systemPrompt = `Eres el asistente de MathMaty. Ayudas al estudiante con sus dudas de matem&aacute;ticas del TEC. 
+    Contexto actual: ${JSON.stringify(context)}. S&eacute; conciso, motivador y explica paso a paso.`;
     const result = await callLLM(req.user.id, message, systemPrompt);
     res.json({ response: result });
   } catch (err) {
@@ -936,8 +978,8 @@ app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
     const { topic } = req.query;
     const q = topic
-      ? 'SELECT id,topic_id,question,difficulty FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
-      : 'SELECT id,topic_id,question,difficulty FROM exercises ORDER BY topic_id,id DESC';
+      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
+      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises ORDER BY topic_id,id DESC';
     const result = await pool.query(q, topic ? [topic] : []);
     res.json(result.rows);
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -945,10 +987,22 @@ app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
 
 app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source } = req.body;
     await pool.query(
-      'INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory) VALUES($1,$2,$3,$4,$5,$6)',
-      [topic_id, question, latex, JSON.stringify(options), JSON.stringify(steps), theory||null]
+      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [
+        topic_id,
+        question,
+        latex,
+        JSON.stringify(options),
+        JSON.stringify(steps),
+        theory || null,
+        difficulty || 'basico',
+        category || 'ejercicio',
+        exam_year || null,
+        source || null
+      ]
     );
     res.json({ ok: true });
   } catch(e) { res.status(500).json({error:e.message}); }
@@ -961,10 +1015,841 @@ app.delete('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
-  app.listen(port, () => {
-    console.log(`MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}`);
-  });
+// ============================================================
+// ENDPOINTS DE EVENTOS Y COMPETICIONES
+// ============================================================
+
+// Obtener eventos activos
+app.get('/api/events/activos', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM events 
+       WHERE activo = true AND fecha_inicio <= CURRENT_TIMESTAMP AND fecha_fin >= CURRENT_TIMESTAMP
+       ORDER BY fecha_fin ASC`
+    );
+    
+    // Verificar participaci&oacute;n del usuario
+    const events = [];
+    for (const ev of result.rows) {
+      const participation = await pool.query(
+        'SELECT * FROM event_participants WHERE event_id = $1 AND user_id = $2',
+        [ev.id, req.user.id]
+      );
+      events.push({
+        ...ev,
+        ya_participa: participation.rows.length > 0,
+        mi_puntuacion: participation.rows[0]?.puntuacion || 0
+      });
+    }
+    res.json(events);
+  } catch (err) {
+    console.error('Error cargando eventos:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Obtener todos los eventos (para admin)
+app.get('/api/events', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM events ORDER BY fecha_inicio DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Crear evento (admin)
+app.post('/api/events', authenticateToken, async (req, res) => {
+  try {
+    const { titulo, descripcion, tipo, tema_id, fecha_inicio, fecha_fin, xp_recompensa, badge_recompensa, requisito_nivel } = req.body;
+    const result = await pool.query(
+      `INSERT INTO events (titulo, descripcion, tipo, tema_id, fecha_inicio, fecha_fin, xp_recompensa, badge_recompensa, requisito_nivel)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [titulo, descripcion, tipo, tema_id, fecha_inicio, fecha_fin, xp_recompensa, badge_recompensa, requisito_nivel || 1]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Unirse a un evento
+app.post('/api/events/:id/join', authenticateToken, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    
+    // Verificar que el evento existe y est&aacute; activo
+    const event = await pool.query('SELECT * FROM events WHERE id = $1 AND activo = true', [eventId]);
+    if (event.rows.length === 0) return res.status(404).json({ error: 'Evento no encontrado' });
+    
+    const ev = event.rows[0];
+    const now = new Date();
+    if (now < new Date(ev.fecha_inicio)) return res.status(400).json({ error: 'El evento a&uacute;n no ha comenzado' });
+    if (now > new Date(ev.fecha_fin)) return res.status(400).json({ error: 'El evento ya ha terminado' });
+    
+    // Verificar nivel m&iacute;nimo
+    if ((req.user.nivel || 1) < ev.requisito_nivel) {
+      return res.status(400).json({ error: `Se requiere nivel ${ev.requisito_nivel} para participar` });
+    }
+    
+    // Unirse
+    await pool.query(
+      'INSERT INTO event_participants (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [eventId, req.user.id]
+    );
+    
+    res.json({ message: 'Te has unido al evento' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Enviar resultado de ejercicio en evento
+app.post('/api/events/:id/submit', authenticateToken, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    const { correcto, tiempo_segundos } = req.body;
+    
+    // Verificar participaci&oacute;n
+    const part = await pool.query(
+      'SELECT * FROM event_participants WHERE event_id = $1 AND user_id = $2',
+      [eventId, req.user.id]
+    );
+    if (part.rows.length === 0) return res.status(400).json({ error: 'No participas en este evento' });
+    
+    const puntos = correcto ? Math.max(10, 100 - Math.floor(tiempo_segundos / 3)) : 0;
+    
+    await pool.query(
+      `UPDATE event_participants 
+       SET puntuacion = puntuacion + $1,
+           ejercicios_completados = ejercicios_completados + 1,
+           ejercicios_correctos = ejercicios_correctos + $2,
+           tiempo_total_seg = tiempo_total_seg + $3,
+           participo = true
+       WHERE event_id = $4 AND user_id = $5`,
+      [puntos, correcto ? 1 : 0, tiempo_segundos || 0, eventId, req.user.id]
+    );
+    
+    res.json({ puntos_ganados: puntos });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Leaderboard de un evento
+app.get('/api/events/:id/leaderboard', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ep.puntuacion, ep.ejercicios_correctos, ep.ejercicios_completados,
+              ep.tiempo_total_seg, u.username, u.nombre
+       FROM event_participants ep
+       INNER JOIN users u ON ep.user_id = u.id
+       WHERE ep.event_id = $1 AND ep.participo = true
+       ORDER BY ep.puntuacion DESC
+       LIMIT 50`,
+      [parseInt(req.params.id)]
+    );
+    res.json(result.rows.map((r, i) => ({ ...r, posicion: i + 1 })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Finalizar evento (calcular posiciones y dar recompensas)
+app.post('/api/events/:id/finalize', authenticateToken, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.id);
+    
+    // Obtener participantes ordenados
+    const participants = await pool.query(
+      `SELECT ep.id, ep.user_id, ep.puntuacion
+       FROM event_participants ep
+       WHERE ep.event_id = $1 AND ep.participo = true
+       ORDER BY ep.puntuacion DESC`,
+      [eventId]
+    );
+    
+    const event = await pool.query('SELECT * FROM events WHERE id = $1', [eventId]);
+    if (event.rows.length === 0) return res.status(404).json({ error: 'Evento no encontrado' });
+    const ev = event.rows[0];
+    
+    for (let i = 0; i < participants.rows.length; i++) {
+      const p = participants.rows[i];
+      const posicion = i + 1;
+      
+      // Actualizar posici&oacute;n
+      await pool.query(
+        'UPDATE event_participants SET posicion_final = $1 WHERE id = $2',
+        [posicion, p.id]
+      );
+      
+      // Dar XP seg&uacute;n posici&oacute;n (top 3 reciben bonus)
+      let xpGanada = Math.round(ev.xp_recompensa * Math.max(0.1, 1 - (posicion - 1) * 0.15));
+      if (posicion <= 3) xpGanada = Math.round(xpGanada * 1.5);
+      
+      await pool.query(
+        'UPDATE users SET xp = xp + $1 WHERE id = $2',
+        [xpGanada, p.user_id]
+      );
+      
+      await pool.query(
+        'INSERT INTO xp_history (user_id, cantidad, fuente, referencia_id) VALUES ($1, $2, $3, $4)',
+        [p.user_id, xpGanada, 'evento', eventId]
+      );
+      
+      // Dar badge si el evento tiene uno
+      if (ev.badge_recompensa && posicion <= 3) {
+        const badge = await pool.query('SELECT id FROM badges WHERE codigo = $1', [ev.badge_recompensa]);
+        if (badge.rows.length > 0) {
+          await pool.query(
+            'INSERT INTO user_badges (user_id, badge_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [p.user_id, badge.rows[0].id]
+          );
+        }
+      }
+    }
+    
+    res.json({ message: 'Evento finalizado', participantes: participants.rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ENDPOINTS DE BADGES / LOGROS
+// ============================================================
+
+// Listar todos los badges
+app.get('/api/badges', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.*, ub.fecha_obtenido IS NOT NULL as obtenido
+       FROM badges b
+       LEFT JOIN user_badges ub ON b.id = ub.badge_id AND ub.user_id = $1
+       ORDER BY b.tipo, b.id`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Badges del usuario actual
+app.get('/api/badges/mis-badges', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.*, ub.fecha_obtenido
+       FROM user_badges ub
+       INNER JOIN badges b ON ub.badge_id = b.id
+       WHERE ub.user_id = $1
+       ORDER BY ub.fecha_obtenido DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verificar y otorgar badges autom&aacute;ticamente
+app.post('/api/badges/check', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const unlocked = [];
+    
+    // Obtener stats del usuario
+    const userStats = await pool.query(
+      `SELECT u.*, 
+              (SELECT COUNT(*) FROM exercise_history WHERE user_id = $1) as total_ejercicios,
+              (SELECT COUNT(*) FROM xp_history WHERE user_id = $1 AND fuente = 'evento') as eventos_participados,
+              (SELECT COUNT(*) FROM event_participants WHERE user_id = $1 AND posicion_final <= 3) as eventos_ganados
+       FROM users u WHERE u.id = $1`,
+      [userId]
+    );
+    const stats = userStats.rows[0];
+    
+    // Obtener todos los badges
+    const allBadges = await pool.query('SELECT * FROM badges');
+    
+    for (const badge of allBadges.rows) {
+      // Verificar si ya lo tiene
+      const already = await pool.query(
+        'SELECT id FROM user_badges WHERE user_id = $1 AND badge_id = $2',
+        [userId, badge.id]
+      );
+      if (already.rows.length > 0) continue;
+      
+      let earned = false;
+      const c = badge.criterio;
+      
+      switch (badge.codigo) {
+        case 'racha_5': earned = (stats.racha_maxima || 0) >= 5; break;
+        case 'racha_10': earned = (stats.racha_maxima || 0) >= 10; break;
+        case 'racha_25': earned = (stats.racha_maxima || 0) >= 25; break;
+        case 'precision_100': {
+          // Verificar &uacute;ltima sesi&oacute;n de 10+ con 100%
+          const session = await pool.query(
+            `SELECT correcto, COUNT(*) as cnt 
+             FROM exercise_history 
+             WHERE user_id = $1 
+             GROUP BY correcto 
+             HAVING COUNT(*) >= 10`,
+            [userId]
+          );
+          // Simplificado: si tiene al menos 10 correctos consecutivos en historial
+          const recent = await pool.query(
+            `SELECT correcto FROM exercise_history WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 10`,
+            [userId]
+          );
+          earned = recent.rows.length >= 10 && recent.rows.every(r => r.correcto);
+          break;
+        }
+        case 'volumen_50': earned = (stats.total_ejercicios || 0) >= 50; break;
+        case 'volumen_100': earned = (stats.total_ejercicios || 0) >= 100; break;
+        case 'volumen_500': earned = (stats.total_ejercicios || 0) >= 500; break;
+        case 'velocidad_rapido': {
+          const fast = await pool.query(
+            'SELECT id FROM exercise_history WHERE user_id = $1 AND tiempo_segundos <= 10 AND correcto = true LIMIT 1',
+            [userId]
+          );
+          earned = fast.rows.length > 0;
+          break;
+        }
+        case 'nivel_5': earned = (stats.nivel || 1) >= 5; break;
+        case 'nivel_10': earned = (stats.nivel || 1) >= 10; break;
+        case 'nivel_20': earned = (stats.nivel || 1) >= 20; break;
+        case 'evento_first': earned = (stats.eventos_participados || 0) >= 1; break;
+        case 'evento_win': earned = (stats.eventos_ganados || 0) >= 1; break;
+      }
+      
+      if (earned) {
+        await pool.query(
+          'INSERT INTO user_badges (user_id, badge_id) VALUES ($1, $2)',
+          [userId, badge.id]
+        );
+        // Dar XP bonus
+        if (badge.xp_bonus > 0) {
+          await pool.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [badge.xp_bonus, userId]);
+          await pool.query('INSERT INTO xp_history (user_id, cantidad, fuente, referencia_id) VALUES ($1, $2, $3, $4)',
+            [userId, badge.xp_bonus, 'badge', badge.id]);
+        }
+        unlocked.push(badge);
+      }
+    }
+    
+    res.json({ unlocked, message: unlocked.length > 0 ? `Has desbloqueado ${unlocked.length} badge(s) nuevo(s)!` : 'No hay nuevos badges disponibles' });
+  } catch (err) {
+    console.error('Error checking badges:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ENDPOINTS DE BIBLIOTECA DE CONOCIMIENTO
+// ============================================================
+
+app.get('/api/knowledge', async (req, res) => {
+  try {
+    const { topic } = req.query;
+    let query = 'SELECT * FROM knowledge_library ORDER BY orden, id';
+    let params = [];
+    if (topic) {
+      query = 'SELECT * FROM knowledge_library WHERE topic_id = $1 ORDER BY orden, id';
+      params = [topic];
+    }
+    const result = await pool.query(query, params);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/knowledge/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM knowledge_library WHERE id = $1', [parseInt(req.params.id)]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'No encontrado' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ENDPOINTS DE TIENDA / INVENTARIO
+// ============================================================
+
+app.get('/api/shop', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM shop_items WHERE activo = true ORDER BY precio_xp ASC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/shop/buy/:itemId', authenticateToken, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    
+    const item = await pool.query('SELECT * FROM shop_items WHERE id = $1 AND activo = true', [itemId]);
+    if (item.rows.length === 0) return res.status(404).json({ error: 'Item no encontrado' });
+    const shopItem = item.rows[0];
+    
+    // Verificar XP suficiente
+    const user = await pool.query('SELECT xp FROM users WHERE id = $1', [req.user.id]);
+    if (user.rows[0].xp < shopItem.precio_xp) {
+      return res.status(400).json({ error: 'XP insuficiente' });
+    }
+    
+    // Verificar stock
+    if (shopItem.stock > 0) {
+      const count = await pool.query(
+        'SELECT SUM(cantidad) as total FROM user_inventory WHERE user_id = $1 AND item_id = $2',
+        [req.user.id, itemId]
+      );
+      if ((count.rows[0].total || 0) >= shopItem.stock) {
+        return res.status(400).json({ error: 'Stock agotado' });
+      }
+    }
+    
+    // Procesar compra
+    await pool.query('UPDATE users SET xp = xp - $1 WHERE id = $2', [shopItem.precio_xp, req.user.id]);
+    // Check if already has item, then update or insert
+    const existingInv = await pool.query('SELECT id FROM user_inventory WHERE user_id = $1 AND item_id = $2', [req.user.id, itemId]);
+    if (existingInv.rows.length > 0) {
+      await pool.query('UPDATE user_inventory SET cantidad = cantidad + 1 WHERE user_id = $1 AND item_id = $2', [req.user.id, itemId]);
+    } else {
+      await pool.query('INSERT INTO user_inventory (user_id, item_id, cantidad) VALUES ($1, $2, 1)', [req.user.id, itemId]);
+    }
+    await pool.query('INSERT INTO xp_history (user_id, cantidad, fuente, referencia_id) VALUES ($1, $2, $3, $4)',
+      [req.user.id, -shopItem.precio_xp, 'compra', itemId]);
+    
+    res.json({ message: `Has comprado: ${shopItem.nombre}`, efecto: shopItem.efecto });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/inventory', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT ui.*, si.nombre, si.descripcion, si.tipo, si.icono, si.efecto
+       FROM user_inventory ui
+       INNER JOIN shop_items si ON ui.item_id = si.id
+       WHERE ui.user_id = $1
+       ORDER BY si.tipo, si.nombre`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Usar un &iacute;tem del inventario
+app.post('/api/inventory/use/:itemId', authenticateToken, async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    
+    const inv = await pool.query(
+      'SELECT * FROM user_inventory WHERE user_id = $1 AND item_id = $2 AND cantidad > 0',
+      [req.user.id, itemId]
+    );
+    if (inv.rows.length === 0) return res.status(400).json({ error: 'No tienes este &iacute;tem' });
+    
+    const item = await pool.query('SELECT * FROM shop_items WHERE id = $1', [itemId]);
+    const efecto = item.rows[0].efecto;
+    let mensaje = '&Iacute;tem usado';
+    
+    if (efecto.tipo === 'hp_boost') {
+      await pool.query('UPDATE users SET hp = LEAST(100, hp + $1) WHERE id = $2', [efecto.valor, req.user.id]);
+      mensaje = `Has recuperado ${efecto.valor} HP`;
+    }
+    
+    // Reducir cantidad
+    await pool.query(
+      'UPDATE user_inventory SET cantidad = cantidad - 1 WHERE user_id = $1 AND item_id = $2',
+      [req.user.id, itemId]
+    );
+    // Eliminar si llega a 0
+    await pool.query(
+      'DELETE FROM user_inventory WHERE user_id = $1 AND item_id = $2 AND cantidad <= 0',
+      [req.user.id, itemId]
+    );
+    
+    res.json({ message: mensaje, efecto });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ENDPOINTS DE NIVELACI&Oacute;N AVANZADA
+// ============================================================
+
+// Calcular nivel basado en XP + tiempo + precisi&oacute;n
+app.get('/api/nivelacion/calcular', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Obtener stats
+    const stats = await pool.query(
+      `SELECT u.xp, u.nivel, u.tiempo_practica, u.racha_maxima,
+              (SELECT COUNT(*) FROM exercise_history WHERE user_id = $1) as total_ejercicios,
+              (SELECT COUNT(*) FROM exercise_history WHERE user_id = $1 AND correcto = true) as total_correctos
+       FROM users u WHERE u.id = $1`,
+      [userId]
+    );
+    const s = stats.rows[0];
+    
+    const precision = s.total_ejercicios > 0 ? (s.total_correctos / s.total_ejercicios) * 100 : 0;
+    const horas = (s.tiempo_practica || 0) / 60;
+    
+    // F&oacute;rmula de nivel: base por XP + bonus por tiempo + bonus por precisi&oacute;n
+    const xpComponent = s.xp / 1000;
+    const timeComponent = horas * 0.5;
+    const precisionComponent = precision > 70 ? (precision - 70) * 0.1 : 0;
+    const streakBonus = (s.racha_maxima || 0) > 10 ? (s.racha_maxima - 10) * 0.2 : 0;
+    
+    const nivelCalculado = Math.max(1, Math.floor(xpComponent + timeComponent + precisionComponent + streakBonus) + 1);
+    const nivelActual = s.nivel || 1;
+    
+    // Actualizar si subi&oacute;
+    if (nivelCalculado > nivelActual) {
+      // Verificar si debe subir de a 1 nivel por vez
+      for (let n = nivelActual + 1; n <= nivelCalculado; n++) {
+        await pool.query('UPDATE users SET nivel = $1 WHERE id = $2', [n, userId]);
+        // Dar XP bonus por subir de nivel
+        const bonusXP = n * 50;
+        await pool.query('UPDATE users SET xp = xp + $1 WHERE id = $2', [bonusXP, userId]);
+        await pool.query('INSERT INTO xp_history (user_id, cantidad, fuente) VALUES ($1, $2, $3)',
+          [userId, bonusXP, 'nivel']);
+      }
+    }
+    
+    // XP necesario para siguiente nivel
+    const xpBaseNivel = Math.max(1, nivelCalculado) * 1000;
+    const xpProximoNivel = xpBaseNivel + 1000;
+    const progresoBar = s.xp > 0 ? ((s.xp % 1000) / 1000) * 100 : 0;
+    
+    res.json({
+      nivel: nivelCalculado,
+      xp_actual: s.xp,
+      xp_proximo_nivel: xpProximoNivel,
+      progreso_porcentaje: Math.min(100, Math.max(0, progresoBar)),
+      precision: Math.round(precision * 10) / 10,
+      horas_practica: Math.round(horas * 10) / 10,
+      racha_maxima: s.racha_maxima || 0,
+      desglose: {
+        xp_component: Math.round(xpComponent * 10) / 10,
+        time_component: Math.round(timeComponent * 10) / 10,
+        precision_component: Math.round(precisionComponent * 10) / 10,
+        streak_bonus: Math.round(streakBonus * 10) / 10
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Obtener historial de XP
+app.get('/api/xp-history', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT xh.*, 
+              CASE 
+                WHEN xh.fuente = 'ejercicio' THEN 'Ejercicio'
+                WHEN xh.fuente = 'mision' THEN 'Misi&oacute;n'
+                WHEN xh.fuente = 'evento' THEN 'Evento'
+                WHEN xh.fuente = 'racha' THEN 'Racha'
+                WHEN xh.fuente = 'badge' THEN 'Logro'
+                WHEN xh.fuente = 'nivel' THEN 'Subida de Nivel'
+                WHEN xh.fuente = 'compra' THEN 'Compra en Tienda'
+                ELSE xh.fuente
+              END as fuente_nombre
+       FROM xp_history xh
+       WHERE xh.user_id = $1
+       ORDER BY xh.timestamp DESC
+       LIMIT 50`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// MOTOR DE RESOLUCI&Oacute;N PASO A PASO (MEJORADO)
+// ============================================================
+
+function factorizarPolinomio(expr) {
+  // Motor local de factorizaci&oacute;n para expresiones comunes
+  const pasos = [];
+  
+  // Detectar factor com&uacute;n: ax^n + bx^m
+  const fcMatch = expr.match(/^(\d*)([a-z])(?:\^(\d+))?\s*\+\s*(\d*)(\2)(?:\^(\d+))?/);
+  if (fcMatch) {
+    const coef1 = parseInt(fcMatch[1]) || 1;
+    const coef2 = parseInt(fcMatch[4]) || 1;
+    const exp1 = parseInt(fcMatch[3]) || 1;
+    const exp2 = parseInt(fcMatch[6]) || 1;
+    const variable = fcMatch[2];
+    const expMenor = Math.min(exp1, exp2);
+    const mcd = gcd(coef1, coef2);
+    
+    pasos.push({
+      math: `${expr}`,
+      expl: `Identificamos el factor com&uacute;n. Ambos t&eacute;rminos comparten ${variable}^${expMenor} y MCD(${coef1},${coef2}) = ${mcd}.`
+    });
+    pasos.push({
+      math: `${mcd}${variable}^${expMenor}(${coef1/mcd}${variable}^${exp1-expMenor} + ${coef2/mcd}${variable}^${exp2-expMenor})`,
+      expl: `Extraemos ${mcd}${variable}^${expMenor} como factor com&uacute;n.`
+    });
+    return pasos;
+  }
+  
+  // Diferencia de cuadrados: a^2 - b^2
+  const dcMatch = expr.match(/^([^\^]+)\^2\s*-\s*([^\^]+)\^2$/);
+  if (dcMatch) {
+    pasos.push({
+      math: expr,
+      expl: `Reconocemos una diferencia de cuadrados: a² - b² = (a + b)(a - b)`
+    });
+    pasos.push({
+      math: `(${dcMatch[1]} + ${dcMatch[2]})(${dcMatch[1]} - ${dcMatch[2]})`,
+      expl: `Aplicamos la f&oacute;rmula: (a + b)(a - b) donde a = ${dcMatch[1]} y b = ${dcMatch[2]}`
+    });
+    return pasos;
+  }
+  
+  return null;
 }
+
+function gcd(a, b) {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) { [a, b] = [b, a % b]; }
+  return a;
+}
+
+function generateStepByStep(problem, topic) {
+  const pasos = [];
+  
+  switch(topic) {
+    case 'factorizacion': {
+      const factorPasos = factorizarPolinomio(problem);
+      if (factorPasos) return factorPasos;
+      
+      // Fallback: explicaci&oacute;n gen&eacute;rica
+      pasos.push({ math: problem, expl: 'Observamos la expresi&oacute;n algebraica para identificar el m&eacute;todo de factorizaci&oacute;n adecuado.' });
+      pasos.push({ math: problem, expl: 'Buscamos factor com&uacute;n entre todos los t&eacute;rminos. Si no hay, revisamos si es diferencia de cuadrados o trinomio cuadrado perfecto.' });
+      pasos.push({ math: problem, expl: 'Aplicamos el m&eacute;todo identificado para descomponer en factores m&aacute;s simples.' });
+      pasos.push({ math: problem, expl: 'Verificamos multiplicando los factores obtenidos para confirmar que el resultado es la expresi&oacute;n original.' });
+      break;
+    }
+    case 'ecuaciones': {
+      pasos.push({ math: problem, expl: 'Identificamosla ecuaci&oacute;n. El objetivo es despejar la variable.' });
+      // Detectar ecuaci&oacute;n lineal: ax + b = c
+      const linMatch = problem.match(/(\d+)([a-z])\s*\+\s*(\d+)\s*=\s*(\d+)/);
+      if (linMatch) {
+        const a = parseInt(linMatch[1]), v = linMatch[2], b = parseInt(linMatch[3]), c = parseInt(linMatch[4]);
+        pasos.push({ math: `${a}${v} + ${b} = ${c}`, expl: `Movemos el t&eacute;rmino constante al otro lado: restamos ${b} en ambos lados.` });
+        pasos.push({ math: `${a}${v} = ${c - b}`, expl: `Simplificamos: ${c} - ${b} = ${c - b}` });
+        pasos.push({ math: `${v} = ${(c - b) / a}`, expl: `Despejamos la variable dividiendo ambos lados entre ${a}: ${v} = ${(c - b)}/${a} = ${(c - b) / a}` });
+        return pasos;
+      }
+      // Ecuaci&oacute;n cuadr&aacute;tica
+      const quadMatch = problem.match(/([a-z])\^2\s*\+\s*(\d+)\1\s*\+\s*(\d+)\s*=\s*0/);
+      if (quadMatch) {
+        const v = quadMatch[1];
+        const a = 1, b = parseInt(quadMatch[2]), c = parseInt(quadMatch[3]);
+        const disc = b * b - 4 * a * c;
+        pasos.push({ math: problem, expl: `Identificamos ecuaci&oacute;n cuadr&aacute;tica con a=${a}, b=${b}, c=${c}.` });
+        pasos.push({ math: `Discriminante = b² - 4ac = ${b}² - 4(1)(${c}) = ${disc}`, expl: `Calculamos el discriminante para determinar el tipo de soluciones.` });
+        if (disc > 0) {
+          const x1 = (-b + Math.sqrt(disc)) / (2 * a);
+          const x2 = (-b - Math.sqrt(disc)) / (2 * a);
+          pasos.push({ math: `${v} = [${-b} ± √(${disc})] / ${2*a}`, expl: `Aplicamos la f&oacute;rmula cuadr&aacute;tica: x = [-b ± √(b² - 4ac)] / 2a` });
+          pasos.push({ math: `${v}₁ = ${x1}, ${v}₂ = ${x2}`, expl: `Dos soluciones reales: ${v}₁ = ${x1} y ${v}₂ = ${x2}` });
+        } else if (disc === 0) {
+          pasos.push({ math: `${v} = ${-b / (2 * a)}`, expl: `Una soluci&oacute;n real (ra&iacute;z doble): ${v} = ${-b / (2 * a)}` });
+        } else {
+          pasos.push({ math: `No hay soluciones reales`, expl: `El discriminante es negativo, no hay soluciones en los n&uacute;meros reales.` });
+        }
+        return pasos;
+      }
+      break;
+    }
+    default: {
+      pasos.push({ math: problem, expl: 'Analizamos la expresi&oacute;n matem&aacute;tica proporcionada.' });
+      pasos.push({ math: problem, expl: 'Aplicamos las propiedades y reglas algebraicas correspondientes al tema.' });
+      pasos.push({ math: problem, expl: 'Simplificamos paso a paso hasta llegar al resultado.' });
+    }
+  }
+  
+  return pasos;
+}
+
+// Endpoint mejorado de resoluci&oacute;n paso a paso
+app.post('/api/resolver/paso-a-paso', async (req, res) => {
+  try {
+    const { expression, topic } = req.body;
+    
+    if (!expression) {
+      return res.status(400).json({ error: 'No se proporcion&oacute; expresi&oacute;n' });
+    }
+    
+    // Intentar resolver localmente
+    const pasosLocales = generateStepByStep(expression, topic || 'general');
+    
+    // Si hay pasos locales, devolverlos
+    if (pasosLocales.length > 2) {
+      return res.json({
+        pasos: pasosLocales,
+        fuente: 'motor_local',
+        tipo: topic || 'general'
+      });
+    }
+    
+    // Fallback: si hay API key configurada, usar IA
+    const configRes = await pool.query('SELECT * FROM api_config ORDER BY prioridad DESC LIMIT 1');
+    if (configRes.rows.length > 0 || process.env.ANTHROPIC_API_KEY) {
+      const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
+      Explica la resoluci&oacute;n de la expresi&oacute;n paso a paso, tipo WolframAlpha.
+      S&eacute; MUY detallado, incluyendo cada transformaci&oacute;n algebraica y explicando POR QU&Eacute; funciona.
+      Responde &Uacute;NICAMENTE en formato JSON:
+      {
+        "pasos": [
+          {"math": "expresi&oacute;n matem&aacute;tica del paso en LaTeX", "expl": "explicaci&oacute;n detallada de este paso"}
+        ],
+        "respuesta_final": "resultado final"
+      }`;
+      
+      try {
+        const result = await callLLM(req.user?.id || 1, expression, systemPrompt);
+        const cleanJson = result.replace(/```json|```/g, '').trim();
+        const data = JSON.parse(cleanJson);
+        return res.json({
+          pasos: data.pasos,
+          respuesta_final: data.respuesta_final,
+          fuente: 'ia'
+        });
+      } catch (e) {
+        // Si falla la IA, devolver los pasos locales que tengamos
+        return res.json({
+          pasos: pasosLocales.length > 0 ? pasosLocales : [{math: expression, expl: 'No se pudo generar una resoluci&oacute;n detallada. Consulta la Biblioteca de Conocimiento para aprender m&aacute;s sobre este tema.'}],
+          fuente: 'basico'
+        });
+      }
+    }
+    
+    // Sin API key, devolver pasos locales
+    res.json({
+      pasos: pasosLocales,
+      fuente: 'motor_local'
+    });
+  } catch (err) {
+    console.error('Error en resoluci&oacute;n:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// ENDPOINTS DE ESTAD&Iacute;STICAS AVANZADAS
+// ============================================================
+
+// Dashboard completo del estudiante
+app.get('/api/dashboard/completo', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Stats generales
+    const stats = await pool.query(
+      `SELECT u.*,
+              (SELECT COUNT(*) FROM exercise_history WHERE user_id = $1) as total_ejercicios,
+              (SELECT COUNT(*) FROM exercise_history WHERE user_id = $1 AND correcto = true) as total_correctos,
+              (SELECT COUNT(*) FROM xp_history WHERE user_id = $1 AND fuente = 'evento') as eventos_participados,
+              (SELECT COUNT(*) FROM user_badges WHERE user_id = $1) as badges_obtenidos
+       FROM users u WHERE u.id = $1`,
+      [userId]
+    );
+    
+    // &Uacute;ltimos ejercicios
+    const recent = await pool.query(
+      `SELECT eh.*, t.name as topic_name
+       FROM exercise_history eh
+       LEFT JOIN topics t ON eh.topic_id = t.id
+       WHERE eh.user_id = $1
+       ORDER BY eh.timestamp DESC
+       LIMIT 10`,
+      [userId]
+    );
+    
+    // Progreso por tema
+    const topics = await pool.query(
+      `SELECT tp.*, t.name as topic_name
+       FROM topic_progress tp
+       LEFT JOIN topics t ON tp.topic_id = t.id
+       WHERE tp.user_id = $1
+       ORDER BY tp.ultima_practica DESC`,
+      [userId]
+    );
+    
+    res.json({
+      ...stats.rows[0],
+      ejercicios_recientes: recent.rows,
+      progreso_temas: topics.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================
+// INICIALIZAR BASE DE DATOS (crear tablas si no existen)
+// ============================================================
+
+async function initDatabase() {
+  try {
+    // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
+    const check = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'knowledge_library'
+      )
+    `);
+    
+    if (!check.rows[0].exists) {
+      console.log('⚠️  Tablas nuevas no encontradas. Ejecuta database_schema.sql manualmente.');
+      console.log('⚠️  En PostgreSQL: \\i database_schema.sql');
+    } else {
+      console.log('✅  Base de datos: todas las tablas presentes');
+    }
+  } catch (err) {
+    console.error('⚠️  Error verificando base de datos:', err.message);
+  }
+}
+
+initDatabase();
+
+app.listen(port, () => {
+  console.log(`====================================================`);
+  console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
+  console.log(`====================================================`);
+  console.log(`📦  Endpoints cargados:`);
+  console.log(`   - Auth (register, login, me, parent-child)`);
+  console.log(`   - Ejercicios (CRUD, generaci&oacute;n IA)`);
+  console.log(`   - Eventos y Competiciones 🏆`);
+  console.log(`   - Badges y Logros 🎖️`);
+  console.log(`   - Biblioteca de Conocimiento 📚`);
+  console.log(`   - Tienda e Inventario 🛍️`);
+  console.log(`   - Nivelaci&oacute;n Avanzada 📊`);
+  console.log(`   - Resoluci&oacute;n Paso a Paso 🔍`);
+  console.log(`   - Dashboard Completo 📈`);
+  console.log(`====================================================`);
+});

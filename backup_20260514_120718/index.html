@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathMaty — Tutor de Matemáticas TEC</title>
+    <meta name="description" content="Aprende matemáticas del TEC con explicaciones paso a paso, gamificación y tutoría por IA.">
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="stylesheet" href="/katex/katex.min.css">
+    <script defer src="/katex/katex.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="auth-container" class="container">
+    </div>
+
+    <div id="app-container" class="app-layout hidden">
+        <header>
+            <div class="header-left">
+                <button id="mobile-menu-btn" class="btn btn-outline btn-sm mobile-only" onclick="toggleMobileMenu()">
+                    <i class="ti ti-menu-2"></i>
+                </button>
+                <h1>MathMaty <span style="color: var(--color-primary);">TEC</span></h1>
+            </div>
+            <div class="header-right" style="display: flex; gap: 0.5rem; align-items: center;">
+                <div class="global-stats">
+                    <span id="global-rank" class="btn btn-outline btn-sm" style="font-size: 0.75rem;">
+                        <i class="ti ti-trophy"></i> #--
+                    </span>
+                    <span id="user-xp" class="btn btn-outline btn-sm" style="font-size: 0.75rem;">
+                        <i class="ti ti-star"></i> 0 XP
+                    </span>
+                    <span id="user-level" class="btn btn-outline btn-sm" style="font-size: 0.75rem;">
+                        <i class="ti ti-certificate"></i> Lv 1
+                    </span>
+                </div>
+                <div class="user-menu" style="display: flex; gap: 0.25rem;">
+                    <button class="btn btn-outline btn-sm" onclick="showView('reports')" title="Reportes"><i class="ti ti-chart-bar"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="showView('config')" title="Configuración"><i class="ti ti-settings"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="logout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Sidebar Desktop -->
+        <aside id="sidebar" class="sidebar-desktop">
+            <nav style="display: flex; flex-direction: column; gap: 0.25rem;">
+                <button class="btn btn-outline nav-btn" onclick="showView('home')">
+                    <i class="ti ti-smart-home"></i> <span>Inicio</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('topics')">
+                    <i class="ti ti-book"></i> <span>Temas</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('missions')">
+                    <i class="ti ti-sword"></i> <span>Misiones</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('exams')">
+                    <i class="ti ti-clipboard-list"></i> <span>Exámenes</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('events')">
+                    <i class="ti ti-flame"></i> <span>Eventos</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('leaderboard')">
+                    <i class="ti ti-award"></i> <span>Clasificación</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('knowledge')">
+                    <i class="ti ti-library"></i> <span>Biblioteca</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('badges')">
+                    <i class="ti ti-medal"></i> <span>Logros</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('shop')">
+                    <i class="ti ti-shopping-bag"></i> <span>Tienda</span>
+                </button>
+                <button class="btn btn-outline nav-btn" onclick="showView('admin')">
+                    <i class="ti ti-database"></i> <span>Banco</span>
+                </button>
+                <button id="parent-btn" class="btn btn-outline nav-btn hidden" onclick="showView('parent-dashboard')">
+                    <i class="ti ti-users"></i> <span>Mis Hijos</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <h4>Pausa Activa</h4>
+                <div class="hp-bar-container" style="width: 100%;">
+                    <div id="break-progress" class="hp-bar-fill" style="width: 0%; background: var(--color-primary);"></div>
+                </div>
+                <p id="break-text" style="font-size: 0.7rem; color: var(--color-text-secondary); margin-top: 0.25rem;">0/10</p>
+            </div>
+        </aside>
+
+        <!-- Bottom Nav Mobile -->
+        <nav id="bottom-nav" class="bottom-nav mobile-only">
+            <button class="bottom-nav-btn" onclick="showView('home')">
+                <i class="ti ti-smart-home"></i><span>Inicio</span>
+            </button>
+            <button class="bottom-nav-btn" onclick="showView('topics')">
+                <i class="ti ti-book"></i><span>Temas</span>
+            </button>
+            <button class="bottom-nav-btn" onclick="showView('missions')">
+                <i class="ti ti-sword"></i><span>Misiones</span>
+            </button>
+            <button class="bottom-nav-btn" onclick="showView('events')">
+                <i class="ti ti-flame"></i><span>Eventos</span>
+            </button>
+            <button class="bottom-nav-btn" onclick="showView('leaderboard')">
+                <i class="ti ti-award"></i><span>Ranking</span>
+            </button>
+        </nav>
+
+        <main id="main-content">
+        </main>
+    </div>
+
+    <!-- Doom Guy Widget -->
+    <div id="doom-widget" class="doom-widget hidden">
+        <div id="doom-face" class="doom-face"></div>
+        <div class="hp-bar-container">
+            <div id="hp-fill" class="hp-bar-fill"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; width: 100%; font-size: 0.7rem; font-weight: bold;">
+            <span>HP</span>
+            <span id="hp-text">100/100</span>
+        </div>
+        <button id="pizarra-btn" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 0.25rem;" onclick="toggleWhiteboard()">
+            <i class="ti ti-pencil"></i> Pizarra
+        </button>
+    </div>
+
+    <!-- Whiteboard Modal -->
+    <div id="whiteboard-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; display: flex; flex-direction: column;">
+        <div style="padding: 0.75rem; display: flex; justify-content: space-between; align-items: center; background: var(--color-surface);">
+            <h3><i class="ti ti-pencil"></i> Pizarra</h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-outline btn-sm" onclick="clearWhiteboard()">Limpiar</button>
+                <button class="btn btn-outline btn-sm" onclick="changeWhiteboardColor()">Color</button>
+                <button class="btn btn-primary btn-sm" onclick="saveWhiteboard()">Guardar</button>
+                <button class="btn btn-outline btn-sm" onclick="toggleWhiteboard()">Cerrar</button>
+            </div>
+        </div>
+        <canvas id="whiteboard-canvas" style="flex: 1; touch-action: none; cursor: crosshair; background: #111;"></canvas>
+    </div>
+
+    <!-- Game Modal -->
+    <div id="game-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; text-align: center;">
+            <h2>🎮 Descanso Merecido</h2>
+            <p style="margin-bottom: 1rem;">Has resuelto 10 ejercicios. Tómate 5 minutos.</p>
+            <div style="background: #000; height: 300px; margin-bottom: 1rem; border-radius: var(--radius-md); overflow: hidden;">
+                <canvas id="game-canvas" style="width: 100%; height: 100%;"></canvas>
+            </div>
+            <button class="btn btn-primary" onclick="closeGame()">Volver a estudiar</button>
+        </div>
+    </div>
+
+    <!-- Glossary Modal -->
+    <div id="glossary-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1001; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; max-height: 85vh; overflow-y: auto;">
+            <h2 id="glossary-title" style="color: var(--color-primary); margin-bottom: 1rem;">Término</h2>
+            <p id="glossary-def" style="margin-bottom: 1rem; line-height: 1.6;"></p>
+            <div style="background: var(--color-surface-hover); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1rem;">
+                <strong style="display: block; font-size: 0.8rem; margin-bottom: 0.25rem; color: var(--color-success);">Ejemplo:</strong>
+                <code id="glossary-example" style="font-family: var(--font-mono); color: var(--color-text-primary);"></code>
+            </div>
+            <div id="glossary-mana-box" style="border-left: 3px solid var(--color-warning); padding-left: 1rem; margin-bottom: 1rem;">
+                <strong style="display: block; font-size: 0.8rem; color: var(--color-warning); margin-bottom: 0.25rem;">Maña:</strong>
+                <p id="glossary-mana" style="font-size: 0.9rem; font-style: italic;"></p>
+            </div>
+            <button class="btn btn-outline" style="width: 100%;" onclick="closeGlossary()">Entendido</button>
+        </div>
+    </div>
+
+    <!-- Step-by-Step Solver Modal -->
+    <div id="solver-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1002; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 650px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2><i class="ti ti-robot"></i> Resolución Paso a Paso</h2>
+                <button class="btn btn-outline btn-sm" onclick="closeSolver()">Cerrar</button>
+            </div>
+            <div id="solver-input-area" style="margin-bottom: 1rem;">
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="text" id="solver-input" class="btn btn-outline" style="flex: 1; background: var(--color-bg); text-align: left;" placeholder="Escribe una expresión matemática...">
+                    <button class="btn btn-primary" onclick="solveExpression()"><i class="ti ti-player-play"></i> Resolver</button>
+                </div>
+                <div style="margin-top: 0.5rem; display: flex; gap: 0.25rem; flex-wrap: wrap;">
+                    <button class="btn btn-outline btn-sm" onclick="setSolverExample('x^2 - 9')">x² - 9</button>
+                    <button class="btn btn-outline btn-sm" onclick="setSolverExample('3x + 5 = 17')">3x+5=17</button>
+                    <button class="btn btn-outline btn-sm" onclick="setSolverExample('x^2 - 5x + 6 = 0')">x²-5x+6=0</button>
+                    <button class="btn btn-outline btn-sm" onclick="setSolverExample('2x - 3 > 5')">2x-3>5</button>
+                </div>
+            </div>
+            <div id="solver-results" class="hidden">
+                <div id="solver-steps"></div>
+                <div id="solver-answer" style="margin-top: 1rem; padding: 1rem; background: var(--color-surface-hover); border-radius: var(--radius-md);"></div>
+            </div>
+            <div id="solver-loading" class="hidden" style="text-align: center; padding: 2rem;">
+                <p style="color: var(--color-text-muted);">Resolviendo...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Detail Modal -->
+    <div id="knowledge-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1003; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2 id="kmodal-title" style="color: var(--color-primary);"></h2>
+                <button class="btn btn-outline btn-sm" onclick="closeKnowledgeModal()">Cerrar</button>
+            </div>
+            <div id="kmodal-content" style="line-height: 1.7;"></div>
+            <div id="kmodal-ejemplos" style="margin-top: 1.5rem;"></div>
+            <div id="kmodal-manas" style="margin-top: 1rem; border-left: 3px solid var(--color-warning); padding-left: 1rem;"></div>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;" onclick="startExerciseFromKnowledge()">Practicar Este Tema</button>
+        </div>
+    </div>
+
+    <!-- Event Detail Modal -->
+    <div id="event-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 1004; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 550px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div id="event-modal-content"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
