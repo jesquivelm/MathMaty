@@ -25,16 +25,25 @@ const pool = new Pool(
   }
 );
 
+// Log database connection mode
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
+console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
+}
+
+// Test connection immediately
+pool.query('SELECT 1 as test').then(r => {
+  console.log('[DB] ✅ Connection test OK');
+}).catch(err => {
+  console.error('[DB] ❌ Connection test FAILED:', err.message);
+  console.error('[DB] Error code:', err.code);
+});
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-const publicDir = path.join(__dirname, 'public');
-const publicDirExists = fs.existsSync(publicDir);
-console.log('[MathMaty] Public dir:', publicDir, 'exists:', publicDirExists);
-
-if (publicDirExists) {
-  app.use(express.static(publicDir));
-}
+app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
   res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
@@ -157,19 +166,25 @@ app.post('/api/auth/login', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+      return res.status(401).json({ error: 'Usuario no encontrado' });
     }
     
     const user = result.rows[0];
     
-    // Verificar contrase&ntilde;a
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+    // Verificar contraseña
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(password, user.password_hash);
+    } catch (bcryptErr) {
+      console.error('bcrypt error:', bcryptErr.message);
+      return res.status(500).json({ error: 'Error verificando contraseña: ' + bcryptErr.message });
     }
     
-    // Actualizar &uacute;ltimo acceso
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+    
+    // Actualizar último acceso
     await pool.query(
       'UPDATE users SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
@@ -196,6 +211,11 @@ app.post('/api/auth/login', async (req, res) => {
         racha_actual: user.racha_actual
       }
     });
+  } catch (err) {
+    console.error('Error en login:', err);
+    res.status(500).json({ error: 'Error interno: ' + err.message });
+  }
+});
   } catch (err) {
     console.error('Error en login:', err);
     res.status(500).json({ error: 'Error al iniciar sesi&oacute;n' });
@@ -1843,34 +1863,43 @@ async function initDatabase() {
     `);
     
     if (!check.rows[0].exists) {
-      console.log('⚠️  Tablas nuevas no encontradas. Ejecuta database_schema.sql manualmente.');
-      console.log('⚠️  En PostgreSQL: \\i database_schema.sql');
+      console.log('⚠️  Tablas no encontradas. Ejecutando schema automáticamente...');
+      const schemaPath = path.join(__dirname, 'database_schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const statements = schemaSql.split(';').filter(s => s.trim().length > 0);
+        for (const stmt of statements) {
+          try { await pool.query(stmt); } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+        }
+        console.log('✅  Schema ejecutado');
+      } else {
+        console.log('❌  No se encuentra database_schema.sql');
+      }
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
   } catch (err) {
-    console.error('⚠️  Error verificando base de datos:', err.message);
+    console.error('⚠️  Error de base de datos:');
+    console.error('   Mensaje:', JSON.stringify(err.message));
+    console.error('   Code:', err.code);
+    console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
   }
 }
 
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
-  initDatabase();
-  app.listen(port, () => {
-    console.log(`====================================================`);
-    console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
-    console.log(`====================================================`);
-    console.log(`📦  Endpoints cargados:`);
-    console.log(`   - Auth (register, login, me, parent-child)`);
-    console.log(`   - Ejercicios (CRUD, generaci&oacute;n IA)`);
-    console.log(`   - Eventos y Competiciones 🏆`);
-    console.log(`   - Badges y Logros 🎖️`);
-    console.log(`   - Biblioteca de Conocimiento 📚`);
-    console.log(`   - Tienda e Inventario 🛍️`);
-    console.log(`   - Nivelaci&oacute;n Avanzada 📊`);
-    console.log(`   - Resoluci&oacute;n Paso a Paso 🔍`);
-    console.log(`   - Dashboard Completo 📈`);
-    console.log(`====================================================`);
-  });
-}
+initDatabase();
+app.listen(port, () => {
+  console.log(`====================================================`);
+  console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
+  console.log(`====================================================`);
+  console.log(`📦  Endpoints cargados:`);
+  console.log(`   - Auth (register, login, me, parent-child)`);
+  console.log(`   - Ejercicios (CRUD, generaci&oacute;n IA)`);
+  console.log(`   - Eventos y Competiciones 🏆`);
+  console.log(`   - Badges y Logros 🎖️`);
+  console.log(`   - Biblioteca de Conocimiento 📚`);
+  console.log(`   - Tienda e Inventario 🛍️`);
+  console.log(`   - Nivelaci&oacute;n Avanzada 📊`);
+  console.log(`   - Resoluci&oacute;n Paso a Paso 🔍`);
+  console.log(`   - Dashboard Completo 📈`);
+  console.log(`====================================================`);
+});
