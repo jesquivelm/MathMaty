@@ -1,25 +1,54 @@
+console.log('=== ENV DEBUG ===');
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 50) : 'NO EXISTE');
+console.log('Todas las vars:', Object.keys(process.env).filter(k => k.includes('DB') || k.includes('DATA') || k.includes('POST')));
+console.log('=== END DEBUG ===');
+
 const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const app = express();
-const port = 3030;
+const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'mathmaty',
-  password: 'Calg.1984', 
-  port: 5432,
+const pool = new Pool(
+  process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  } : {
+    user: 'postgres',
+    host: 'localhost',
+    database: 'mathmaty',
+    password: 'Calg.1984', 
+    port: 5432,
+  }
+);
+
+// Log database connection mode
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
+console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
+}
+
+// Test connection immediately
+pool.query('SELECT 1 as test').then(r => {
+  console.log('[DB] ✅ Connection test OK');
+}).catch(err => {
+  console.error('[DB] ❌ Connection test FAILED:', err.message);
+  console.error('[DB] Error code:', err.code);
 });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static('public'));
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/health', (req, res) => {
+  res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
+});
 
 // Endpoint para subir imagenes
 const fs = require('fs');
@@ -139,19 +168,25 @@ app.post('/api/auth/login', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+      return res.status(401).json({ error: 'Usuario no encontrado' });
     }
     
     const user = result.rows[0];
     
-    // Verificar contrase&ntilde;a
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+    // Verificar contraseña
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(password, user.password_hash);
+    } catch (bcryptErr) {
+      console.error('bcrypt error:', bcryptErr.message);
+      return res.status(500).json({ error: 'Error verificando contraseña: ' + bcryptErr.message });
     }
     
-    // Actualizar &uacute;ltimo acceso
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+    
+    // Actualizar último acceso
     await pool.query(
       'UPDATE users SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
@@ -178,6 +213,11 @@ app.post('/api/auth/login', async (req, res) => {
         racha_actual: user.racha_actual
       }
     });
+  } catch (err) {
+    console.error('Error en login:', err);
+    res.status(500).json({ error: 'Error interno: ' + err.message });
+  }
+});
   } catch (err) {
     console.error('Error en login:', err);
     res.status(500).json({ error: 'Error al iniciar sesi&oacute;n' });
@@ -1825,18 +1865,30 @@ async function initDatabase() {
     `);
     
     if (!check.rows[0].exists) {
-      console.log('⚠️  Tablas nuevas no encontradas. Ejecuta database_schema.sql manualmente.');
-      console.log('⚠️  En PostgreSQL: \\i database_schema.sql');
+      console.log('⚠️  Tablas no encontradas. Ejecutando schema automáticamente...');
+      const schemaPath = path.join(__dirname, 'database_schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const statements = schemaSql.split(';').filter(s => s.trim().length > 0);
+        for (const stmt of statements) {
+          try { await pool.query(stmt); } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+        }
+        console.log('✅  Schema ejecutado');
+      } else {
+        console.log('❌  No se encuentra database_schema.sql');
+      }
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
   } catch (err) {
-    console.error('⚠️  Error verificando base de datos:', err.message);
+    console.error('⚠️  Error de base de datos:');
+    console.error('   Mensaje:', JSON.stringify(err.message));
+    console.error('   Code:', err.code);
+    console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
   }
 }
 
 initDatabase();
-
 app.listen(port, () => {
   console.log(`====================================================`);
   console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
