@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathMaty — Tutor de Matemáticas TEC</title>
+    <meta name="description" content="Aprende matemáticas del TEC con explicaciones paso a paso, gamificación y tutoría por IA.">
+    <link rel="stylesheet" href="public/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="auth-container" class="container">
+        <!-- Login / Register screens will go here -->
+    </div>
+
+    <div id="app-container" class="app-layout hidden">
+        <header>
+            <div class="header-left">
+                <h1>MathMaty <span style="color: var(--color-primary);">TEC</span></h1>
+            </div>
+            <div class="header-right" style="display: flex; gap: 1rem; align-items: center;">
+                <div class="global-stats">
+                    <span id="global-rank" class="btn btn-outline" style="font-size: 0.8rem;">
+                        <i class="ti ti-trophy"></i> Rank: #--
+                    </span>
+                    <span id="user-xp" class="btn btn-outline" style="font-size: 0.8rem;">
+                        <i class="ti ti-star"></i> 0 XP
+                    </span>
+                </div>
+                <div class="user-menu" style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline" onclick="showView('reports')"><i class="ti ti-chart-bar"></i></button>
+                    <button class="btn btn-outline" onclick="showView('config')"><i class="ti ti-settings"></i></button>
+                    <button class="btn btn-outline" onclick="logout()"><i class="ti ti-logout"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <aside>
+            <nav style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('home')">
+                    <i class="ti ti-smart-home"></i> Inicio
+                </button>
+                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('topics')">
+                    <i class="ti ti-book"></i> Temas
+                </button>
+                <button class="btn btn-outline" style="justify-content: flex-start;" onclick="showView('leaderboard')">
+                    <i class="ti ti-award"></i> Leaderboard
+                </button>
+                <button id="parent-btn" class="btn btn-outline hidden" style="justify-content: flex-start;" onclick="showView('parent-dashboard')">
+                    <i class="ti ti-users"></i> Mis Hijos
+                </button>
+            </nav>
+
+            <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
+                <h4 style="font-size: 0.75rem; color: var(--color-text-muted); text-transform: uppercase; margin-bottom: 0.5rem;">Próximo Descanso</h4>
+                <div class="hp-bar-container" style="width: 100%;">
+                    <div id="break-progress" class="hp-bar-fill" style="width: 0%; background: var(--color-primary);"></div>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--color-text-secondary); margin-top: 0.5rem;">0/10 ejercicios para el juego</p>
+            </div>
+        </aside>
+
+        <main id="main-content">
+            <!-- Dynamic views here -->
+        </main>
+    </div>
+
+    <!-- Doom Guy Widget -->
+    <div id="doom-widget" class="doom-widget hidden">
+        <div id="doom-face" class="doom-face"></div>
+        <div class="hp-bar-container">
+            <div id="hp-fill" class="hp-bar-fill"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; width: 100%; font-size: 0.7rem; font-weight: bold;">
+            <span>HP</span>
+            <span id="hp-text">100/100</span>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="game-modal" class="modal hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="max-width: 500px; width: 90%; text-align: center;">
+            <h2>¡Hora de un descanso!</h2>
+            <p style="margin-bottom: 1.5rem;">Has resuelto 10 ejercicios correctamente. Disfruta 5 minutos de juego.</p>
+            <div id="game-canvas-container" style="background: #000; height: 300px; margin-bottom: 1.5rem; position: relative;">
+                <canvas id="game-canvas"></canvas>
+            </div>
+            <button class="btn btn-primary" onclick="closeGame()">Volver a estudiar</button>
+        </div>
+    </div>
+
+    <script src="public/app.js"></script>
+</body>
+</html>
