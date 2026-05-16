@@ -1688,7 +1688,7 @@ function renderConfigIA(container) {
 }
 
 function renderConfigDoom(container) {
-  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+  const doomVideos = (window._doomVideos || {});
   
   // 12 video slots exactly as the user described
   const slots = [
@@ -1769,26 +1769,28 @@ function renderConfigCuenta(container) {
 function uploadDoomVideo(key, input, isPng) {
   const file = input.files[0];
   if (!file) return;
+  const labelEl = document.getElementById(`doom-label-${key}`);
+  if (labelEl) labelEl.textContent = 'Subiendo...';
   const reader = new FileReader();
   reader.onload = async function(e) {
     const dataUrl = e.target.result;
     try {
-      const r = await fetch('/api/upload/image', {
+      const r = await fetch('/api/doom-videos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl, isVideo: !isPng })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+        body: JSON.stringify({ key, image: dataUrl })
       });
       const result = await r.json();
-      const url = result.url || dataUrl;
-      const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
-      doomVideos[key] = url;
-      localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
-      document.getElementById(`doom-label-${key}`).textContent = file.name;
+      if (result.ok) {
+        window._doomVideos = window._doomVideos || {};
+        window._doomVideos[key] = result.url;
+        if (labelEl) labelEl.textContent = file.name;
+      } else {
+        if (labelEl) labelEl.textContent = 'Error: ' + (result.error || 'desconocido');
+      }
     } catch(e) {
-      const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
-      doomVideos[key] = dataUrl;
-      localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
-      document.getElementById(`doom-label-${key}`).textContent = file.name;
+      if (labelEl) labelEl.textContent = 'Error al subir';
+      console.error('uploadDoomVideo error:', e);
     }
     switchConfigTab('doom');
   };
@@ -1797,9 +1799,9 @@ function uploadDoomVideo(key, input, isPng) {
 
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
-  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
-  delete doomVideos[key];
-  localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
+  fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } })
+    .catch(() => {});
+  if (window._doomVideos) delete window._doomVideos[key];
   switchConfigTab('doom');
 }
 
@@ -2098,7 +2100,7 @@ async function updateUI() {
 
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+  const doomVideos = (window._doomVideos || {});
   
   faceEl.className = 'doom-face';
   if (hp <= 0) faceEl.classList.add('dead');
@@ -2154,7 +2156,7 @@ async function updateUI() {
 function updateDoomDisplay(hp) {
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+  const doomVideos = (window._doomVideos || {});
   
   if (hp <= 0) {
     if (video) video.style.display = 'none';
