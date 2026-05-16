@@ -25,30 +25,13 @@ const pool = new Pool(
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Try multiple possible public paths for Vercel compatibility
-const possiblePaths = [
-  path.join(__dirname, 'public'),
-  path.join(process.cwd(), 'public'),
-  path.join(__dirname, '..', 'public'),
-];
-let publicPath = possiblePaths.find(p => fs.existsSync(p)) || possiblePaths[0];
-console.log('[MathMaty] Public path:', publicPath);
-console.log('[MathMaty] __dirname:', __dirname);
-console.log('[MathMaty] cwd:', process.cwd());
-console.log('[MathMaty] index.html exists:', fs.existsSync(path.join(publicPath, 'index.html')));
+const publicDir = path.join(__dirname, 'public');
+const publicDirExists = fs.existsSync(publicDir);
+console.log('[MathMaty] Public dir:', publicDir, 'exists:', publicDirExists);
 
-app.use(express.static(publicPath));
-
-// Root route - must be before other routes for Vercel
-app.get('/', (req, res) => {
-  const indexPath = path.join(publicPath, 'index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    // Fallback: try to read and send
-    res.type('html').send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>MathMaty</title></head><body><h1>MathMaty TEC</h1><p>Si ves esto, el servidor funciona pero no encuentra index.html</p><script>fetch('/index.html').then(r=>r.text()).then(h=>{document.open();document.write(h);document.close()})</script></body></html>`);
-  }
-});
+if (publicDirExists) {
+  app.use(express.static(publicDir));
+}
 app.get('/health', (req, res) => {
   res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
