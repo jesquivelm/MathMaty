@@ -25,13 +25,7 @@ const pool = new Pool(
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-const publicDir = path.join(__dirname, 'public');
-const publicDirExists = fs.existsSync(publicDir);
-console.log('[MathMaty] Public dir:', publicDir, 'exists:', publicDirExists);
-
-if (publicDirExists) {
-  app.use(express.static(publicDir));
-}
+app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
   res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
@@ -1840,8 +1834,18 @@ async function initDatabase() {
     `);
     
     if (!check.rows[0].exists) {
-      console.log('⚠️  Tablas nuevas no encontradas. Ejecuta database_schema.sql manualmente.');
-      console.log('⚠️  En PostgreSQL: \\i database_schema.sql');
+      console.log('⚠️  Tablas no encontradas. Ejecutando schema automáticamente...');
+      const schemaPath = path.join(__dirname, 'database_schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const statements = schemaSql.split(';').filter(s => s.trim().length > 0);
+        for (const stmt of statements) {
+          try { await pool.query(stmt); } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+        }
+        console.log('✅  Schema ejecutado');
+      } else {
+        console.log('❌  No se encuentra database_schema.sql');
+      }
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
@@ -1850,24 +1854,20 @@ async function initDatabase() {
   }
 }
 
-if (process.env.VERCEL) {
-  module.exports = app;
-} else {
-  initDatabase();
-  app.listen(port, () => {
-    console.log(`====================================================`);
-    console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
-    console.log(`====================================================`);
-    console.log(`📦  Endpoints cargados:`);
-    console.log(`   - Auth (register, login, me, parent-child)`);
-    console.log(`   - Ejercicios (CRUD, generaci&oacute;n IA)`);
-    console.log(`   - Eventos y Competiciones 🏆`);
-    console.log(`   - Badges y Logros 🎖️`);
-    console.log(`   - Biblioteca de Conocimiento 📚`);
-    console.log(`   - Tienda e Inventario 🛍️`);
-    console.log(`   - Nivelaci&oacute;n Avanzada 📊`);
-    console.log(`   - Resoluci&oacute;n Paso a Paso 🔍`);
-    console.log(`   - Dashboard Completo 📈`);
-    console.log(`====================================================`);
-  });
-}
+initDatabase();
+app.listen(port, () => {
+  console.log(`====================================================`);
+  console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
+  console.log(`====================================================`);
+  console.log(`📦  Endpoints cargados:`);
+  console.log(`   - Auth (register, login, me, parent-child)`);
+  console.log(`   - Ejercicios (CRUD, generaci&oacute;n IA)`);
+  console.log(`   - Eventos y Competiciones 🏆`);
+  console.log(`   - Badges y Logros 🎖️`);
+  console.log(`   - Biblioteca de Conocimiento 📚`);
+  console.log(`   - Tienda e Inventario 🛍️`);
+  console.log(`   - Nivelaci&oacute;n Avanzada 📊`);
+  console.log(`   - Resoluci&oacute;n Paso a Paso 🔍`);
+  console.log(`   - Dashboard Completo 📈`);
+  console.log(`====================================================`);
+});
