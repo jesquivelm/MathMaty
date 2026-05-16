@@ -1875,6 +1875,14 @@ async function initDatabase() {
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
+    // Ensure doom_videos table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS doom_videos (
+        key VARCHAR(50) PRIMARY KEY,
+        url TEXT NOT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
   } catch (err) {
     console.error('⚠️  Error de base de datos:');
     console.error('   Mensaje:', JSON.stringify(err.message));
@@ -1882,6 +1890,42 @@ async function initDatabase() {
     console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
   }
 }
+
+// API: GET doom videos (global, no auth needed)
+app.get('/api/doom-videos', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT key, url FROM doom_videos');
+    const videos = {};
+    r.rows.forEach(row => { videos[row.key] = row.url; });
+    res.json(videos);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// API: SAVE doom video (admin only)
+app.post('/api/doom-videos', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores' });
+    }
+    const { key, url } = req.body;
+    await pool.query(
+      'INSERT INTO doom_videos (key, url) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET url = $2, updated_at = CURRENT_TIMESTAMP',
+      [key, url]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// API: DELETE doom video (admin only)
+app.delete('/api/doom-videos/:key', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
+      return res.status(403).json({ error: 'Solo administradores' });
+    }
+    await pool.query('DELETE FROM doom_videos WHERE key = $1', [req.params.key]);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
 
 initDatabase();
 app.listen(port, () => {
