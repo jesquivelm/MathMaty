@@ -22,6 +22,10 @@ const pool = new Pool(
   }
 );
 
+// Log database connection mode
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
+console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
@@ -1861,7 +1865,8 @@ async function initDatabase() {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
   } catch (err) {
-    console.error('⚠️  Error verificando base de datos:', err.message);
+    console.error('⚠️  Error verificando base de datos:', err.message || JSON.stringify(err));
+    console.error('   Stack:', err.stack || 'no stack');
   }
 }
 
