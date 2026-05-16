@@ -38,6 +38,10 @@ async function loadDoomVideos() {
   } catch(e) { _doomVideos = {}; window._doomVideos = {}; }
 }
 
+async function reloadDoomVideos() {
+  await loadDoomVideos();
+}
+
 function getDoomThreshold(hp) {
   for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
     const upper = DOOM_HIT_THRESHOLDS[i - 1];
@@ -1787,26 +1791,14 @@ function uploadDoomVideo(key, input, isPng) {
   reader.onload = async function(e) {
     const dataUrl = e.target.result;
     try {
-      const r = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl, isVideo: !isPng })
-      });
-      const result = await r.json();
-      const url = result.url || dataUrl;
       await fetch('/api/doom-videos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-        body: JSON.stringify({ key, url })
+        body: JSON.stringify({ key, image: dataUrl })
       });
-      _doomVideos[key] = url;
-      window._doomVideos = _doomVideos;
       document.getElementById(`doom-label-${key}`).textContent = file.name;
-    } catch(e) {
-      _doomVideos[key] = dataUrl;
-      window._doomVideos = _doomVideos;
-      document.getElementById(`doom-label-${key}`).textContent = file.name;
-    }
+    } catch(e) {}
+    loadDoomVideos();
     switchConfigTab('doom');
   };
   reader.readAsDataURL(file);
@@ -1814,9 +1806,8 @@ function uploadDoomVideo(key, input, isPng) {
 
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
-  delete _doomVideos[key];
-  window._doomVideos = _doomVideos;
   fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } }).catch(() => {});
+  loadDoomVideos();
   switchConfigTab('doom');
 }
 

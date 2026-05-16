@@ -1885,14 +1885,20 @@ async function initDatabase() {
   }
 }
 
-// API: GET doom videos (global, no auth needed)
+// API: GET doom videos from filesystem
+const DOOM_DIR = path.join(__dirname, 'public', 'uploads', 'doom');
+if (!fs.existsSync(DOOM_DIR)) fs.mkdirSync(DOOM_DIR, { recursive: true });
+
 app.get('/api/doom-videos', async (req, res) => {
   try {
-    const r = await pool.query('SELECT key, url FROM doom_videos');
+    const files = fs.readdirSync(DOOM_DIR);
     const videos = {};
-    r.rows.forEach(row => { videos[row.key] = row.url; });
+    files.forEach(f => {
+      const key = path.parse(f).name;
+      videos[key] = '/uploads/doom/' + f;
+    });
     res.json(videos);
-  } catch(e) { res.status(500).json({ error: e.message }); }
+  } catch(e) { res.json({}); }
 });
 
 // API: SAVE doom video (admin only)
@@ -1901,31 +1907,31 @@ app.post('/api/doom-videos', authenticateToken, async (req, res) => {
     if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
       return res.status(403).json({ error: 'Solo administradores' });
     }
-    const { key, url } = req.body;
-    await pool.query(
-      'INSERT INTO doom_videos (key, url) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET url = $2, updated_at = CURRENT_TIMESTAMP',
-      [key, url]
-    );
-    res.json({ ok: true });
+    const { key, image } = req.body;
+    if (!key || !image) return res.status(400).json({ error: 'Faltan campos' });
+    const matches = image.match(/^data:(video\/(mp4|webm)|image\/(png|jpg|jpeg));base64,(.+)$/);
+    if (!matches) return res.status(400).json({ error: 'Formato inválido' });
+    const ext = matches[2] || matches[3] || 'mp4';
+    const data = Buffer.from(matches[4], 'base64');
+    const filepath = path.join(DOOM_DIR, key + '.' + ext);
+    fs.writeFileSync(filepath, data);
+    res.json({ url: '/uploads/doom/' + key + '.' + ext });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// API: DELETE doom video (admin only)
+// API: DELETE doom video
 app.delete('/api/doom-videos/:key', authenticateToken, async (req, res) => {
   try {
     if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
       return res.status(403).json({ error: 'Solo administradores' });
     }
-    await pool.query('DELETE FROM doom_videos WHERE key = $1', [req.params.key]);
+    const files = fs.readdirSync(DOOM_DIR).filter(f => f.startsWith(req.params.key + '.'));
+    files.forEach(f => fs.unlinkSync(path.join(DOOM_DIR, f)));
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-initDatabase().then(() => {
-  pool.query(`CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, url TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
-    .then(() => console.log('✅  doom_videos table ready'))
-    .catch(e => console.error('⚠️  doom_videos error:', e.message));
-});
+initDatabase();
 app.listen(port, () => {
   console.log(`====================================================`);
   console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
