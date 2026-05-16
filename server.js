@@ -1851,40 +1851,128 @@ app.get('/api/dashboard/completo', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
-    // Ensure doom_videos table exists (for persistent video storage)
-    await pool.query(`CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, data TEXT NOT NULL)`);
-    
-    const schemaPath = path.join(__dirname, 'database_schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-      // Remove comments and split by semicolons for safe execution
-      const cleanSql = schemaSql.replace(/--.*$/gm, '').trim();
-      // Execute each CREATE TABLE separately, others as batch
-      const statements = cleanSql.split(';').filter(s => s.trim().length > 0);
-      let executed = 0;
-      for (const stmt of statements) {
-        const trimmed = stmt.trim();
-        if (trimmed.toUpperCase().startsWith('CREATE TABLE')) {
-          try { await pool.query(trimmed + ';'); executed++; }
-          catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
-        }
-      }
-      // Run remaining DML (INSERT, etc.) with error tolerance
-      for (const stmt of statements) {
-        const trimmed = stmt.trim();
-        if (!trimmed.toUpperCase().startsWith('CREATE TABLE') && !trimmed.toUpperCase().startsWith('CREATE INDEX') && !trimmed.toUpperCase().startsWith('TRUNCATE')) {
-          try { await pool.query(trimmed + ';'); } catch (e) { /* skip expected errors */ }
-        }
-      }
-      console.log('✅  Base de datos: ' + executed + ' tablas verificadas');
-    } else {
-      console.log('❌  No se encuentra database_schema.sql');
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL, nombre VARCHAR(100) NOT NULL,
+        email VARCHAR(100) UNIQUE, rol VARCHAR(20) NOT NULL CHECK (rol IN ('estudiante','padre','admin')),
+        xp INTEGER DEFAULT 0, nivel INTEGER DEFAULT 1, hp INTEGER DEFAULT 100,
+        racha_actual INTEGER DEFAULT 0, racha_maxima INTEGER DEFAULT 0,
+        tiempo_practica INTEGER DEFAULT 0,
+        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP, activo BOOLEAN DEFAULT TRUE
+      )`,
+      `CREATE TABLE IF NOT EXISTS exercises (
+        id SERIAL PRIMARY KEY, topic_id VARCHAR(50) NOT NULL,
+        question TEXT NOT NULL, latex_content TEXT, options JSONB NOT NULL,
+        solution_steps JSONB NOT NULL, theory TEXT,
+        difficulty VARCHAR(20) DEFAULT 'basico', category VARCHAR(50),
+        exam_year INTEGER, source TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS exercise_history (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        exercise_id INTEGER, topic_id VARCHAR(50) NOT NULL,
+        correcto BOOLEAN NOT NULL, tiempo_segundos INTEGER,
+        hp_antes INTEGER, hp_despues INTEGER, dificultad VARCHAR(20),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS topic_progress (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        topic_id VARCHAR(50) NOT NULL, ejercicios_completados INTEGER DEFAULT 0,
+        ejercicios_correctos INTEGER DEFAULT 0, fallos_acumulados INTEGER DEFAULT 0,
+        ultima_practica TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, topic_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS knowledge_library (
+        id SERIAL PRIMARY KEY, topic_id VARCHAR(50) NOT NULL,
+        titulo VARCHAR(200) NOT NULL, contenido TEXT NOT NULL,
+        ejemplos JSONB, manas TEXT, nivel_desde INTEGER DEFAULT 1,
+        nivel_hasta INTEGER DEFAULT 10, orden INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, data TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS leaderboard (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        xp_total INTEGER DEFAULT 0, ejercicios_resueltos INTEGER DEFAULT 0,
+        tasa_exito DECIMAL(5,2) DEFAULT 0, racha_maxima INTEGER DEFAULT 0,
+        posicion_global INTEGER, ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS shop_items (
+        id SERIAL PRIMARY KEY, nombre VARCHAR(100) NOT NULL,
+        descripcion TEXT, tipo VARCHAR(30) NOT NULL, precio_xp INTEGER NOT NULL,
+        icono VARCHAR(200), efecto JSONB, stock INTEGER DEFAULT -1,
+        nivel_requerido INTEGER DEFAULT 1, activo BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS user_inventory (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        item_id INTEGER REFERENCES shop_items(id) ON DELETE CASCADE,
+        cantidad INTEGER DEFAULT 1, fecha_adquisicion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, item_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS badges (
+        id SERIAL PRIMARY KEY, codigo VARCHAR(50) UNIQUE NOT NULL,
+        nombre VARCHAR(100) NOT NULL, descripcion TEXT, icono VARCHAR(200),
+        tipo VARCHAR(30) NOT NULL, criterio JSONB NOT NULL,
+        xp_bonus INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS user_badges (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        badge_id INTEGER REFERENCES badges(id) ON DELETE CASCADE,
+        fecha_obtenido TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, badge_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS api_config (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        proveedor VARCHAR(50) NOT NULL, api_key_encrypted TEXT,
+        activa BOOLEAN DEFAULT TRUE, prioridad INTEGER DEFAULT 0,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, proveedor)
+      )`,
+      `CREATE TABLE IF NOT EXISTS events (
+        id SERIAL PRIMARY KEY, titulo VARCHAR(200) NOT NULL, descripcion TEXT,
+        tipo VARCHAR(30) NOT NULL, tema_id VARCHAR(50),
+        fecha_inicio TIMESTAMP NOT NULL, fecha_fin TIMESTAMP NOT NULL,
+        xp_recompensa INTEGER DEFAULT 0, badge_recompensa VARCHAR(100),
+        requisito_nivel INTEGER DEFAULT 1, activo BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS event_participants (
+        id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        puntuacion INTEGER DEFAULT 0, ejercicios_completados INTEGER DEFAULT 0,
+        ejercicios_correctos INTEGER DEFAULT 0, tiempo_total_seg INTEGER DEFAULT 0,
+        posicion_final INTEGER, participo BOOLEAN DEFAULT FALSE,
+        UNIQUE(event_id, user_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS missions (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        mision_id VARCHAR(50), estado VARCHAR(20), progreso INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS xp_history (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        cantidad INTEGER NOT NULL, fuente VARCHAR(50) NOT NULL,
+        referencia_id INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS parent_child_relations (
+        id SERIAL PRIMARY KEY, parent_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        child_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(parent_id, child_id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS game_sessions (
+        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP, fin TIMESTAMP,
+        ejercicios_completados INTEGER DEFAULT 0, ejercicios_correctos INTEGER DEFAULT 0,
+        xp_ganada INTEGER DEFAULT 0, juego_descanso BOOLEAN DEFAULT FALSE
+      )`,
+    ];
+    let count = 0;
+    for (const sql of tables) {
+      try { await pool.query(sql); count++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
     }
+    console.log('✅  ' + count + '/' + tables.length + ' tablas creadas/verificadas');
   } catch (err) {
-    console.error('⚠️  Error de base de datos:');
-    console.error('   Mensaje:', JSON.stringify(err.message));
-    console.error('   Code:', err.code);
-    console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
+    console.error('⚠️  Error de base de datos:', err.message);
   }
 }
 
