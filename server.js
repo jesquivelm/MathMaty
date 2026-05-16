@@ -1877,15 +1877,6 @@ async function initDatabase() {
     } else {
       console.log('❌  No se encuentra database_schema.sql');
     }
-    // Ensure doom_videos table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS doom_videos (
-        key VARCHAR(50) PRIMARY KEY,
-        url TEXT NOT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅  doom_videos table ready');
   } catch (err) {
     console.error('⚠️  Error de base de datos:');
     console.error('   Mensaje:', JSON.stringify(err.message));
@@ -1930,7 +1921,11 @@ app.delete('/api/doom-videos/:key', authenticateToken, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-initDatabase();
+initDatabase().then(() => {
+  pool.query(`CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, url TEXT NOT NULL, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`)
+    .then(() => console.log('✅  doom_videos table ready'))
+    .catch(e => console.error('⚠️  doom_videos error:', e.message));
+});
 app.listen(port, () => {
   console.log(`====================================================`);
   console.log(`⚔️  MATHMATY ENGINE ACTIVO // PUERTO LOCAL: ${port}  `);
