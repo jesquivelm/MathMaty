@@ -9,13 +9,6 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const cloudinary = require('cloudinary').v2;
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dwz2oh4yu',
-  api_key:    process.env.CLOUDINARY_API_KEY    || '892633223983889',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'j_NuKUhMGT7d494XW2t_G7NmHxE',
-});
 const app = express();
 const port = process.env.PORT || 3030;
 
@@ -44,14 +37,13 @@ if (process.env.DATABASE_URL) {
 // Test connection immediately
 pool.query('SELECT 1 as test').then(r => {
   console.log('[DB] ✅ Connection test OK');
-  loadDoomVideosFromDB().catch(() => {});
 }).catch(err => {
   console.error('[DB] ❌ Connection test FAILED:', err.message);
   console.error('[DB] Error code:', err.code);
 });
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
@@ -1854,79 +1846,6 @@ app.get('/api/dashboard/completo', authenticateToken, async (req, res) => {
 });
 
 // ============================================================
-
-// ============================================================
-// DOOM VIDEOS — Cloudinary
-// ============================================================
-
-// Tabla en memoria (se carga desde DB al iniciar)
-let doomVideosCache = {};
-
-async function loadDoomVideosFromDB() {
-  try {
-    const r = await pool.query('SELECT key, url FROM doom_videos');
-    doomVideosCache = {};
-    r.rows.forEach(row => { doomVideosCache[row.key] = row.url; });
-  } catch(e) {
-    console.warn('doom_videos table not ready:', e.message);
-  }
-}
-
-// GET /api/doom-videos — devuelve todos los videos
-app.get('/api/doom-videos', async (req, res) => {
-  await loadDoomVideosFromDB();
-  res.json(doomVideosCache);
-});
-
-// POST /api/doom-videos — sube un video/imagen a Cloudinary y guarda URL en DB
-app.post('/api/doom-videos', async (req, res) => {
-  try {
-    const { key, image } = req.body;
-    if (!key || !image) return res.status(400).json({ error: 'Faltan key o image' });
-
-    const isVideo = image.startsWith('data:video');
-    const resourceType = isVideo ? 'video' : 'image';
-
-    // Subir a Cloudinary
-    const uploadResult = await cloudinary.uploader.upload(image, {
-      resource_type: resourceType,
-      public_id: `mathmaty/doom/${key}`,
-      overwrite: true,
-    });
-
-    const url = uploadResult.secure_url;
-
-    // Guardar en DB
-    await pool.query(
-      `INSERT INTO doom_videos (key, url) VALUES ($1, $2)
-       ON CONFLICT (key) DO UPDATE SET url = $2`,
-      [key, url]
-    );
-
-    doomVideosCache[key] = url;
-    res.json({ ok: true, url });
-  } catch (err) {
-    console.error('Error subiendo doom video:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// DELETE /api/doom-videos/:key — elimina video
-app.delete('/api/doom-videos/:key', async (req, res) => {
-  try {
-    const { key } = req.params;
-    await pool.query('DELETE FROM doom_videos WHERE key = $1', [key]);
-    delete doomVideosCache[key];
-    // Intentar borrar de Cloudinary también
-    try {
-      await cloudinary.uploader.destroy(`mathmaty/doom/${key}`, { resource_type: 'video' });
-    } catch(e) {}
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // INICIALIZAR BASE DE DATOS (crear tablas si no existen)
 // ============================================================
 

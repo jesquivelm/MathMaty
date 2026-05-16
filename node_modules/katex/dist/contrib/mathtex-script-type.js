@@ -94,8 +94,7 @@ scripts.forEach(function (script) {
       displayMode: display
     });
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(err);
+    //console.error(err); linter doesn't like this
     katexElement.textContent = script.text;
   }
   script.parentNode.replaceChild(katexElement, script);
