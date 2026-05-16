@@ -43,7 +43,7 @@ pool.query('SELECT 1 as test').then(r => {
 });
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
@@ -1851,6 +1851,9 @@ app.get('/api/dashboard/completo', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
+    // Ensure doom_videos table exists (for persistent video storage)
+    await pool.query(`CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, data TEXT NOT NULL)`);
+    
     const schemaPath = path.join(__dirname, 'database_schema.sql');
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
@@ -1885,23 +1888,17 @@ async function initDatabase() {
   }
 }
 
-// API: GET doom videos from filesystem
-const DOOM_DIR = path.join(__dirname, 'public', 'uploads', 'doom');
-if (!fs.existsSync(DOOM_DIR)) fs.mkdirSync(DOOM_DIR, { recursive: true });
-
+// API: GET doom videos from database
 app.get('/api/doom-videos', async (req, res) => {
   try {
-    const files = fs.readdirSync(DOOM_DIR);
+    const r = await pool.query('SELECT key, data FROM doom_videos');
     const videos = {};
-    files.forEach(f => {
-      const key = path.parse(f).name;
-      videos[key] = '/uploads/doom/' + f;
-    });
+    r.rows.forEach(row => { videos[row.key] = row.data; });
     res.json(videos);
   } catch(e) { res.json({}); }
 });
 
-// API: SAVE doom video (admin only)
+// API: SAVE doom video to database
 app.post('/api/doom-videos', authenticateToken, async (req, res) => {
   try {
     if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
@@ -1909,13 +1906,11 @@ app.post('/api/doom-videos', authenticateToken, async (req, res) => {
     }
     const { key, image } = req.body;
     if (!key || !image) return res.status(400).json({ error: 'Faltan campos' });
-    const matches = image.match(/^data:(video\/(mp4|webm)|image\/(png|jpg|jpeg));base64,(.+)$/);
-    if (!matches) return res.status(400).json({ error: 'Formato inválido' });
-    const ext = matches[2] || matches[3] || 'mp4';
-    const data = Buffer.from(matches[4], 'base64');
-    const filepath = path.join(DOOM_DIR, key + '.' + ext);
-    fs.writeFileSync(filepath, data);
-    res.json({ url: '/uploads/doom/' + key + '.' + ext });
+    await pool.query(
+      `INSERT INTO doom_videos (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`,
+      [key, image]
+    );
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1925,8 +1920,7 @@ app.delete('/api/doom-videos/:key', authenticateToken, async (req, res) => {
     if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
       return res.status(403).json({ error: 'Solo administradores' });
     }
-    const files = fs.readdirSync(DOOM_DIR).filter(f => f.startsWith(req.params.key + '.'));
-    files.forEach(f => fs.unlinkSync(path.join(DOOM_DIR, f)));
+    await pool.query('DELETE FROM doom_videos WHERE key = $1', [req.params.key]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
