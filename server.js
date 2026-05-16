@@ -24,11 +24,24 @@ const pool = new Pool(
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static('public'));
+
+// Try multiple possible public paths for Vercel compatibility
+const publicPath = fs.existsSync(path.join(__dirname, 'public'))
+  ? path.join(__dirname, 'public')
+  : path.join(process.cwd(), 'public');
+app.use(express.static(publicPath));
 
 // Root route - must be before other routes for Vercel
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const indexPath = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send('<html><body><h1>MathMaty</h1><p>Cargando...</p><script>window.location.href="/index.html";</script></body></html>');
+  }
+});
+app.get('/health', (req, res) => {
+  res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
 
 // Endpoint para subir imagenes
