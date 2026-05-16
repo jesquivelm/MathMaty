@@ -1,5 +1,7 @@
-console.log('DATABASE_URL existe:', !!process.env.DATABASE_URL);
-console.log('DATABASE_URL valor:', process.env.DATABASE_URL?.substring(0, 40));
+console.log('=== ENV DEBUG ===');
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 50) : 'NO EXISTE');
+console.log('Todas las vars:', Object.keys(process.env).filter(k => k.includes('DB') || k.includes('DATA') || k.includes('POST')));
+console.log('=== END DEBUG ===');
 
 const express = require('express');
 const { Pool } = require('pg');
