@@ -148,19 +148,25 @@ app.post('/api/auth/login', async (req, res) => {
     );
     
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+      return res.status(401).json({ error: 'Usuario no encontrado' });
     }
     
     const user = result.rows[0];
     
-    // Verificar contrase&ntilde;a
-    const validPassword = await bcrypt.compare(password, user.password_hash);
-    
-    if (!validPassword) {
-      return res.status(401).json({ error: 'Credenciales inv&aacute;lidas' });
+    // Verificar contraseña
+    let validPassword = false;
+    try {
+      validPassword = await bcrypt.compare(password, user.password_hash);
+    } catch (bcryptErr) {
+      console.error('bcrypt error:', bcryptErr.message);
+      return res.status(500).json({ error: 'Error verificando contraseña: ' + bcryptErr.message });
     }
     
-    // Actualizar &uacute;ltimo acceso
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+    
+    // Actualizar último acceso
     await pool.query(
       'UPDATE users SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1',
       [user.id]
@@ -187,6 +193,11 @@ app.post('/api/auth/login', async (req, res) => {
         racha_actual: user.racha_actual
       }
     });
+  } catch (err) {
+    console.error('Error en login:', err);
+    res.status(500).json({ error: 'Error interno: ' + err.message });
+  }
+});
   } catch (err) {
     console.error('Error en login:', err);
     res.status(500).json({ error: 'Error al iniciar sesi&oacute;n' });
