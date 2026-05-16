@@ -218,11 +218,6 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ error: 'Error interno: ' + err.message });
   }
 });
-  } catch (err) {
-    console.error('Error en login:', err);
-    res.status(500).json({ error: 'Error al iniciar sesi&oacute;n' });
-  }
-});
 
 // Obtener perfil del usuario actual
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
