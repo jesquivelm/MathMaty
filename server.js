@@ -47,7 +47,7 @@ app.use(express.json({ limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
-  res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
+  res.json({ ok: true, hasDb: !!process.env.DATABASE_URL });
 });
 
 // Endpoint para subir imagenes
