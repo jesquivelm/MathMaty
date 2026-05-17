@@ -38,8 +38,10 @@ var MathGames = {
     cv.style.cssText = 'display:block;width:100%;aspect-ratio:4/3;';
     area.appendChild(cv);
     container.appendChild(area);
+    var gw=game.config.width||400,gh=game.config.height||300;
+    cv.style.aspectRatio=gw+'/'+gh;
     this.current = new game.cls(cv, {
-      width:400,height:300,
+      width:gw,height:gh,
       onScore:function(p){me.score+=p;if(scoreEl)scoreEl.textContent=me.score;},
       onEnd:function(){me.running=false;if(me._lf){cancelAnimationFrame(me._lf);me._lf=null;}if(me.current&&me.current.cleanup)me.current.cleanup();if(me.onEnd)me.onEnd(me.score);}
     });
@@ -639,7 +641,7 @@ TwoZeroGame.prototype._move=function(dx,dy){
   if(dy!==0){
     for(var x=0;x<this.sz;x++){
       var col=[];for(var y=0;y<this.sz;y++)col.push(this.g[y][x]);
-      var rev=(dy===-1);if(rev)col.reverse();
+      var rev=(dy===1);if(rev)col.reverse();
       var res=s._slideArr(col);if(rev)res.result.reverse();
       for(var y=0;y<this.sz;y++)this.g[y][x]=res.result[y];
       if(res.moved)moved=true;
@@ -647,7 +649,7 @@ TwoZeroGame.prototype._move=function(dx,dy){
   }else{
     for(var y=0;y<this.sz;y++){
       var row=this.g[y].slice();
-      var rev=(dx===-1);if(rev)row.reverse();
+      var rev=(dx===1);if(rev)row.reverse();
       var res=s._slideArr(row);if(rev)res.result.reverse();
       this.g[y]=res.result;
       if(res.moved)moved=true;
@@ -1606,7 +1608,7 @@ RoadFighterGame.prototype.update=function(){
   g.register('mines', 'Buscaminas', 'Encuentra las minas sin explotar', '💣', MineGame, {controls:'Click izq: descubrir | Click der: bandera'});
   g.register('simon', 'Simon', 'Repite la secuencia de colores', '🔴', SimonGame, {controls:'Flechas o clic para repetir secuencia'});
   g.register('mole', 'Tope Topos', 'Golpea los topos que aparecen', '🔨', MoleGame, {controls:'Clic en los topos para golpearlos'});
-  g.register('2048', '2048', 'Junta numeros hasta llegar a 2048', '🧮', TwoZeroGame, {controls:'Flechas para mover las fichas'});
+  g.register('2048', '2048', 'Junta numeros hasta llegar a 2048', '🧮', TwoZeroGame, {controls:'Flechas para mover las fichas', width:380, height:420});
   g.register('snake2', 'Snake 2', 'Culebrita con paredes y obstaculos', '🐍', Snake2Game, {controls:'Flechas para mover | Evita paredes'});
   g.register('connect4', 'Conecta 4', 'Conecta 4 fichas contra la IA', '🔵', C4Game, {controls:'Clic en la columna para soltar ficha'});
   g.register('race', 'Carrera', 'Esquiva autos en la carretera', '🏎️', RaceGame, {controls:'Flechas izq/der para esquivar'});
