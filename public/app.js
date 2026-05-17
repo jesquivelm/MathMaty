@@ -2988,7 +2988,7 @@ function renderFlashcards(main) {
       <div class="card" style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);">
         <h4 style="color:var(--color-primary);margin-bottom:.5rem;"><i class="ti ti-bulb"></i> &iquest;C&oacute;mo funciona?</h4>
         <ul style="font-size:.85rem;color:var(--color-text-secondary);line-height:1.8;padding-left:1.2rem;">
-          <li>La IA genera tarjetas con conceptos del tema elegido.</li>
+          <li>Las tarjetas se toman del banco de ejercicios del tema elegido.</li>
           <li>Toca la tarjeta para voltearla y ver la respuesta.</li>
           <li>Marca si lo sab&iacute;as o no — el sistema te muestra tu progreso.</li>
           <li>Ganas <strong style="color:var(--color-warning);">+20 XP</strong> por cada tarjeta correcta.</li>
@@ -2997,7 +2997,7 @@ function renderFlashcards(main) {
     </div>`;
 }
 
-// ---------- Generar tarjetas via IA ----------
+// ---------- Cargar tarjetas desde el banco de ejercicios ----------
 async function startFlashcardSession() {
   const topicId = document.getElementById('fc-topic-select').value;
   const count = parseInt(document.getElementById('fc-count-select').value);
@@ -3007,40 +3007,38 @@ async function startFlashcardSession() {
   main.innerHTML = `
     <div style="max-width:680px;margin:0 auto;text-align:center;padding:3rem 1rem;">
       <div style="font-size:3rem;margin-bottom:1rem;">🃏</div>
-      <h3 style="color:var(--color-primary);">Generando flashcards...</h3>
-      <p style="color:var(--color-text-muted);margin-top:.5rem;">La IA est&aacute; creando ${count} tarjetas de <strong>${topic.name}</strong></p>
+      <h3 style="color:var(--color-primary);">Cargando flashcards...</h3>
+      <p style="color:var(--color-text-muted);margin-top:.5rem;">Preparando tarjetas de <strong>${topic.name}</strong></p>
       <div class="progress-bar" style="margin-top:1.5rem;height:6px;">
-        <div class="progress-fill fc-loading-bar" style="animation:fc-load 2.5s ease-in-out infinite;"></div>
+        <div class="progress-fill" style="width:70%;"></div>
       </div>
-    </div>
-    <style>
-      @keyframes fc-load {
-        0%   { width: 5%; }
-        50%  { width: 80%; }
-        100% { width: 95%; }
-      }
-    </style>`;
+    </div>`;
 
   try {
-    const r = await fetch(`${API}/api/ai/generate-flashcards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ topic: topicId, count })
+    // Mismo endpoint que el panel de admin — sin IA, directo del banco
+    const r = await fetch(`${API}/api/admin/exercises?topic=${topicId}`, {
+      headers: { Authorization: `Bearer ${state.token}` }
     });
 
-    let cards = [];
+    if (!r.ok) throw new Error('No se pudo acceder al banco de ejercicios');
 
-    if (r.ok) {
-      const data = await r.json();
-      cards = data.cards || data || [];
+    const exercises = await r.json();
+
+    if (!exercises || exercises.length === 0) {
+      throw new Error(`No hay ejercicios en el banco para "${topic.name}". Agrega ejercicios en el Banco primero.`);
     }
 
-    // Fallback: si el endpoint no existe aún, generar con el endpoint de ejercicios
-    if (!cards || cards.length === 0) {
-      cards = await generateFlashcardsFromExercises(topicId, count, topic);
-    }
+    // Mezclar y tomar los primeros N
+    const shuffled = [...exercises].sort(() => Math.random() - 0.5).slice(0, count);
 
-    if (!cards || cards.length === 0) throw new Error('No se pudieron generar tarjetas');
+    // Frente: pregunta + latex  |  Reverso: respuesta correcta + teoria
+    const cards = shuffled.map(ex => ({
+      front: ex.question || 'Sin enunciado',
+      back: (ex.options?.[0] || ex.correct_answer || 'Ver resolución'),
+      latex_front: ex.latex_content || ex.latex || '',
+      latex_back: '',
+      theory: ex.theory || ''
+    }));
 
     fcState.cards = cards;
     fcState.index = 0;
@@ -3055,54 +3053,14 @@ async function startFlashcardSession() {
     main.innerHTML = `
       <div style="max-width:680px;margin:0 auto;text-align:center;padding:3rem 1rem;">
         <div style="font-size:3rem;margin-bottom:1rem;">⚠️</div>
-        <h3 style="color:var(--color-warning);">No se pudieron generar las tarjetas</h3>
+        <h3 style="color:var(--color-warning);">No se pudieron cargar las tarjetas</h3>
         <p style="color:var(--color-text-muted);margin:.5rem 0 1.5rem;">${e.message}</p>
-        <button class="btn btn-primary" onclick="showView('flashcards')">Volver</button>
+        <div style="display:flex;gap:.75rem;justify-content:center;">
+          <button class="btn btn-primary" onclick="showView('flashcards')">Volver</button>
+          <button class="btn btn-outline" onclick="showView('admin')"><i class="ti ti-database"></i> Ir al Banco</button>
+        </div>
       </div>`;
   }
-}
-
-// ---------- Fallback: genera flashcards desde la API de ejercicios ----------
-async function generateFlashcardsFromExercises(topicId, count, topic) {
-  // Usamos el endpoint de Claude directamente para generar flashcards
-  const prompt = `Genera exactamente ${count} flashcards de matemáticas sobre el tema: ${topic.name}.
-Contexto del tema: ${topic.teoria}
-
-Responde SOLO con un array JSON válido, sin texto extra, sin markdown, sin backticks.
-Formato exacto:
-[
-  {"front": "¿Pregunta o concepto?", "back": "Respuesta o definición clara y concisa.", "latex_front": "", "latex_back": "expresion_latex_opcional"},
-  ...
-]
-
-Reglas:
-- front: pregunta o concepto breve (máximo 15 palabras)
-- back: respuesta clara y directa (máximo 30 palabras)
-- latex_front y latex_back: expresión LaTeX si aplica, si no, string vacío ""
-- Varía entre definiciones, fórmulas, propiedades y ejemplos rápidos
-- Nivel universitario de precálculo TEC Costa Rica`;
-
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-
-  if (!r.ok) throw new Error('Error al contactar la IA');
-  const data = await r.json();
-  const text = (data.content || []).map(b => b.text || '').join('');
-
-  try {
-    const clean = text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    if (Array.isArray(parsed)) return parsed;
-  } catch (e) {}
-
-  throw new Error('La IA no devolvió un formato válido');
 }
 
 // ---------- Renderizar el mazo de tarjetas ----------

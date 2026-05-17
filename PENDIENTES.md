@@ -6,7 +6,7 @@
 
 | Archivo | En DB | Nivel | Notas |
 |---------|:-----:|-------|-------|
-| `generacion-programatica` (v1-v10) | 876 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg, aritmética, geometría |
+| `generacion-programatica` (v1-v11) | 974 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg, aritmética, geometría |
 | `folleto_guia_2021_final.pdf` | 80 | 10-11 | Guía PAA completa, MC con respuestas |
 | `cuadernillo algebra.pdf` | 50 | 7mo-9no | MC con respuestas |
 | `digital-libro_examen_de_admision-2024-1.pdf` | 38 | 10-11 | Examen admisión UNA, MC |
@@ -23,7 +23,7 @@
 | `Practica_PAA_2024_2025.pdf` | 6 | 10-11 | MC parcial, OCR limitado |
 | `Prueba Racionalización Parte 1.pdf` | 5 | 10-11 | MC parcial, OCR limitado |
 | Legacy (seed original, sin archivo_origen) | 96 | 10-11 | Seeds iniciales del proyecto |
-| **TOTAL** | **1519** | | |
+| **TOTAL** | **1617** | | |
 
 ## Con MC — SIN solucionario (respuesta desconocida)
 
@@ -73,16 +73,35 @@
 
 | Topic | Count |
 |-------|:-----:|
-| tec-matematica | 405 |
-| ecuaciones | 263 |
-| factorizacion | 154 |
+| tec-matematica | 441 |
+| ecuaciones | 276 |
+| factorizacion | 158 |
+| exp-log | 142 |
 | tec-verbal | 129 |
-| exp-log | 135 |
-| trigonometria | 114 |
+| trigonometria | 121 |
 | tec-logica | 98 |
-| inecuaciones | 89 |
-| calculo | 81 |
-| fracciones-alg | 51 |
+| inecuaciones | 95 |
+| calculo | 94 |
+| fracciones-alg | 63 |
+
+## Archivos 100% procesados (ya puedes eliminarlos de material/)
+
+| Archivo | Ej | Notas |
+|---------|:--:|-------|
+| `folleto_guia_2021_final.pdf` | 80 | Guía PAA completa |
+| `digital-libro_examen_de_admision-2024-1.pdf` | 38 | Examen admisión UNA |
+| `cuaderno_de_ejercicios_para_la_paa.pdf` | 31 | Ejercicios PAA |
+| `MATEM 2025_Precálculo_I Parcial.pdf` | 30 | MC con solucionario |
+| `UCR (...solucionario).pdf` | 30 | MC con solucionario |
+| `UNA MATEM 2025_Precálculo_II Parcial.pdf` | 30 | MC con solucionario |
+| `UNA MATEM2024_Precálculo_I Parcial.pdf` | 27 | 3 saltados (figuras no extraíbles) |
+| `UNA MATEM2024_Precálculo_III Parcial.pdf` | 26 | 4 saltados (figuras) |
+| `UNA MATEM2024_Precálculo_II Parcial.pdf` | 25 | 5 saltados (figuras) |
+| `UNA MATEM 2025_Precálculo_III Parcial.pdf` | 24 | 6 saltados (figuras) |
+| `algone82022-examsp.pdf` | 20 | Regents Español 2022 |
+| `Prueba Matematica Examen General.pdf` | 10 | OCR aplicado |
+| `Practica_PAA_2024_2025.pdf` | 6 | OCR aplicado |
+| `Prueba Racionalización Parte 1.pdf` | 5 | OCR aplicado |
 
 ## Prioridades siguientes
 
@@ -92,4 +111,4 @@
 4. **Infra**: El hostname de Neon no resuelve en DNS público local; requiere entrada en `hosts` de Windows
 
 ---
-*Última actualización: 17/05/2026 16:10*
+*Última actualización: 17/05/2026 16:25*
