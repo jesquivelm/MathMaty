@@ -127,10 +127,23 @@ async function fetchProfile() {
       document.getElementById('parent-btn')?.classList.remove('hidden');
       document.getElementById('game-catalog-btn')?.classList.remove('hidden');
     }
+    await loadDoomVideosFromServer();
     await checkBadges();
     showView('home');
     updateUI();
   } catch(e) { logout(); }
+}
+
+async function loadDoomVideosFromServer() {
+  try {
+    const r = await fetch(`${API}/api/doom-videos`);
+    if (r.ok) {
+      window._doomVideos = await r.json();
+    }
+  } catch(e) {
+    console.warn('No se pudieron cargar los doom videos:', e.message);
+    window._doomVideos = {};
+  }
 }
 
 function showAuth() {
@@ -1688,7 +1701,7 @@ function renderConfigIA(container) {
 }
 
 function renderConfigDoom(container) {
-  const doomVideos = (window._doomVideos || {});
+  const doomVideos = ( window._doomVideos || {});
   
   // 12 video slots exactly as the user described
   const slots = [
@@ -1787,10 +1800,11 @@ function uploadDoomVideo(key, input, isPng) {
         if (labelEl) labelEl.textContent = file.name;
       } else {
         if (labelEl) labelEl.textContent = 'Error: ' + (result.error || 'desconocido');
+        console.error('uploadDoomVideo error:', result.error);
       }
-    } catch(e) {
+    } catch(err) {
       if (labelEl) labelEl.textContent = 'Error al subir';
-      console.error('uploadDoomVideo error:', e);
+      console.error('uploadDoomVideo error:', err);
     }
     switchConfigTab('doom');
   };
@@ -1799,8 +1813,7 @@ function uploadDoomVideo(key, input, isPng) {
 
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
-  fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } })
-    .catch(() => {});
+  fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } }).catch(() => {});
   if (window._doomVideos) delete window._doomVideos[key];
   switchConfigTab('doom');
 }
@@ -2100,7 +2113,7 @@ async function updateUI() {
 
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = (window._doomVideos || {});
+  const doomVideos = ( window._doomVideos || {});
   
   faceEl.className = 'doom-face';
   if (hp <= 0) faceEl.classList.add('dead');
@@ -2156,7 +2169,7 @@ async function updateUI() {
 function updateDoomDisplay(hp) {
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = (window._doomVideos || {});
+  const doomVideos = ( window._doomVideos || {});
   
   if (hp <= 0) {
     if (video) video.style.display = 'none';

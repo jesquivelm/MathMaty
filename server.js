@@ -1927,6 +1927,24 @@ app.delete('/api/doom-videos/:key', async (req, res) => {
   }
 });
 
+// Buscar estudiantes (para panel parental)
+app.get('/api/auth/search-students', authenticateToken, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) return res.json([]);
+    const result = await pool.query(
+      `SELECT id, username, nombre FROM users 
+       WHERE rol = 'estudiante' AND activo = true 
+       AND (username ILIKE $1 OR nombre ILIKE $1)
+       LIMIT 10`,
+      [`%${q}%`]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // INICIALIZAR BASE DE DATOS (crear tablas si no existen)
 // ============================================================
 

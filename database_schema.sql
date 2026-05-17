@@ -32,10 +32,14 @@ CREATE TABLE IF NOT EXISTS exercises (
     topic_id VARCHAR(50) NOT NULL,
     question TEXT NOT NULL,
     latex_content TEXT,
-    options JSONB NOT NULL, -- ["correct", "d1", "d2", "d3"]
-    solution_steps JSONB NOT NULL, -- [{"math": "...", "expl": "..."}]
+    options JSONB NOT NULL,
+    solution_steps JSONB NOT NULL,
     theory TEXT,
     difficulty VARCHAR(20) DEFAULT 'basico',
+    category VARCHAR(50),
+    exam_year INTEGER,
+    source TEXT,
+    imagen TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
