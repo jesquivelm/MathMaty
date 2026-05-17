@@ -2622,24 +2622,71 @@ function launchGame(gameId) {
   window._currentGameId = gameId;
   window._gameScore = 0;
   document.getElementById('game-modal').classList.remove('hidden');
-  
-  var titleEl = document.getElementById('game-modal-title');
-  var descEl = document.getElementById('game-modal-desc');
-  var scoreEl = document.getElementById('game-score-display');
+
   var gameInfo = MathGames.games[gameId];
-  if (gameInfo) {
-    if (titleEl) titleEl.textContent = (gameInfo.icon || '🎮') + ' ' + gameInfo.name;
-    if (descEl) descEl.textContent = gameInfo.desc || '';
+  if (!gameInfo) return;
+
+  var titleEl = document.getElementById('game-modal-title');
+  var descEl  = document.getElementById('game-modal-desc');
+  var scoreEl = document.getElementById('game-score-display');
+  if (titleEl) titleEl.textContent = (gameInfo.icon || '🎮') + ' ' + gameInfo.name;
+  if (descEl)  descEl.textContent  = gameInfo.desc || '';
+  if (scoreEl) scoreEl.textContent = 'XP: 0';
+
+  // Show start screen with instructions
+  var container = document.getElementById('game-container');
+  container.innerHTML = '';
+  var startScreen = document.createElement('div');
+  startScreen.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:1.25rem;padding:2rem;text-align:center;background:#000;border-radius:var(--radius-md);';
+  startScreen.innerHTML =
+    '<div style="font-size:3.5rem;">' + (gameInfo.icon || '🎮') + '</div>' +
+    '<h2 style="color:#fff;margin:0;">' + gameInfo.name + '</h2>' +
+    '<p style="color:#aaa;font-size:.9rem;max-width:320px;line-height:1.5;">' + (gameInfo.desc || '') + '</p>' +
+    '<div style="background:#111;border:1px solid #333;border-radius:8px;padding:.75rem 1.25rem;">' +
+      '<p style="color:#f59e0b;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">🕹️ CONTROLES</p>' +
+      '<p style="color:#ccc;font-size:.85rem;">' + (gameInfo.config.controls || 'Clic para jugar') + '</p>' +
+    '</div>' +
+    '<button id="game-start-btn" style="background:var(--color-primary);color:#fff;border:none;padding:.75rem 2.5rem;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;letter-spacing:.03em;">▶ JUGAR</button>';
+  container.appendChild(startScreen);
+
+  document.getElementById('game-start-btn').onclick = function() {
+    container.innerHTML = '';
     if (scoreEl) scoreEl.textContent = 'XP: 0';
-  }
-  
-  MathGames.launch(gameId, 'game-container', function(score) {
-    window._gameScore = score || 0;
-    var xp = Math.min(200, Math.floor((score || 0) / 10) * 5 + 10);
-    if (scoreEl) scoreEl.textContent = 'XP: ' + xp;
-    state.xp += xp;
-    updateUI();
-  });
+    MathGames.launch(gameId, 'game-container', function(score) {
+      window._gameScore = score || 0;
+      var xp = Math.min(200, Math.floor((score || 0) / 10) * 5 + 10);
+      state.xp += xp;
+      updateUI();
+      // Show game over screen
+      setTimeout(function() { showGameOver(gameId, score, xp); }, 200);
+    });
+  };
+}
+
+function showGameOver(gameId, score, xp) {
+  var container = document.getElementById('game-container');
+  if (!container) return;
+  container.innerHTML = '';
+  var gameInfo = MathGames.games[gameId] || {};
+  var scoreEl = document.getElementById('game-score-display');
+  if (scoreEl) scoreEl.textContent = 'XP: ' + (xp || 0);
+
+  var screen = document.createElement('div');
+  screen.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:1rem;padding:2rem;text-align:center;background:#000;border-radius:var(--radius-md);';
+  screen.innerHTML =
+    '<div style="font-size:2.5rem;">💀</div>' +
+    '<h2 style="color:#ef4444;margin:0;font-size:1.8rem;letter-spacing:.05em;">GAME OVER</h2>' +
+    '<div style="background:#111;border:1px solid #333;border-radius:8px;padding:1rem 2rem;">' +
+      '<p style="color:#aaa;font-size:.8rem;margin-bottom:.25rem;">PUNTUACIÓN FINAL</p>' +
+      '<p style="color:#f59e0b;font-size:2rem;font-weight:700;margin:0;">' + (score || 0) + '</p>' +
+      '<p style="color:#10b981;font-size:.85rem;margin-top:.25rem;">+' + (xp || 0) + ' XP ganado</p>' +
+    '</div>' +
+    '<div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">' +
+      '<button onclick="launchGame(\'' + gameId + '\')" style="background:var(--color-primary);color:#fff;border:none;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;">🔄 Reintentar</button>' +
+      '<button onclick="launchRandomGame()" style="background:#333;color:#fff;border:none;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;cursor:pointer;">🎲 Otro juego</button>' +
+      '<button onclick="closeGame()" style="background:#222;color:#aaa;border:1px solid #444;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;cursor:pointer;">✕ Salir</button>' +
+    '</div>';
+  container.appendChild(screen);
 }
 
 // ============================================================
