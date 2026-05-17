@@ -6,7 +6,7 @@
 
 | Archivo | En DB | Nivel | Notas |
 |---------|:-----:|-------|-------|
-| `generacion-programatica` (v1-v5) | 462 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg |
+| `generacion-programatica` (v1-v10) | 876 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg, aritmética, geometría |
 | `folleto_guia_2021_final.pdf` | 80 | 10-11 | Guía PAA completa, MC con respuestas |
 | `cuadernillo algebra.pdf` | 50 | 7mo-9no | MC con respuestas |
 | `digital-libro_examen_de_admision-2024-1.pdf` | 38 | 10-11 | Examen admisión UNA, MC |
@@ -23,7 +23,7 @@
 | `Practica_PAA_2024_2025.pdf` | 6 | 10-11 | MC parcial, OCR limitado |
 | `Prueba Racionalización Parte 1.pdf` | 5 | 10-11 | MC parcial, OCR limitado |
 | Legacy (seed original, sin archivo_origen) | 96 | 10-11 | Seeds iniciales del proyecto |
-| **TOTAL** | **1004** | | |
+| **TOTAL** | **1519** | | |
 
 ## Con MC — SIN solucionario (respuesta desconocida)
 
@@ -73,16 +73,16 @@
 
 | Topic | Count |
 |-------|:-----:|
-| tec-matematica | 281 |
-| ecuaciones | 219 |
-| factorizacion | 102 |
-| exp-log | 89 |
-| tec-verbal | 79 |
-| inecuaciones | 67 |
-| tec-logica | 58 |
-| trigonometria | 54 |
-| fracciones-alg | 29 |
-| calculo | 26 |
+| tec-matematica | 405 |
+| ecuaciones | 263 |
+| factorizacion | 154 |
+| tec-verbal | 129 |
+| exp-log | 135 |
+| trigonometria | 114 |
+| tec-logica | 98 |
+| inecuaciones | 89 |
+| calculo | 81 |
+| fracciones-alg | 51 |
 
 ## Prioridades siguientes
 
@@ -92,4 +92,4 @@
 4. **Infra**: El hostname de Neon no resuelve en DNS público local; requiere entrada en `hosts` de Windows
 
 ---
-*Última actualización: 17/05/2026 15:30*
+*Última actualización: 17/05/2026 16:10*
