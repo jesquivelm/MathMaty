@@ -74,6 +74,15 @@ const TOPICS = [
 
 const TOPIC_NAMES = Object.fromEntries(TOPICS.map(t => [t.id, t.name]));
 
+const NIVELES = [
+  { id:'primaria', name:'Primaria (I-II Ciclo)' },
+  { id:'7mo', name:'7° año / Ujarrás' },
+  { id:'8vo', name:'8° año / Térraba' },
+  { id:'9no', name:'9° año / Zapandí' },
+  { id:'10-11', name:'10°-11° / Bachillerato' },
+  { id:'tec-paa', name:'TEC / PAA (Admisión)' }
+];
+
 document.addEventListener('DOMContentLoaded', async () => {
   if (state.token) { await fetchProfile(); loadGlossary(); }
   else showAuth();
@@ -1948,8 +1957,13 @@ function renderAdmin(main) {
       <span id="admin-count" style="color:var(--color-text-muted);font-size:.85rem;"></span>
     </div>
     <div id="admin-list"></div>
-    ${renderAddExerciseForm()}`;
+    ${renderAddExerciseForm()}
+    ${renderEditExerciseForm()}`;
   loadAdminList();
+}
+
+function nivelOptions(selected) {
+  return NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('');
 }
 
 function renderAddExerciseForm() {
@@ -1961,7 +1975,10 @@ function renderAddExerciseForm() {
         <button class="btn btn-outline btn-sm" onclick="hideAddExercise()">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:.6rem;">
-        <select id="new-topic" class="btn btn-outline" style="background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+        <div style="display:flex;gap:.5rem;">
+          <select id="new-topic" class="btn btn-outline" style="flex:1;background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+          <select id="new-nivel" class="btn btn-outline" style="background:var(--color-bg);">${nivelOptions('tec-paa')}</select>
+        </div>
         
         <div style="display:flex;gap:.35rem;align-items:center;">
           <textarea id="new-question" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Enunciado del ejercicio"></textarea>
@@ -1979,11 +1996,10 @@ function renderAddExerciseForm() {
         <input id="new-d2" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 2">
         <input id="new-d3" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 3">
         
-        <!-- Image upload -->
         <div style="display:flex;gap:.5rem;align-items:center;padding:.5rem;background:var(--color-surface-hover);border-radius:var(--radius-md);">
           <i class="ti ti-photo" style="color:var(--color-primary);"></i>
           <input type="text" id="new-image" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="URL de imagen (opcional)">
-          <input type="file" id="new-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+          <input type="file" id="new-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event,'new')">
           <button class="btn btn-outline btn-sm" onclick="document.getElementById('new-image-file').click()"><i class="ti ti-upload"></i></button>
         </div>
         <div id="new-image-preview" style="display:none;margin-top:.25rem;text-align:center;">
@@ -2001,6 +2017,57 @@ function renderAddExerciseForm() {
   </div>`;
 }
 
+function renderEditExerciseForm() {
+  return `
+  <div id="edit-exercise-overlay" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;">
+    <div class="card" style="max-width:550px;width:92%;max-height:90vh;overflow-y:auto;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h3><i class="ti ti-edit"></i> Editar Ejercicio #<span id="edit-id-display"></span></h3>
+        <button class="btn btn-outline btn-sm" onclick="hideEditExercise()">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.6rem;">
+        <div style="display:flex;gap:.5rem;">
+          <select id="edit-topic" class="btn btn-outline" style="flex:1;background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+          <select id="edit-nivel" class="btn btn-outline" style="background:var(--color-bg);">${nivelOptions()}</select>
+        </div>
+        
+        <div style="display:flex;gap:.35rem;align-items:center;">
+          <textarea id="edit-question" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Enunciado del ejercicio"></textarea>
+        </div>
+        
+        <div style="display:flex;gap:.35rem;align-items:center;">
+          <input id="edit-latex" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="F&oacute;rmula / expresi&oacute;n matem&aacute;tica" onclick="toggleMathKeyboard('edit-latex')">
+          <button class="btn btn-outline btn-sm" onclick="toggleMathKeyboard('edit-latex')" title="Teclado"><i class="ti ti-keyboard"></i></button>
+
+          <input id="edit-correct" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="✅ Respuesta CORRECTA" onclick="toggleMathKeyboard('edit-correct')">
+          <button class="btn btn-outline btn-sm" onclick="toggleMathKeyboard('edit-correct')"><i class="ti ti-keyboard"></i></button>
+        </div>
+
+        <input id="edit-d1" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 1">
+        <input id="edit-d2" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 2">
+        <input id="edit-d3" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 3">
+        
+        <div style="display:flex;gap:.5rem;align-items:center;padding:.5rem;background:var(--color-surface-hover);border-radius:var(--radius-md);">
+          <i class="ti ti-photo" style="color:var(--color-primary);"></i>
+          <input type="text" id="edit-image" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="URL de imagen (base64 o URL)">
+          <input type="file" id="edit-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event,'edit')">
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('edit-image-file').click()"><i class="ti ti-upload"></i></button>
+        </div>
+        <div id="edit-image-preview" style="margin-top:.25rem;text-align:center;">
+          <img id="edit-image-preview-img" style="max-width:100%;max-height:150px;border-radius:var(--radius-md);">
+        </div>
+        
+        <textarea id="edit-theory" class="btn btn-outline" style="background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Teor&iacute;a de respaldo (opcional)"></textarea>
+        
+        <div style="display:flex;gap:.5rem;">
+          <button class="btn btn-primary" style="flex:1;" onclick="submitEditExercise()"><i class="ti ti-device-floppy"></i> Guardar Cambios</button>
+          <button class="btn btn-outline" onclick="hideEditExercise()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function showAddExercise() {
   document.getElementById('add-exercise-overlay')?.classList.remove('hidden');
 }
@@ -2009,28 +2076,51 @@ function hideAddExercise() {
   document.getElementById('add-exercise-overlay')?.classList.add('hidden');
 }
 
-async function handleImageUpload(event) {
+let editingExerciseId = null;
+
+async function showEditExercise(id) {
+  editingExerciseId = id;
+  const r = await fetch(`${API}/api/admin/exercises/${id}`, { headers: { Authorization: `Bearer ${state.token}` } });
+  const ex = await r.json();
+  document.getElementById('edit-id-display').textContent = id;
+  document.getElementById('edit-topic').value = ex.topic_id || '';
+  document.getElementById('edit-nivel').value = ex.nivel || '';
+  document.getElementById('edit-question').value = ex.question || '';
+  document.getElementById('edit-latex').value = ex.latex_content || '';
+  const opts = ex.options || ['','','',''];
+  document.getElementById('edit-correct').value = opts[0] || '';
+  document.getElementById('edit-d1').value = opts[1] || '';
+  document.getElementById('edit-d2').value = opts[2] || '';
+  document.getElementById('edit-d3').value = opts[3] || '';
+  document.getElementById('edit-image').value = ex.imagen || '';
+  if (ex.imagen) {
+    document.getElementById('edit-image-preview-img').src = ex.imagen;
+    document.getElementById('edit-image-preview').style.display = 'block';
+  } else {
+    document.getElementById('edit-image-preview-img').src = '';
+    document.getElementById('edit-image-preview').style.display = 'none';
+  }
+  document.getElementById('edit-theory').value = ex.theory || '';
+  document.getElementById('edit-exercise-overlay')?.classList.remove('hidden');
+}
+
+function hideEditExercise() {
+  document.getElementById('edit-exercise-overlay')?.classList.add('hidden');
+  editingExerciseId = null;
+}
+
+async function handleImageUpload(event, prefix) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = function(e) {
     const dataUrl = e.target.result;
-    document.getElementById('new-image-preview').style.display = 'block';
-    document.getElementById('new-image-preview-img').src = dataUrl;
-    try {
-      const r = await fetch('/api/upload/image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl })
-      });
-      const result = await r.json();
-      if (result.url) {
-        document.getElementById('new-image').value = result.url;
-        document.getElementById('new-image-preview-img').src = result.url;
-      }
-    } catch(e) {
-      document.getElementById('new-image').value = dataUrl;
-    }
+    const preview = document.getElementById(prefix + '-image-preview');
+    const img = document.getElementById(prefix + '-image-preview-img');
+    const input = document.getElementById(prefix + '-image');
+    preview.style.display = 'block';
+    img.src = dataUrl;
+    input.value = dataUrl;
   };
   reader.readAsDataURL(file);
 }
@@ -2044,11 +2134,17 @@ async function loadAdminList() {
     document.getElementById('admin-count').textContent = `${list.length} ejercicio(s)`;
     document.getElementById('admin-list').innerHTML = list.map(ex => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.25rem;">
-        <div style="flex:1;font-size:.85rem;">
+        <div style="flex:1;font-size:.85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+          <span style="color:var(--color-text-muted);font-size:.7rem;">#${ex.id}</span>
           <span class="badge" style="background:var(--color-primary);">${ex.topic_id}</span>
-          <span style="margin-left:.5rem;">${ex.question?.substring(0,70)}${ex.question?.length>70?'...':''}</span>
+          ${ex.nivel ? `<span class="badge" style="background:var(--color-info);font-size:.65rem;">${ex.nivel}</span>` : ''}
+          ${ex.imagen ? `<span class="badge" style="background:var(--color-success);font-size:.65rem;"><i class="ti ti-photo"></i></span>` : ''}
+          <span style="margin-left:.25rem;">${(ex.question||'').substring(0,60)}${(ex.question||'').length>60?'...':''}</span>
         </div>
-        <button class="btn btn-outline btn-sm" style="color:var(--color-error);" onclick="deleteExercise(${ex.id})"><i class="ti ti-trash"></i></button>
+        <div style="display:flex;gap:.25rem;">
+          <button class="btn btn-outline btn-sm" onclick="showEditExercise(${ex.id})"><i class="ti ti-edit"></i></button>
+          <button class="btn btn-outline btn-sm" style="color:var(--color-error);" onclick="deleteExercise(${ex.id})"><i class="ti ti-trash"></i></button>
+        </div>
       </div>`).join('') || '<p style="color:var(--color-text-muted);margin-top:1rem;">Vac&iacute;o</p>';
   } catch(e) { document.getElementById('admin-list').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`; }
 }
@@ -2056,18 +2152,41 @@ async function loadAdminList() {
 async function submitNewExercise() {
   const correctAns = document.getElementById('new-correct').value;
   const latexExpr = document.getElementById('new-latex').value;
-  const imageUrl = document.getElementById('new-image').value;
+  const imageData = document.getElementById('new-image').value;
   
   const body = {
     topic_id: document.getElementById('new-topic').value,
-    question: document.getElementById('new-question').value + (imageUrl ? `\n<img src="${imageUrl}" alt="Gr&aacute;fico del ejercicio" style="max-width:100%;margin:1rem 0;border-radius:8px;">` : ''),
+    question: document.getElementById('new-question').value,
     latex: latexExpr,
     options: [correctAns, document.getElementById('new-d1').value, document.getElementById('new-d2').value, document.getElementById('new-d3').value],
     steps: [{math: latexExpr, expl: 'Resultado correcto: ' + correctAns}],
-    theory: document.getElementById('new-theory').value
+    theory: document.getElementById('new-theory').value,
+    imagen: imageData || null,
+    nivel: document.getElementById('new-nivel').value
   };
   await fetch(`${API}/api/admin/exercises`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`}, body:JSON.stringify(body) });
   hideAddExercise();
+  loadAdminList();
+}
+
+async function submitEditExercise() {
+  if (!editingExerciseId) return;
+  const correctAns = document.getElementById('edit-correct').value;
+  const latexExpr = document.getElementById('edit-latex').value;
+  const imageData = document.getElementById('edit-image').value;
+  
+  const body = {
+    topic_id: document.getElementById('edit-topic').value,
+    question: document.getElementById('edit-question').value,
+    latex: latexExpr,
+    options: [correctAns, document.getElementById('edit-d1').value, document.getElementById('edit-d2').value, document.getElementById('edit-d3').value],
+    steps: [{math: latexExpr, expl: 'Resultado correcto: ' + correctAns}],
+    theory: document.getElementById('edit-theory').value,
+    imagen: imageData || null,
+    nivel: document.getElementById('edit-nivel').value
+  };
+  await fetch(`${API}/api/admin/exercises/${editingExerciseId}`, { method:'PUT', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`}, body:JSON.stringify(body) });
+  hideEditExercise();
   loadAdminList();
 }
 
