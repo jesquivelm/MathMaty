@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS exercises (
     exam_year INTEGER,
     source TEXT,
     imagen TEXT,
+    nivel VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

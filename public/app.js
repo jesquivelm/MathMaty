@@ -138,12 +138,29 @@ async function loadDoomVideosFromServer() {
   try {
     const r = await fetch(`${API}/api/doom-videos`);
     if (r.ok) {
-      window._doomVideos = await r.json();
+      const raw = await r.json();
+      // Fix Cloudinary URLs for iOS Safari — must end in .mp4
+      window._doomVideos = {};
+      for (const key in raw) {
+        window._doomVideos[key] = fixVideoUrl(raw[key]);
+      }
     }
   } catch(e) {
     console.warn('No se pudieron cargar los doom videos:', e.message);
     window._doomVideos = {};
   }
+}
+
+function fixVideoUrl(url) {
+  if (!url) return url;
+  // Cloudinary video URLs need .mp4 for iOS Safari
+  if (url.includes('res.cloudinary.com') && url.includes('/video/upload/')) {
+    if (!url.endsWith('.mp4') && !url.endsWith('.webm') && !url.endsWith('.ogg')) {
+      // Add f_mp4 format transformation and .mp4 extension
+      return url.replace('/video/upload/', '/video/upload/f_mp4,vc_h264/') + '.mp4';
+    }
+  }
+  return url;
 }
 
 function showAuth() {

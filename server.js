@@ -21,18 +21,10 @@ const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 
-const pool = new Pool(
-  process.env.DATABASE_URL ? {
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-  } : {
-    user: 'postgres',
-    host: 'localhost',
-    database: 'mathmaty',
-    password: 'Calg.1984', 
-    port: 5432,
-  }
-);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_x5NnjheXrb4H@ep-broad-wildflower-aq3he37e-pooler.c-8.us-east-1.aws.neon.tech/mathmaty?sslmode=require',
+  ssl: { rejectUnauthorized: false }
+});
 
 // Log database connection mode
 console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
@@ -1021,30 +1013,51 @@ app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
     const { topic } = req.query;
     const q = topic
-      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
-      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises ORDER BY topic_id,id DESC';
+      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
+      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel FROM exercises ORDER BY topic_id,id DESC';
     const result = await pool.query(q, topic ? [topic] : []);
     res.json(result.rows);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
+app.get('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM exercises WHERE id=$1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({error:'No encontrado'});
+    res.json(result.rows[0]);
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
 app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
     await pool.query(
-      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,imagen,nivel)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       [
-        topic_id,
-        question,
-        latex,
-        JSON.stringify(options),
-        JSON.stringify(steps),
-        theory || null,
-        difficulty || 'basico',
-        category || 'ejercicio',
-        exam_year || null,
-        source || null
+        topic_id, question, latex,
+        JSON.stringify(options), JSON.stringify(steps),
+        theory || null, difficulty || 'basico',
+        category || 'ejercicio', exam_year || null,
+        source || null, imagen || null, nivel || null
+      ]
+    );
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({error:e.message}); }
+});
+
+app.put('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
+  try {
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
+    await pool.query(
+      `UPDATE exercises SET topic_id=$1,question=$2,latex_content=$3,options=$4,solution_steps=$5,theory=$6,difficulty=$7,category=$8,exam_year=$9,source=$10,imagen=$11,nivel=$12 WHERE id=$13`,
+      [
+        topic_id, question, latex,
+        JSON.stringify(options), JSON.stringify(steps),
+        theory || null, difficulty || 'basico',
+        category || 'ejercicio', exam_year || null,
+        source || null, imagen || null, nivel || null,
+        req.params.id
       ]
     );
     res.json({ ok: true });
@@ -1950,6 +1963,11 @@ app.get('/api/auth/search-students', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
+    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS imagen TEXT`); } catch(e) {}
+    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS category VARCHAR(50)`); } catch(e) {}
+    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exam_year INTEGER`); } catch(e) {}
+    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS source TEXT`); } catch(e) {}
+    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)`); } catch(e) {}
     // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
     const check = await pool.query(`
       SELECT EXISTS (
