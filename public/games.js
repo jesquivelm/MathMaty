@@ -560,187 +560,234 @@ MoleGame.prototype.update=function(){
 };
 
 
-// ===== 15. 2048 - Fiel al original con animaciones =====
+// ===== 15. 2048 - Fiel al original =====
 function TwoZeroGame(c,o){
   BaseGame.call(this,c,o);
-  this.sz=4;
-  this.pad=8;
-  var headerH=56;
-  var gridSz=Math.min(this.W-16,this.H-headerH-16);
-  this.cell=Math.floor((gridSz-this.pad*(this.sz+1))/this.sz);
+  this.sz=4; this.pad=8;
+  var hH=60; // header height
+  var undoH=32; // undo button area
+  var avail=Math.min(this.W-20, this.H-hH-undoH-12);
+  this.cell=Math.floor((avail-this.pad*(this.sz+1))/this.sz);
   this.gw=this.cell*this.sz+this.pad*(this.sz+1);
   this.ox=Math.floor((this.W-this.gw)/2);
-  this.oy=headerH+Math.floor((this.H-headerH-this.gw)/2);
-  this.headerH=headerH;
+  this.oy=hH+4;
+  this.hH=hH; this.undoH=undoH;
+  // grid lógico
   this.g=[];
   for(var y=0;y<this.sz;y++){this.g[y]=[];for(var x=0;x<this.sz;x++)this.g[y][x]=0;}
-  this.tiles=[];
-  this.animating=false;
-  this.animT=0;
-  this.ANIM_DUR=8;
-  this.frame=0;
-  this.best=0;
-  this._pendingSpawn=false;
-  this._spawnTile(true);this._spawnTile(true);
-  this._buildTiles();
+  // historial para undo
+  this.history=[];
+  // animación
+  this.anim=null; // {tiles:[{val,x0,y0,x1,y1,merged}], t, dur, spawnAfter}
+  this.ANIM_DUR=10;
+  // tiles estáticos (cuando no anima)
+  this.staticTiles=[];
+  // pop animations [{cx,cy,t}]
+  this.pops=[];
+  // new tile scale-in [{cx,cy,val,s}]
+  this.newTiles=[];
+  this.best=0; this.frame=0;
+  this._spawn(true); this._spawn(true);
+  this._syncStatic();
+  // undo button rect
+  this.undoBtn={x:this.ox,y:this.oy+this.gw+6,w:this.gw,h:24};
+  // touch/click for undo
+  var s=this;
+  this._clickH=function(e){
+    var r=s.canvas.getBoundingClientRect();
+    var sx=s.W/r.width, sy=s.H/r.height;
+    var cx=(e.clientX-r.left)*sx, cy=(e.clientY-r.top)*sy;
+    var b=s.undoBtn;
+    if(cx>=b.x&&cx<=b.x+b.w&&cy>=b.y&&cy<=b.y+b.h){s._undo();e.stopPropagation();}
+  };
+  this.canvas.addEventListener('click',this._clickH);
+  // swipe support
+  this._touchStart=null;
+  this._tsH=function(e){s._touchStart={x:e.touches[0].clientX,y:e.touches[0].clientY};};
+  this._teH=function(e){
+    if(!s._touchStart)return;
+    var dx=e.changedTouches[0].clientX-s._touchStart.x;
+    var dy=e.changedTouches[0].clientY-s._touchStart.y;
+    s._touchStart=null;
+    if(Math.abs(dx)<20&&Math.abs(dy)<20)return;
+    if(Math.abs(dx)>Math.abs(dy)){s._move(dx>0?1:-1,0);}
+    else{s._move(0,dy>0?1:-1);}
+  };
+  this.canvas.addEventListener('touchstart',this._tsH,{passive:true});
+  this.canvas.addEventListener('touchend',this._teH,{passive:true});
 }
 TwoZeroGame.prototype=Object.create(BaseGame.prototype);
 
-TwoZeroGame.prototype._tileCol=function(v){
-  var m={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
-  return m[v]||(v>2048?'#3c3a32':'#cdc1b4');
+TwoZeroGame.prototype.cleanup=function(){
+  BaseGame.prototype.cleanup.call(this);
+  if(this._clickH)this.canvas.removeEventListener('click',this._clickH);
+  if(this._tsH)this.canvas.removeEventListener('touchstart',this._tsH);
+  if(this._teH)this.canvas.removeEventListener('touchend',this._teH);
 };
-TwoZeroGame.prototype._textCol=function(v){return v<=4?'#776e65':'#f9f6f2';};
-TwoZeroGame.prototype._fontSize=function(v,cs){
-  if(v>=1024)return Math.floor(cs*0.30);
-  if(v>=128)return Math.floor(cs*0.38);
-  return Math.floor(cs*0.47);
-};
-TwoZeroGame.prototype._cx=function(idx){return this.ox+this.pad+idx*(this.cell+this.pad);};
-TwoZeroGame.prototype._cy=function(idx){return this.oy+this.pad+idx*(this.cell+this.pad);};
 
-TwoZeroGame.prototype._spawnTile=function(instant){
+TwoZeroGame.prototype._cx=function(i){return this.ox+this.pad+i*(this.cell+this.pad);};
+TwoZeroGame.prototype._cy=function(i){return this.oy+this.pad+i*(this.cell+this.pad);};
+
+TwoZeroGame.prototype._cloneGrid=function(){
+  var g=[];for(var y=0;y<this.sz;y++){g[y]=[];for(var x=0;x<this.sz;x++)g[y][x]=this.g[y][x];}return g;
+};
+
+TwoZeroGame.prototype._spawn=function(instant){
   var e=[];
   for(var y=0;y<this.sz;y++)for(var x=0;x<this.sz;x++)if(this.g[y][x]===0)e.push({x:x,y:y});
   if(!e.length)return false;
-  var pos=e[Math.floor(Math.random()*e.length)];
-  var val=Math.random()<0.9?2:4;
-  this.g[pos.y][pos.x]=val;
-  if(!instant){
-    this.tiles.push({val:val,fromX:pos.x,fromY:pos.y,toX:pos.x,toY:pos.y,merged:false,isNew:true,newScale:0,popT:0});
-  }
+  var p=e[Math.floor(Math.random()*e.length)];
+  var v=Math.random()<0.9?2:4;
+  this.g[p.y][p.x]=v;
+  if(!instant)this.newTiles.push({cx:p.x,cy:p.y,val:v,s:0.1});
   return true;
 };
 
-TwoZeroGame.prototype._buildTiles=function(){
-  this.tiles=[];
-  for(var y=0;y<this.sz;y++)for(var x=0;x<this.sz;x++){
-    if(this.g[y][x])this.tiles.push({val:this.g[y][x],fromX:x,fromY:y,toX:x,toY:y,merged:false,isNew:false,newScale:1,popT:0});
-  }
+TwoZeroGame.prototype._syncStatic=function(){
+  this.staticTiles=[];
+  for(var y=0;y<this.sz;y++)for(var x=0;x<this.sz;x++)
+    if(this.g[y][x])this.staticTiles.push({val:this.g[y][x],cx:x,cy:y});
 };
 
+// Slide a single row/col array towards index 0, returns {result, moves:[{from,to,merged}]}
 TwoZeroGame.prototype._slideArr=function(arr){
-  var f=arr.filter(function(v){return v!==0;});
-  var r=[],m=false;
-  for(var i=0;i<f.length;i++){
-    if(i+1<f.length&&f[i]===f[i+1]){var nv=f[i]*2;r.push(nv);this.pts(f[i]);i++;}
-    else r.push(f[i]);
+  var n=arr.length;
+  // track original indices
+  var items=[]; // {val, origIdx}
+  for(var i=0;i<n;i++)if(arr[i])items.push({val:arr[i],orig:i});
+  var result=new Array(n).fill(0);
+  var moves=[]; // {fromIdx(in arr), toIdx(in arr), merged}
+  var merged=new Array(n).fill(false);
+  var dest=0;
+  var m=false;
+  for(var i=0;i<items.length;i++){
+    if(i+1<items.length&&!merged[dest]&&items[i].val===items[i+1].val){
+      var nv=items[i].val*2;
+      result[dest]=nv;
+      moves.push({from:items[i].orig,to:dest,merged:false});
+      moves.push({from:items[i+1].orig,to:dest,merged:true});
+      merged[dest]=true;
+      this.pts(items[i].val);
+      if(items[i].orig!==dest||items[i+1].orig!==dest)m=true;
+      dest++; i++;
+    }else{
+      result[dest]=items[i].val;
+      moves.push({from:items[i].orig,to:dest,merged:false});
+      if(items[i].orig!==dest)m=true;
+      dest++;
+    }
   }
-  while(r.length<arr.length)r.push(0);
-  for(var i=0;i<arr.length;i++)if(arr[i]!==r[i])m=true;
-  return{result:r,moved:m};
+  return{result:result,moves:moves,moved:m};
 };
 
 TwoZeroGame.prototype._move=function(dx,dy){
-  if(this.animating||!this.alive)return;
-  var s=this,moved=false;
-  var oldG=[];
-  for(var y=0;y<this.sz;y++){oldG[y]=[];for(var x=0;x<this.sz;x++)oldG[y][x]=this.g[y][x];}
+  if(this.anim||!this.alive)return;
+  // Save state for undo
+  var prev={g:this._cloneGrid(),score:this.score,best:this.best};
 
-  // Aplicar slide en grid
+  var moved=false;
+  var animTiles=[]; // {val,x0,y0,x1,y1,merged}
+
   if(dy!==0){
+    // columns
     for(var x=0;x<this.sz;x++){
-      var col=[];for(var y=0;y<this.sz;y++)col.push(this.g[y][x]);
-      var rev=(dy===1);if(rev)col.reverse();
-      var res=s._slideArr(col);if(rev)res.result.reverse();
-      for(var y=0;y<this.sz;y++)this.g[y][x]=res.result[y];
+      var col=[],orig=[];
+      if(dy===-1){for(var y=0;y<this.sz;y++){col.push(this.g[y][x]);orig.push(y);}}
+      else{for(var y=this.sz-1;y>=0;y--){col.push(this.g[y][x]);orig.push(y);}}
+      var res=this._slideArr(col);
       if(res.moved)moved=true;
+      // Apply
+      for(var i=0;i<this.sz;i++)this.g[orig[i]][x]=0;
+      for(var i=0;i<this.sz;i++){
+        var ry=dy===-1?i:this.sz-1-i;
+        this.g[ry][x]=res.result[i];
+      }
+      // Build anim tiles
+      for(var k=0;k<res.moves.length;k++){
+        var mv=res.moves[k];
+        var fromY=orig[mv.from];
+        var toY=dy===-1?mv.to:this.sz-1-mv.to;
+        animTiles.push({val:col[mv.from],x0:x,y0:fromY,x1:x,y1:toY,merged:mv.merged});
+      }
     }
   }else{
+    // rows
     for(var y=0;y<this.sz;y++){
-      var row=this.g[y].slice();
-      var rev=(dx===1);if(rev)row.reverse();
-      var res=s._slideArr(row);if(rev)res.result.reverse();
-      this.g[y]=res.result;
+      var row=[],orig=[];
+      if(dx===-1){for(var x=0;x<this.sz;x++){row.push(this.g[y][x]);orig.push(x);}}
+      else{for(var x=this.sz-1;x>=0;x--){row.push(this.g[y][x]);orig.push(x);}}
+      var res=this._slideArr(row);
       if(res.moved)moved=true;
+      // Apply
+      for(var i=0;i<this.sz;i++)this.g[y][orig[i]]=0;
+      for(var i=0;i<this.sz;i++){
+        var rx=dx===-1?i:this.sz-1-i;
+        this.g[y][rx]=res.result[i];
+      }
+      // Build anim tiles
+      for(var k=0;k<res.moves.length;k++){
+        var mv=res.moves[k];
+        var fromX=orig[mv.from];
+        var toX=dx===-1?mv.to:this.sz-1-mv.to;
+        animTiles.push({val:row[mv.from],x0:fromX,y0:y,x1:toX,y1:y,merged:mv.merged});
+      }
     }
   }
+
   if(!moved)return;
 
-  // Construir tiles animados comparando oldG vs newG
-  // Estrategia: match greedy por fila/columna en orden de movimiento
-  var animTiles=[];
-  var used=[];
-  for(var y=0;y<this.sz;y++){used[y]=[];for(var x=0;x<this.sz;x++)used[y][x]=false;}
+  // Save undo only if something moved
+  if(this.history.length>=10)this.history.shift();
+  this.history.push(prev);
 
-  // Orden de escaneo de destinos (de la dirección de movimiento hacia afuera)
-  var ys=[0,1,2,3],xs=[0,1,2,3];
-  if(dy===1){ys=[3,2,1,0];}
-  if(dx===1){xs=[3,2,1,0];}
-
-  for(var yi=0;yi<4;yi++){var ty=ys[yi];
-    for(var xi=0;xi<4;xi++){var tx=xs[xi];
-      var dv=this.g[ty][tx];if(!dv)continue;
-
-      // Buscar fuentes en la misma línea (col si dy, row si dx)
-      var srcY=[0,1,2,3],srcX=[0,1,2,3];
-      if(dy===1){srcY=[0,1,2,3];}else if(dy===-1){srcY=[3,2,1,0];}
-      if(dx===1){srcX=[0,1,2,3];}else if(dx===-1){srcX=[3,2,1,0];}
-
-      // Contar cuántos tiles con dv/2 hay en la línea (posible merge)
-      var half=dv/2;
-      var halfSrcs=[];
-      if(half>=2){
-        for(var si=0;si<4;si++){
-          var sy2=dy!==0?srcY[si]:ty,sx2=dx!==0?srcX[si]:tx;
-          if(dy!==0&&sx2!==tx)continue;
-          if(dx!==0&&sy2!==ty)continue;
-          if(!used[sy2][sx2]&&oldG[sy2][sx2]===half)halfSrcs.push({x:sx2,y:sy2});
-        }
-      }
-
-      // Buscar fuente directa (mismo valor)
-      var directSrcs=[];
-      for(var si=0;si<4;si++){
-        var sy2=dy!==0?srcY[si]:ty,sx2=dx!==0?srcX[si]:tx;
-        if(dy!==0&&sx2!==tx)continue;
-        if(dx!==0&&sy2!==ty)continue;
-        if(!used[sy2][sx2]&&oldG[sy2][sx2]===dv)directSrcs.push({x:sx2,y:sy2});
-      }
-
-      if(halfSrcs.length>=2){
-        // Es un merge: dos tiles con dv/2 convergen
-        used[halfSrcs[0].y][halfSrcs[0].x]=true;
-        used[halfSrcs[1].y][halfSrcs[1].x]=true;
-        animTiles.push({val:dv,fromX:halfSrcs[0].x,fromY:halfSrcs[0].y,toX:tx,toY:ty,merged:false,isNew:false,newScale:1,popT:0});
-        animTiles.push({val:dv,fromX:halfSrcs[1].x,fromY:halfSrcs[1].y,toX:tx,toY:ty,merged:true,isNew:false,newScale:1,popT:0});
-      }else if(directSrcs.length>0){
-        used[directSrcs[0].y][directSrcs[0].x]=true;
-        animTiles.push({val:dv,fromX:directSrcs[0].x,fromY:directSrcs[0].y,toX:tx,toY:ty,merged:false,isNew:false,newScale:1,popT:0});
-      }else{
-        animTiles.push({val:dv,fromX:tx,fromY:ty,toX:tx,toY:ty,merged:false,isNew:false,newScale:1,popT:0});
-      }
-    }
-  }
-
-  this.tiles=animTiles;
-  this.animating=true;
-  this.animT=0;
-  this._pendingSpawn=true;
   if(this.score>this.best)this.best=this.score;
+
+  // Start animation
+  this.anim={tiles:animTiles,t:0,dur:this.ANIM_DUR,spawnAfter:true};
+  this.newTiles=[];
+  this.pops=[];
+};
+
+TwoZeroGame.prototype._undo=function(){
+  if(this.anim||!this.history.length)return;
+  var prev=this.history.pop();
+  this.g=prev.g; this.score=prev.score; this.best=prev.best;
+  this.newTiles=[]; this.pops=[];
+  this._syncStatic();
 };
 
 TwoZeroGame.prototype._hasMovesLeft=function(){
   for(var y=0;y<this.sz;y++)for(var x=0;x<this.sz;x++){
-    if(this.g[y][x]===0)return true;
+    if(!this.g[y][x])return true;
     if(x+1<this.sz&&this.g[y][x]===this.g[y][x+1])return true;
     if(y+1<this.sz&&this.g[y][x]===this.g[y+1][x])return true;
   }
   return false;
 };
 
-TwoZeroGame.prototype._drawTile=function(val,px,py,scale,pop){
+TwoZeroGame.prototype._tileCol=function(v){
+  var m={2:'#eee4da',4:'#ede0c8',8:'#f2b179',16:'#f59563',32:'#f67c5f',64:'#f65e3b',128:'#edcf72',256:'#edcc61',512:'#edc850',1024:'#edc53f',2048:'#edc22e'};
+  return m[v]||(v>2048?'#3c3a32':'#cdc1b4');
+};
+TwoZeroGame.prototype._txtCol=function(v){return v<=4?'#776e65':'#f9f6f2';};
+TwoZeroGame.prototype._fs=function(v){
+  var cs=this.cell;
+  if(v>=1024)return Math.floor(cs*0.28);
+  if(v>=128)return Math.floor(cs*0.36);
+  return Math.floor(cs*0.46);
+};
+
+TwoZeroGame.prototype._drawTile=function(val,px,py,sc,bounce){
   var ctx=this.ctx,cs=this.cell;
-  var s=scale;
-  if(pop>0)s*=(1+0.18*Math.sin(pop*Math.PI));
-  if(s<=0.01)return;
+  var s=sc*(bounce?1+0.2*Math.sin(bounce*Math.PI):1);
+  if(s<0.01)return;
   ctx.save();
   ctx.translate(px+cs/2,py+cs/2);ctx.scale(s,s);ctx.translate(-cs/2,-cs/2);
-  ctx.shadowColor='rgba(0,0,0,0.12)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;
-  _rrect(ctx,0,0,cs,cs,6,this._tileCol(val));
+  ctx.shadowColor='rgba(0,0,0,0.10)';ctx.shadowBlur=3;ctx.shadowOffsetY=2;
+  _rrect(ctx,0,0,cs,cs,5,this._tileCol(val));
   ctx.shadowBlur=0;ctx.shadowOffsetY=0;
-  ctx.fillStyle=this._textCol(val);
-  ctx.font='bold '+this._fontSize(val,cs)+'px Arial,sans-serif';
+  ctx.fillStyle=this._txtCol(val);
+  ctx.font='bold '+this._fs(val)+'px Arial,sans-serif';
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(val,cs/2,cs/2+1);
   ctx.restore();
@@ -749,93 +796,123 @@ TwoZeroGame.prototype._drawTile=function(val,px,py,scale,pop){
 TwoZeroGame.prototype.update=function(){
   if(!this.alive)return;
   this.frame++;
-  var ctx=this.ctx,W=this.W,H=this.H,pad=this.pad,cs=this.cell;
+  var ctx=this.ctx,W=this.W,H=this.H,cs=this.cell,pad=this.pad;
 
-  // Input
-  if(!this.animating){
+  // --- Input ---
+  if(!this.anim){
     if(this.keys['ArrowUp']){this.keys['ArrowUp']=false;this._move(0,-1);}
     else if(this.keys['ArrowDown']){this.keys['ArrowDown']=false;this._move(0,1);}
     else if(this.keys['ArrowLeft']){this.keys['ArrowLeft']=false;this._move(-1,0);}
     else if(this.keys['ArrowRight']){this.keys['ArrowRight']=false;this._move(1,0);}
+    else if(this.keys['z']||this.keys['Z']||this.keys['u']||this.keys['U']){
+      this.keys['z']=this.keys['Z']=this.keys['u']=this.keys['U']=false;
+      this._undo();
+    }
   }
 
-  // Avanzar animación de slide
-  if(this.animating){
-    this.animT++;
-    if(this.animT>=this.ANIM_DUR){
-      this.animating=false;
-      for(var i=0;i<this.tiles.length;i++)if(this.tiles[i].merged)this.tiles[i].popT=0.01;
-      if(this._pendingSpawn){this._pendingSpawn=false;this._spawnTile(false);}
+  // --- Advance animation ---
+  var ease=1;
+  if(this.anim){
+    this.anim.t++;
+    var p=Math.min(1,this.anim.t/this.anim.dur);
+    ease=1-(1-p)*(1-p)*(1-p); // ease out cubic
+    if(this.anim.t>=this.anim.dur){
+      // finalize: add pop for merged tiles
+      for(var i=0;i<this.anim.tiles.length;i++){
+        if(this.anim.tiles[i].merged)this.pops.push({cx:this.anim.tiles[i].x1,cy:this.anim.tiles[i].y1,t:0});
+      }
+      this._syncStatic();
+      if(this.anim.spawnAfter){
+        this._spawn(false);
+      }
+      this.anim=null;
+      ease=1;
       if(!this._hasMovesLeft()){this.end();return;}
     }
   }
 
-  // Animar pop de merge y scale-in de nuevos
-  for(var i=0;i<this.tiles.length;i++){
-    var t=this.tiles[i];
-    if(t.popT>0){t.popT+=0.14;if(t.popT>1)t.popT=0;}
-    if(t.isNew&&t.newScale<1){t.newScale+=0.13;if(t.newScale>1)t.newScale=1;}
+  // Advance pops
+  for(var i=this.pops.length-1;i>=0;i--){
+    this.pops[i].t+=0.12;
+    if(this.pops[i].t>=1)this.pops.splice(i,1);
+  }
+  // Advance new tile scale-in
+  for(var i=this.newTiles.length-1;i>=0;i--){
+    this.newTiles[i].s+=0.12;
+    if(this.newTiles[i].s>=1)this.newTiles[i].s=1;
   }
 
-  // === RENDER ===
-  // Fondo beige original
+  // --- Render ---
   ctx.fillStyle='#faf8ef';ctx.fillRect(0,0,W,H);
 
-  // Título
+  // Title "2048"
+  var titleSz=Math.floor(this.hH*0.6);
   ctx.fillStyle='#776e65';
-  ctx.font='bold '+(Math.floor(cs*0.8))+'px Arial,sans-serif';
+  ctx.font='bold '+titleSz+'px Arial,sans-serif';
   ctx.textAlign='left';ctx.textBaseline='top';
-  ctx.fillText('2048',6,5);
+  ctx.fillText('2048',this.ox,4);
 
-  // Score box
-  var sbW=Math.floor(W*0.18),sbH=Math.floor(this.headerH*0.72),sbY=4;
-  var bbX=W-sbW-4,sbX=bbX-sbW-4;
-  _rrect(ctx,sbX,sbY,sbW,sbH,4,'#bbada0');
-  ctx.fillStyle='#eee4da';ctx.font='bold '+(Math.floor(sbH*0.22))+'px Arial';
-  ctx.textAlign='center';ctx.textBaseline='top';
-  ctx.fillText('PUNTOS',sbX+sbW/2,sbY+3);
-  ctx.fillStyle='#f9f6f2';ctx.font='bold '+(Math.floor(sbH*0.42))+'px Arial';
-  ctx.textBaseline='bottom';
-  ctx.fillText(this.score,sbX+sbW/2,sbY+sbH-3);
+  // Score & Best boxes
+  var bw=Math.floor(this.gw*0.3),bh=Math.floor(this.hH*0.8),by=4;
+  var bx2=this.ox+this.gw-bw, bx1=bx2-bw-6;
+  _rrect(ctx,bx1,by,bw,bh,4,'#bbada0');
+  ctx.fillStyle='#eee4da';ctx.font='bold '+Math.floor(bh*0.24)+'px Arial';
+  ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText('PUNTOS',bx1+bw/2,by+4);
+  ctx.fillStyle='#f9f6f2';ctx.font='bold '+Math.floor(bh*0.38)+'px Arial';
+  ctx.textBaseline='bottom';ctx.fillText(this.score,bx1+bw/2,by+bh-4);
 
-  _rrect(ctx,bbX,sbY,sbW,sbH,4,'#bbada0');
-  ctx.fillStyle='#eee4da';ctx.font='bold '+(Math.floor(sbH*0.22))+'px Arial';
-  ctx.textBaseline='top';
-  ctx.fillText('MEJOR',bbX+sbW/2,sbY+3);
-  ctx.fillStyle='#f9f6f2';ctx.font='bold '+(Math.floor(sbH*0.42))+'px Arial';
-  ctx.textBaseline='bottom';
-  ctx.fillText(this.best,bbX+sbW/2,sbY+sbH-3);
+  _rrect(ctx,bx2,by,bw,bh,4,'#bbada0');
+  ctx.fillStyle='#eee4da';ctx.font='bold '+Math.floor(bh*0.24)+'px Arial';
+  ctx.textBaseline='top';ctx.fillText('MEJOR',bx2+bw/2,by+4);
+  ctx.fillStyle='#f9f6f2';ctx.font='bold '+Math.floor(bh*0.38)+'px Arial';
+  ctx.textBaseline='bottom';ctx.fillText(this.best,bx2+bw/2,by+bh-4);
 
-  // Grid background
+  // Grid bg
   _rrect(ctx,this.ox-pad,this.oy-pad,this.gw+pad*2,this.gw+pad*2,8,'#bbada0');
 
-  // Celdas vacías
+  // Empty cells
   for(var y=0;y<this.sz;y++)for(var x=0;x<this.sz;x++)
     _rrect(ctx,this._cx(x),this._cy(y),cs,cs,4,'#cdc1b4');
 
-  // Tiles con animación
-  var prog=this.animating?Math.min(1,this.animT/this.ANIM_DUR):1;
-  var ease=prog<1?(1-(1-prog)*(1-prog)*(1-prog)):1;
-
-  // Renderizar no-merged primero, merged encima
-  var layerA=[],layerB=[];
-  for(var i=0;i<this.tiles.length;i++){
-    if(this.tiles[i].merged)layerB.push(this.tiles[i]);
-    else layerA.push(this.tiles[i]);
-  }
-  var all=layerA.concat(layerB);
-  for(var i=0;i<all.length;i++){
-    var t=all[i];
-    var px,py;
-    if(this.animating&&!t.isNew){
-      px=this._cx(t.fromX)+(this._cx(t.toX)-this._cx(t.fromX))*ease;
-      py=this._cy(t.fromY)+(this._cy(t.toY)-this._cy(t.fromY))*ease;
-    }else{
-      px=this._cx(t.toX);py=this._cy(t.toY);
+  // --- Draw tiles ---
+  if(this.anim){
+    // During animation: draw moving tiles
+    // non-merged first, merged on top
+    var layers=[[],[]];
+    for(var i=0;i<this.anim.tiles.length;i++){
+      var t=this.anim.tiles[i];
+      var px=this._cx(t.x0)+(this._cx(t.x1)-this._cx(t.x0))*ease;
+      var py=this._cy(t.y0)+(this._cy(t.y1)-this._cy(t.y0))*ease;
+      layers[t.merged?1:0].push({val:t.val,px:px,py:py,merged:t.merged});
     }
-    var sc=t.isNew?(t.newScale||0):1;
-    this._drawTile(t.val,px,py,sc,t.popT||0);
+    for(var li=0;li<2;li++)for(var i=0;i<layers[li].length;i++)
+      this._drawTile(layers[li][i].val,layers[li][i].px,layers[li][i].py,1,0);
+  }else{
+    // Static tiles
+    for(var i=0;i<this.staticTiles.length;i++){
+      var t=this.staticTiles[i];
+      var px=this._cx(t.cx),py=this._cy(t.cy);
+      // check pop
+      var bounce=0;
+      for(var j=0;j<this.pops.length;j++)
+        if(this.pops[j].cx===t.cx&&this.pops[j].cy===t.cy)bounce=this.pops[j].t;
+      this._drawTile(t.val,px,py,1,bounce);
+    }
+    // New tiles scale-in (drawn on top)
+    for(var i=0;i<this.newTiles.length;i++){
+      var nt=this.newTiles[i];
+      this._drawTile(nt.val,this._cx(nt.cx),this._cy(nt.cy),nt.s,0);
+    }
   }
+
+  // Undo button
+  var ub=this.undoBtn;
+  var hasUndo=this.history.length>0&&!this.anim;
+  _rrect(ctx,ub.x,ub.y,ub.w,ub.h,5,hasUndo?'#8f7a66':'#ccc0b3');
+  ctx.fillStyle=hasUndo?'#f9f6f2':'#a89f94';
+  ctx.font='bold '+Math.floor(ub.h*0.52)+'px Arial,sans-serif';
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('\u21A9 Deshacer (Z)',ub.x+ub.w/2,ub.y+ub.h/2);
 };
 
 
