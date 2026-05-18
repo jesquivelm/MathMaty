@@ -909,8 +909,6 @@ async function callLLM(userId, prompt, systemPrompt = '') {
   }
 }
 
-const EXAM_EXERCISE_EXPR = `(nivel = 'tec-paa' OR topic_id LIKE 'tec-%' OR COALESCE(archivo_origen,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']) OR COALESCE(source,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']))`;
-
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
     const { topic, difficulty, excludeIds = [] } = req.body;
@@ -920,35 +918,14 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const excluded = Array.isArray(excludeIds)
       ? excludeIds.map(Number).filter(Number.isInteger)
       : [];
-    const requestedDifficulty = difficulty || 'basico';
-    const difficultyGroups = {
-      basico: ['basico', 'facil', 'media'],
-      facil: ['basico', 'facil'],
-      media: ['media', 'facil'],
-      medio: ['media', 'facil'],
-      dificil: ['dificil', 'media']
-    };
-    const difficultyList = difficultyGroups[requestedDifficulty] || [requestedDifficulty];
-
-    async function pickExercise(useDifficulty, useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (useDifficulty) {
-        params.push(difficultyList);
-        where.push(`(difficulty = ANY($${params.length}::varchar[]) OR difficulty IS NULL)`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      const query = `SELECT * FROM exercises WHERE ${where.join(' AND ')} ORDER BY RANDOM() LIMIT 1`;
-      return pool.query(query, params);
+    const params = [topic, difficulty || 'basico'];
+    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL)';
+    if (excluded.length > 0) {
+      params.push(excluded);
+      dbQuery += ' AND NOT (id = ANY($3::int[]))';
     }
-
-    let dbRes = await pickExercise(true, true);
-    if (dbRes.rows.length === 0) dbRes = await pickExercise(false, true);
-    if (dbRes.rows.length === 0 && excluded.length > 0) dbRes = await pickExercise(false, false);
+    dbQuery += ' ORDER BY RANDOM() LIMIT 1';
+    const dbRes = await pool.query(dbQuery, params);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
@@ -967,8 +944,6 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         source: ex.source,
         category: ex.category,
         exam_year: ex.exam_year,
-        nivel: ex.nivel,
-        archivo_origen: ex.archivo_origen,
         image: imageUrl
       });
     }
@@ -1033,120 +1008,14 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   }
 });
 
-function parseJsonArray(value) {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch(e) {
-      return [];
-    }
-  }
-  return [];
-}
-
-function exerciseToFlashcard(ex) {
-  const options = parseJsonArray(ex.options);
-  const steps = parseJsonArray(ex.solution_steps);
-  const correct = options[0] || '';
-  const firstStep = steps.find(s => s && (s.expl || s.math)) || {};
-  const answerParts = [];
-  if (correct) answerParts.push(`Respuesta: ${correct}`);
-  if (firstStep.expl) answerParts.push(firstStep.expl);
-  const back = answerParts.join(' | ') || ex.theory || 'Revisa el procedimiento del ejercicio.';
-  return {
-    id: ex.id,
-    front: ex.question || ex.latex_content || 'Ejercicio de repaso',
-    back,
-    latex_front: ex.latex_content || '',
-    latex_back: firstStep.math || '',
-    source: ex.source || ex.archivo_origen || '',
-    nivel: ex.nivel || '',
-    difficulty: ex.difficulty || ''
-  };
-}
-
-app.post('/api/ai/generate-flashcards', authenticateToken, async (req, res) => {
-  try {
-    const topic = String(req.body.topic || '').trim();
-    const count = Math.min(25, Math.max(1, parseInt(req.body.count, 10) || 8));
-    const excluded = Array.isArray(req.body.excludeIds)
-      ? req.body.excludeIds.map(Number).filter(Number.isInteger)
-      : [];
-    if (!topic) return res.status(400).json({ error: 'Tema requerido' });
-
-    async function queryCards(useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (req.body.nivel) {
-        params.push(req.body.nivel);
-        where.push(`nivel = $${params.length}`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      params.push(count);
-      return pool.query(
-        `SELECT id, topic_id, question, latex_content, options, solution_steps, theory, difficulty, category, source, exam_year, nivel, archivo_origen
-         FROM exercises
-         WHERE ${where.join(' AND ')}
-         ORDER BY RANDOM()
-         LIMIT $${params.length}`,
-        params
-      );
-    }
-
-    let result = await queryCards(true);
-    if (result.rows.length === 0 && excluded.length > 0) result = await queryCards(false);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'No hay ejercicios para generar flashcards de este tema' });
-
-    res.json({
-      cards: result.rows.map(exerciseToFlashcard),
-      total: result.rows.length
-    });
-  } catch (err) {
-    console.error('Error generando flashcards:', err);
-    res.status(500).json({ error: 'Error al generar flashcards' });
-  }
-});
-
 // ADMIN: Banco de Ejercicios
 app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic, topics, nivel, tipo, q } = req.query;
-    const params = [];
-    const where = [];
-    if (topic) {
-      params.push(topic);
-      where.push(`topic_id = $${params.length}`);
-    } else if (topics) {
-      const topicList = String(topics).split(',').map(t => t.trim()).filter(Boolean);
-      if (topicList.length > 0) {
-        params.push(topicList);
-        where.push(`topic_id = ANY($${params.length}::varchar[])`);
-      }
-    }
-    if (nivel) {
-      params.push(nivel);
-      where.push(`nivel = $${params.length}`);
-    }
-    if (q) {
-      params.push(`%${q}%`);
-      where.push(`(question ILIKE $${params.length} OR COALESCE(source,'') ILIKE $${params.length} OR COALESCE(archivo_origen,'') ILIKE $${params.length})`);
-    }
-    if (tipo === 'examen') where.push(EXAM_EXERCISE_EXPR);
-    if (tipo === 'practica') where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-    if (tipo === 'generado') where.push(`(archivo_origen = 'generacion-programatica' OR COALESCE(source,'') ILIKE 'gen-prog%')`);
-    const query = `
-      SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel,archivo_origen
-      FROM exercises
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY nivel NULLS LAST, topic_id, id DESC`;
-    const result = await pool.query(query, params);
+    const { topic } = req.query;
+    const q = topic
+      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
+      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel FROM exercises ORDER BY topic_id,id DESC';
+    const result = await pool.query(q, topic ? [topic] : []);
     res.json(result.rows);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
@@ -2099,7 +1968,6 @@ async function initDatabase() {
     try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exam_year INTEGER`); } catch(e) {}
     try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS source TEXT`); } catch(e) {}
     try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT`); } catch(e) {}
     // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
     const check = await pool.query(`
       SELECT EXISTS (
@@ -2124,7 +1992,6 @@ async function initDatabase() {
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT`); } catch(e) {}
   } catch (err) {
     console.error('⚠️  Error de base de datos:');
     console.error('   Mensaje:', JSON.stringify(err.message));

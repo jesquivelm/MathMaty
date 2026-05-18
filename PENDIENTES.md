@@ -1,12 +1,12 @@
 # Índice Maestro de Archivos — MathMaty
 
-> Estado de procesamiento de cada archivo en `material/`. Total DB: **2020 ejercicios**.
+> Estado de procesamiento de cada archivo en `material/`. Total DB: **2404 ejercicios**.
 
 ## Procesados ✓
 
 | Archivo | En DB | Nivel | Notas |
 |---------|:-----:|-------|-------|
-| `generacion-programatica` (v1-v16) | 1193 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg, aritmética, geometría |
+| `generacion-programatica` (v1-v21) | 1478 | 10-11 | Ecuaciones, factorización, exp-log, trig, inecuaciones, funciones, sucesiones, sistemas, lógica, verbal, cálculo, fracciones-alg, aritmética, geometría |
 | `folleto_guia_2021_final.pdf` | 80 | 10-11 | Guía PAA completa, MC con respuestas |
 | `cuadernillo algebra.pdf` | 50 | 7mo-9no | MC con respuestas |
 | `digital-libro_examen_de_admision-2024-1.pdf` | 38 | 10-11 | Examen admisión UNA, MC |
@@ -23,7 +23,7 @@
 | `Practica_PAA_2024_2025.pdf` | 6 | 10-11 | MC parcial, OCR limitado |
 | `Prueba Racionalización Parte 1.pdf` | 5 | 10-11 | MC parcial, OCR limitado |
 | Legacy (seed original, sin archivo_origen) | 96 | 10-11 | Seeds iniciales del proyecto |
-| **TOTAL** | **2020** | | |
+| **TOTAL** | **2404** | | |
 
 ## Con MC — SIN solucionario (respuesta desconocida)
 
@@ -75,14 +75,14 @@
 |-------|:-----:|
 | tec-matematica | 466 |
 | ecuaciones | 296 |
-| tec-verbal | 169 |
-| factorizacion | 168 |
-| inecuaciones | 162 |
-| tec-logica | 159 |
-| trigonometria | 156 |
-| calculo | 154 |
-| exp-log | 152 |
-| fracciones-alg | 138 |
+| fracciones-alg | 212 |
+| tec-verbal | 209 |
+| factorizacion | 208 |
+| tec-logica | 204 |
+| calculo | 204 |
+| inecuaciones | 202 |
+| exp-log | 202 |
+| trigonometria | 201 |
 
 ## Archivos 100% procesados → movidos a `material/procesados/`
 
@@ -105,10 +105,10 @@
 
 ## Prioridades siguientes
 
-1. **Media**: Continuar generación programática para alcanzar 300+ por tópico (fracciones-alg 138, exp-log 152 más débiles)
-2. **Media**: Adaptar TEC Cálculo con solucionario a formato MC
+1. **Media**: Continuar generación programática para alcanzar 300+ por tópico
+2. **Baja**: Adaptar TEC Cálculo con solucionario a formato MC
 3. **Baja**: Procesar PDFs escaneados restantes con OCR (~21 total)
-4. **Completado**: 2020 ejercicios totales, todos los tópicos >130
+4. **Completado**: 2404 ejercicios totales, todos los tópicos ≥200
 
 ---
-*Última actualización: 17/05/2026 19:15*
+*Última actualización: 17/05/2026 20:30*

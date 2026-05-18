@@ -84,60 +84,6 @@ const NIVELES = [
   { id:'tec-paa', name:'TEC / PAA (Admisión)' }
 ];
 
-const MATERIAS = [
-  { id:'matematica', name:'Matemática MEP' },
-  { id:'admision', name:'Admisión matemática' },
-  { id:'logica', name:'Lógica' },
-  { id:'espanol', name:'Español / Verbal' }
-];
-
-const TOPIC_NIVELES = {
-  primaria: ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
-  '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica'],
-  '8vo': ['numeros-reales','polinomios','factorizacion','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones'],
-  '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad'],
-  '10-11': ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','calculo','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','matrices','vectores','sucesiones','geo-analitica'],
-  'tec-paa': ['tec-logica','tec-matematica','tec-verbal']
-};
-
-function topicMatchesMateria(topic, materia) {
-  if (!materia) return true;
-  if (materia === 'matematica') return !topic.id.startsWith('tec-') && topic.id !== 'logica';
-  if (materia === 'admision') return topic.id === 'tec-matematica';
-  if (materia === 'logica') return ['logica','tec-logica'].includes(topic.id);
-  if (materia === 'espanol') return topic.id === 'tec-verbal';
-  return true;
-}
-
-function topicMatchesNivel(topic, nivel) {
-  if (!nivel) return true;
-  return (TOPIC_NIVELES[nivel] || []).includes(topic.id);
-}
-
-function getFilteredTopics(materia = '', nivel = '') {
-  return TOPICS.filter(t => topicMatchesMateria(t, materia) && topicMatchesNivel(t, nivel));
-}
-
-function renderMateriaOptions(selected = '') {
-  return `<option value="">Todas las materias</option>${MATERIAS.map(m => `<option value="${m.id}"${m.id===selected?' selected':''}>${m.name}</option>`).join('')}`;
-}
-
-function renderNivelOptions(selected = '', allLabel = 'Todos los niveles') {
-  return `<option value="">${allLabel}</option>${NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('')}`;
-}
-
-function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas') {
-  const used = new Set();
-  const groups = MATERIAS.map(m => {
-    const items = topics.filter(t => !used.has(t.id) && topicMatchesMateria(t, m.id));
-    items.forEach(t => used.add(t.id));
-    return items.length ? `<optgroup label="${m.name}">${items.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : '';
-  }).join('');
-  const remaining = topics.filter(t => !used.has(t.id));
-  const allOption = allLabel === null ? '' : `<option value="">${allLabel}</option>`;
-  return `${allOption}${groups}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   if (state.token) { await fetchProfile(); loadGlossary(); }
   else showAuth();
@@ -515,9 +461,8 @@ async function renderExercise(main) {
 }
 
 function formatExerciseSource(data) {
-  if (!data?.source && !data?.archivo_origen && !data?.exam_year) return '';
+  if (!data?.source && !data?.exam_year) return '';
   const parts = [];
-  if (data.archivo_origen) parts.push(data.archivo_origen);
   if (data.source) parts.push(data.source);
   if (data.exam_year) parts.push(`año ${data.exam_year}`);
   return `Fuente: ${parts.join(' | ')}`;
@@ -1329,16 +1274,16 @@ async function useItem(itemId) {
 async function renderKnowledge(main) {
   main.innerHTML = `
     <h2><i class="ti ti-library"></i> Biblioteca de Conocimiento</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Explicaciones detalladas, ejemplos y ma&ntilde;as organizadas por materia y nivel.</p>
-    <div class="filter-bar">
-      <span class="select-wrap">
-        <select id="knowledge-materia" class="select-control" onchange="renderKnowledgeGrid()">${renderMateriaOptions()}</select>
-      </span>
-      <span class="select-wrap">
-        <select id="knowledge-nivel" class="select-control" onchange="renderKnowledgeGrid()">${renderNivelOptions('', 'Todos los niveles')}</select>
-      </span>
-    </div>
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Explicaciones detalladas, ejemplos y ma&ntilde;as para cada tema de Prec&aacute;lculo.</p>
     <div id="knowledge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
+      ${TOPICS.map(t => `
+        <div class="card topic-card" onclick="openKnowledgeTopic('${t.id}')" style="cursor:pointer;">
+          <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
+          <h3>${t.name}</h3>
+          <p style="font-size:.85rem;color:var(--color-text-secondary);margin:.5rem 0;line-height:1.5;">${t.teoria.substring(0,100)}...</p>
+          <span style="font-size:.75rem;color:var(--color-primary);">Ver gu&iacute;a completa →</span>
+        </div>
+      `).join('')}
     </div>
     <div style="margin-top:2rem;">
       <h3 style="margin-bottom:1rem;">Buscador de T&eacute;rminos</h3>
@@ -1346,26 +1291,7 @@ async function renderKnowledge(main) {
       <div id="glossary-results" style="display:flex;flex-direction:column;gap:.5rem;"></div>
     </div>`;
   
-  renderKnowledgeGrid();
   searchGlossary(); // Carga inicial
-}
-
-function renderKnowledgeGrid() {
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const topics = getFilteredTopics(materia, nivel);
-  const grid = document.getElementById('knowledge-grid');
-  if (!grid) return;
-  grid.innerHTML = topics.length === 0
-    ? '<p style="color:var(--color-text-muted);">No hay temas para ese filtro.</p>'
-    : topics.map(t => `
-      <div class="card topic-card" onclick="openKnowledgeTopic('${t.id}')" style="cursor:pointer;">
-        <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
-        <h3>${t.name}</h3>
-        <p style="font-size:.85rem;color:var(--color-text-secondary);margin:.5rem 0;line-height:1.5;">${t.teoria.substring(0,100)}...</p>
-        <span style="font-size:.75rem;color:var(--color-primary);">Ver gu&iacute;a completa →</span>
-      </div>
-    `).join('');
 }
 
 function searchGlossary() {
@@ -2038,17 +1964,11 @@ async function showChildReport(childId) {
 function renderAdmin(main) {
   main.innerHTML = `
     <h2>Banco de Ejercicios</h2>
-    <div class="filter-bar">
-      <span class="select-wrap"><select id="admin-materia" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderMateriaOptions()}</select></span>
-      <span class="select-wrap"><select id="admin-nivel" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderNivelOptions('', 'Todos los niveles')}</select></span>
-      <span class="select-wrap"><select id="admin-filter" class="select-control" onchange="loadAdminList()">${renderTopicOptions(TOPICS, '', 'Todos los temas')}</select></span>
-      <span class="select-wrap"><select id="admin-tipo" class="select-control" onchange="loadAdminList()">
-        <option value="">Todo tipo</option>
-        <option value="practica">Práctica regular</option>
-        <option value="examen">Exámenes / admisión</option>
-        <option value="generado">Generados</option>
-      </select></span>
-      <input id="admin-search" class="btn btn-outline admin-search" oninput="loadAdminList()" placeholder="Buscar">
+    <div style="display:flex;gap:.75rem;align-items:center;margin:1rem 0;flex-wrap:wrap;">
+      <select id="admin-filter" class="btn btn-outline" onchange="loadAdminList()" style="background:var(--color-bg);">
+        <option value="">Todos</option>
+        ${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}
+      </select>
       <button class="btn btn-primary" onclick="showAddExercise()"><i class="ti ti-plus"></i> Nuevo</button>
       <span id="admin-count" style="color:var(--color-text-muted);font-size:.85rem;"></span>
     </div>
@@ -2056,24 +1976,6 @@ function renderAdmin(main) {
     ${renderAddExerciseForm()}
     ${renderEditExerciseForm()}`;
   loadAdminList();
-}
-
-function refreshAdminTopicOptions() {
-  const materia = document.getElementById('admin-materia')?.value || '';
-  const nivel = document.getElementById('admin-nivel')?.value || '';
-  const select = document.getElementById('admin-filter');
-  if (!select) return;
-  const current = select.value;
-  const topics = getFilteredTopics(materia, nivel);
-  select.innerHTML = renderTopicOptions(topics, current, 'Todos los temas');
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-}
-
-function adminExerciseTipo(ex) {
-  const origin = `${ex.archivo_origen || ''} ${ex.source || ''}`.toLowerCase();
-  if (ex.nivel === 'tec-paa' || (ex.topic_id || '').startsWith('tec-') || /tec|paa|una|ucr|matem|admisi/.test(origin)) return 'Examen';
-  if ((ex.archivo_origen || '') === 'generacion-programatica' || /^gen-prog/.test(ex.source || '')) return 'Generado';
-  return 'Práctica';
 }
 
 function nivelOptions(selected) {
@@ -2090,8 +1992,8 @@ function renderAddExerciseForm() {
       </div>
       <div style="display:flex;flex-direction:column;gap:.6rem;">
         <div style="display:flex;gap:.5rem;">
-          <select id="new-topic" class="select-control" style="flex:1;">${renderTopicOptions(TOPICS, TOPICS[0]?.id || '', null)}</select>
-          <select id="new-nivel" class="select-control">${nivelOptions('tec-paa')}</select>
+          <select id="new-topic" class="btn btn-outline" style="flex:1;background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+          <select id="new-nivel" class="btn btn-outline" style="background:var(--color-bg);">${nivelOptions('tec-paa')}</select>
         </div>
         
         <div style="display:flex;gap:.35rem;align-items:center;">
@@ -2141,8 +2043,8 @@ function renderEditExerciseForm() {
       </div>
       <div style="display:flex;flex-direction:column;gap:.6rem;">
         <div style="display:flex;gap:.5rem;">
-          <select id="edit-topic" class="select-control" style="flex:1;">${renderTopicOptions(TOPICS, TOPICS[0]?.id || '', null)}</select>
-          <select id="edit-nivel" class="select-control">${nivelOptions()}</select>
+          <select id="edit-topic" class="btn btn-outline" style="flex:1;background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
+          <select id="edit-nivel" class="btn btn-outline" style="background:var(--color-bg);">${nivelOptions()}</select>
         </div>
         
         <div style="display:flex;gap:.35rem;align-items:center;">
@@ -2241,42 +2143,19 @@ async function handleImageUpload(event, prefix) {
 
 async function loadAdminList() {
   const topic = document.getElementById('admin-filter')?.value || '';
-  const materia = document.getElementById('admin-materia')?.value || '';
-  const nivel = document.getElementById('admin-nivel')?.value || '';
-  const tipo = document.getElementById('admin-tipo')?.value || '';
-  const q = document.getElementById('admin-search')?.value.trim() || '';
-  const params = new URLSearchParams();
-  if (topic) {
-    params.set('topic', topic);
-  } else if (materia) {
-    const scopedTopics = getFilteredTopics(materia, nivel);
-    if (scopedTopics.length === 0) {
-      document.getElementById('admin-count').textContent = '0 ejercicio(s)';
-      document.getElementById('admin-list').innerHTML = '<p style="color:var(--color-text-muted);margin-top:1rem;">Vac&iacute;o</p>';
-      return;
-    }
-    params.set('topics', scopedTopics.map(t => t.id).join(','));
-  }
-  if (nivel) params.set('nivel', nivel);
-  if (tipo) params.set('tipo', tipo);
-  if (q) params.set('q', q);
-  const url = `${API}/api/admin/exercises${params.toString() ? '?' + params.toString() : ''}`;
+  const url = topic ? `${API}/api/admin/exercises?topic=${topic}` : `${API}/api/admin/exercises`;
   try {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${state.token}` } });
     const list = await r.json();
-    if (!r.ok) throw new Error(list.error || 'Error cargando banco');
-    if (!Array.isArray(list)) throw new Error('Respuesta inválida del banco');
     document.getElementById('admin-count').textContent = `${list.length} ejercicio(s)`;
     document.getElementById('admin-list').innerHTML = list.map(ex => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:.65rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.35rem;gap:.75rem;">
-        <div style="flex:1;font-size:.85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-width:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.25rem;">
+        <div style="flex:1;font-size:.85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
           <span style="color:var(--color-text-muted);font-size:.7rem;">#${ex.id}</span>
-          <span class="badge" style="background:var(--color-primary);">${TOPIC_NAMES[ex.topic_id] || ex.topic_id}</span>
-          ${ex.nivel ? `<span class="badge" style="background:var(--color-surface);font-size:.65rem;">${ex.nivel}</span>` : ''}
-          <span class="badge" style="background:${adminExerciseTipo(ex)==='Examen'?'rgba(245,158,11,.2)':adminExerciseTipo(ex)==='Generado'?'rgba(59,130,246,.2)':'rgba(16,185,129,.16)'};color:var(--color-text-secondary);font-size:.65rem;">${adminExerciseTipo(ex)}</span>
+          <span class="badge" style="background:var(--color-primary);">${ex.topic_id}</span>
+          ${ex.nivel ? `<span class="badge" style="background:var(--color-info);font-size:.65rem;">${ex.nivel}</span>` : ''}
           ${ex.imagen ? `<span class="badge" style="background:var(--color-success);font-size:.65rem;"><i class="ti ti-photo"></i></span>` : ''}
-          <span style="margin-left:.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:180px;max-width:540px;">${(ex.question||'').replace(/<[^>]*>/g,' ').substring(0,90)}${(ex.question||'').length>90?'...':''}</span>
-          ${ex.archivo_origen ? `<span style="color:var(--color-text-muted);font-size:.7rem;white-space:nowrap;">${ex.archivo_origen}</span>` : ''}
+          <span style="margin-left:.25rem;">${(ex.question||'').substring(0,60)}${(ex.question||'').length>60?'...':''}</span>
         </div>
         <div style="display:flex;gap:.25rem;">
           <button class="btn btn-outline btn-sm" onclick="showEditExercise(${ex.id})"><i class="ti ti-edit"></i></button>
@@ -3090,8 +2969,7 @@ const fcState = {
   known: 0,
   unknown: 0,
   topic: null,
-  loading: false,
-  seenIds: []
+  loading: false
 };
 
 // ---------- Entrada: selector de tema ----------
@@ -3105,27 +2983,15 @@ function renderFlashcards(main) {
 
       <div class="card" style="margin-bottom:1.5rem;">
         <h3 style="margin-bottom:1rem;">Selecciona un tema</h3>
-        <div class="fc-setup-grid">
-          <label class="fc-field">
-            <span class="fc-field-label">Tema</span>
-            <span class="select-wrap">
-              <select id="fc-topic-select" class="select-control">
-                ${renderTopicOptions(TOPICS, state.currentTopic?.id || TOPICS[0]?.id || '', null)}
-              </select>
-            </span>
-          </label>
-          <label class="fc-field">
-            <span class="fc-field-label">Cantidad</span>
-            <span class="select-wrap">
-              <select id="fc-count-select" class="select-control fc-count-select">
-                <option value="5">5 cards</option>
-                <option value="8" selected>8 cards</option>
-                <option value="12">12 cards</option>
-                <option value="18">18 cards</option>
-                <option value="25">25 cards</option>
-              </select>
-            </span>
-          </label>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:.75rem;align-items:end;">
+          <select id="fc-topic-select" class="btn btn-outline" style="background:var(--color-bg);text-align:left;width:100%;height:44px;">
+            ${TOPICS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+          <select id="fc-count-select" class="btn btn-outline" style="background:var(--color-bg);width:90px;height:44px;">
+            <option value="5">5 cards</option>
+            <option value="8" selected>8 cards</option>
+            <option value="12">12 cards</option>
+          </select>
         </div>
         <button class="btn btn-primary" style="width:100%;margin-top:1rem;" onclick="startFlashcardSession()">
           <i class="ti ti-player-play"></i> Iniciar sesi&oacute;n
@@ -3136,7 +3002,7 @@ function renderFlashcards(main) {
       <div class="card" style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);">
         <h4 style="color:var(--color-primary);margin-bottom:.5rem;"><i class="ti ti-bulb"></i> &iquest;C&oacute;mo funciona?</h4>
         <ul style="font-size:.85rem;color:var(--color-text-secondary);line-height:1.8;padding-left:1.2rem;">
-          <li>El banco genera tarjetas con ejercicios del tema elegido.</li>
+          <li>La IA genera tarjetas con conceptos del tema elegido.</li>
           <li>Toca la tarjeta para voltearla y ver la respuesta.</li>
           <li>Marca si lo sab&iacute;as o no — el sistema te muestra tu progreso.</li>
           <li>Ganas <strong style="color:var(--color-warning);">+20 XP</strong> por cada tarjeta correcta.</li>
@@ -3155,8 +3021,8 @@ async function startFlashcardSession() {
   main.innerHTML = `
     <div style="max-width:680px;margin:0 auto;text-align:center;padding:3rem 1rem;">
       <div style="font-size:3rem;margin-bottom:1rem;">🃏</div>
-      <h3 style="color:var(--color-primary);">Preparando flashcards...</h3>
-      <p style="color:var(--color-text-muted);margin-top:.5rem;">Buscando ${count} tarjetas de <strong>${topic.name}</strong> en el banco</p>
+      <h3 style="color:var(--color-primary);">Generando flashcards...</h3>
+      <p style="color:var(--color-text-muted);margin-top:.5rem;">La IA est&aacute; creando ${count} tarjetas de <strong>${topic.name}</strong></p>
       <div class="progress-bar" style="margin-top:1.5rem;height:6px;">
         <div class="progress-fill fc-loading-bar" style="animation:fc-load 2.5s ease-in-out infinite;"></div>
       </div>
@@ -3173,12 +3039,20 @@ async function startFlashcardSession() {
     const r = await fetch(`${API}/api/ai/generate-flashcards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ topic: topicId, count, excludeIds: fcState.seenIds })
+      body: JSON.stringify({ topic: topicId, count })
     });
 
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'No se pudieron generar tarjetas');
-    const cards = Array.isArray(data.cards) ? data.cards : (Array.isArray(data) ? data : []);
+    let cards = [];
+
+    if (r.ok) {
+      const data = await r.json();
+      cards = data.cards || data || [];
+    }
+
+    // Fallback: si el endpoint no existe aún, generar con el endpoint de ejercicios
+    if (!cards || cards.length === 0) {
+      cards = await generateFlashcardsFromExercises(topicId, count, topic);
+    }
 
     if (!cards || cards.length === 0) throw new Error('No se pudieron generar tarjetas');
 
@@ -3188,10 +3062,6 @@ async function startFlashcardSession() {
     fcState.known = 0;
     fcState.unknown = 0;
     fcState.topic = topic;
-    cards.forEach(card => {
-      if (card.id && !fcState.seenIds.includes(card.id)) fcState.seenIds.push(card.id);
-    });
-    if (fcState.seenIds.length > 300) fcState.seenIds = fcState.seenIds.slice(-300);
 
     renderFlashcardDeck(main);
 
@@ -3206,9 +3076,47 @@ async function startFlashcardSession() {
   }
 }
 
-// ---------- Fallback local deshabilitado: la consulta vive en el backend ----------
+// ---------- Fallback: genera flashcards desde la API de ejercicios ----------
 async function generateFlashcardsFromExercises(topicId, count, topic) {
-  throw new Error('El servicio de flashcards no está disponible');
+  // Usamos el endpoint de Claude directamente para generar flashcards
+  const prompt = `Genera exactamente ${count} flashcards de matemáticas sobre el tema: ${topic.name}.
+Contexto del tema: ${topic.teoria}
+
+Responde SOLO con un array JSON válido, sin texto extra, sin markdown, sin backticks.
+Formato exacto:
+[
+  {"front": "¿Pregunta o concepto?", "back": "Respuesta o definición clara y concisa.", "latex_front": "", "latex_back": "expresion_latex_opcional"},
+  ...
+]
+
+Reglas:
+- front: pregunta o concepto breve (máximo 15 palabras)
+- back: respuesta clara y directa (máximo 30 palabras)
+- latex_front y latex_back: expresión LaTeX si aplica, si no, string vacío ""
+- Varía entre definiciones, fórmulas, propiedades y ejemplos rápidos
+- Nivel universitario de precálculo TEC Costa Rica`;
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+
+  if (!r.ok) throw new Error('Error al contactar la IA');
+  const data = await r.json();
+  const text = (data.content || []).map(b => b.text || '').join('');
+
+  try {
+    const clean = text.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    if (Array.isArray(parsed)) return parsed;
+  } catch (e) {}
+
+  throw new Error('La IA no devolvió un formato válido');
 }
 
 // ---------- Renderizar el mazo de tarjetas ----------
@@ -3260,14 +3168,13 @@ function renderFlashcardDeck(main) {
             align-items:center;justify-content:center;
             padding:2rem 1.5rem;text-align:center;
             box-shadow:0 4px 24px rgba(0,0,0,0.18);
-            overflow:auto;
           ">
             <div style="font-size:.7rem;letter-spacing:.12em;color:var(--color-primary);font-weight:700;margin-bottom:1.25rem;text-transform:uppercase;">
               <i class="ti ti-question-mark"></i> PREGUNTA
             </div>
-            <div style="font-size:1.15rem;font-weight:600;line-height:1.6;color:var(--color-text);margin:0 0 1rem;">
+            <p style="font-size:1.15rem;font-weight:600;line-height:1.6;color:var(--color-text);margin:0 0 1rem;">
               ${card.front}
-            </div>
+            </p>
             ${card.latex_front ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
             <div style="margin-top:1.5rem;font-size:.78rem;color:var(--color-text-muted);">
               <i class="ti ti-hand-click"></i> Toca para ver la respuesta
@@ -3287,14 +3194,13 @@ function renderFlashcardDeck(main) {
             align-items:center;justify-content:center;
             padding:2rem 1.5rem;text-align:center;
             box-shadow:0 4px 24px rgba(59,130,246,0.2);
-            overflow:auto;
           ">
             <div style="font-size:.7rem;letter-spacing:.12em;color:var(--color-success);font-weight:700;margin-bottom:1.25rem;text-transform:uppercase;">
               <i class="ti ti-check"></i> RESPUESTA
             </div>
-            <div style="font-size:1.05rem;line-height:1.7;color:var(--color-text);margin:0 0 1rem;">
+            <p style="font-size:1.05rem;line-height:1.7;color:var(--color-text);margin:0 0 1rem;">
               ${card.back}
-            </div>
+            </p>
             ${card.latex_back ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
           </div>
         </div>
