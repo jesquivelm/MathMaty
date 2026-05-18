@@ -950,6 +950,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         pregunta: ex.question,
         latex: ex.latex_content,
         opciones: displayOpts,
+        correcta: correcta,
         pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,
