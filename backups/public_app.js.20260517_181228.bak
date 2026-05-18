@@ -8,7 +8,7 @@ const state = {
   seenExerciseIds: [],   // IDs ya vistos — se mandan al backend para no repetir
   missionState: null, examTimer: null, activeEvent: null,
   whiteboardColor: '#3b82f6', whiteboardSize: 3, whiteboardMode: 'pen',
-  eraserSize: 20, shopFilter: 'all'
+  eraserSize: 20
 };
 
 // DoomGuy video slots: 12 videos + 1 PNG
@@ -76,12 +76,12 @@ const TOPICS = [
 const TOPIC_NAMES = Object.fromEntries(TOPICS.map(t => [t.id, t.name]));
 
 const NIVELES = [
-  { id:'primaria', name:'Primaria (1°-6°)' },
-  { id:'7mo', name:'7° año' },
-  { id:'8vo', name:'8° año' },
-  { id:'9no', name:'9° año' },
-  { id:'10-11', name:'10°-11° Bachillerato' },
-  { id:'tec-paa', name:'Admisión TEC/UNA/UCR' }
+  { id:'primaria', name:'Primaria (I-II Ciclo)' },
+  { id:'7mo', name:'7° año / Ujarrás' },
+  { id:'8vo', name:'8° año / Térraba' },
+  { id:'9no', name:'9° año / Zapandí' },
+  { id:'10-11', name:'10°-11° / Bachillerato' },
+  { id:'tec-paa', name:'TEC / PAA (Admisión)' }
 ];
 
 const MATERIAS = [
@@ -91,15 +91,12 @@ const MATERIAS = [
   { id:'espanol', name:'Español / Verbal' }
 ];
 
-const NIVEL_NAMES = Object.fromEntries(NIVELES.map(n => [n.id, n.name]));
-const MATERIA_NAMES = Object.fromEntries(MATERIAS.map(m => [m.id, m.name]));
-
 const TOPIC_NIVELES = {
   primaria: ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
-  '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica','razones-proporciones'],
-  '8vo': ['numeros-reales','polinomios','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones','ecuaciones'],
-  '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad','polinomios'],
-  '10-11': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones'],
+  '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica'],
+  '8vo': ['numeros-reales','polinomios','factorizacion','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones'],
+  '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad'],
+  '10-11': ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','calculo','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','matrices','vectores','sucesiones','geo-analitica'],
   'tec-paa': ['tec-logica','tec-matematica','tec-verbal']
 };
 
@@ -139,30 +136,6 @@ function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos lo
   const remaining = topics.filter(t => !used.has(t.id));
   const allOption = allLabel === null ? '' : `<option value="">${allLabel}</option>`;
   return `${allOption}${groups}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
-}
-
-function getTopicLevelIds(topicId) {
-  return NIVELES.filter(n => (TOPIC_NIVELES[n.id] || []).includes(topicId)).map(n => n.id);
-}
-
-function getTopicMateriaId(topicId) {
-  const topic = TOPICS.find(t => t.id === topicId);
-  if (!topic) return 'matematica';
-  if (topic.id === 'tec-verbal') return 'espanol';
-  if (topic.id === 'tec-logica' || topic.id === 'logica') return 'logica';
-  if (topic.id === 'tec-matematica') return 'admision';
-  return 'matematica';
-}
-
-function renderTopicLevelBadges(topicId) {
-  const levels = getTopicLevelIds(topicId);
-  return levels.slice(0, 3).map(id => `<span class="topic-level-chip">${NIVEL_NAMES[id]}</span>`).join('') +
-    (levels.length > 3 ? `<span class="topic-level-chip">+${levels.length - 3}</span>` : '');
-}
-
-function renderCompactTopicNames(topicIds, limit = 3) {
-  const names = topicIds.map(id => TOPIC_NAMES[id] || id).filter(Boolean);
-  return names.slice(0, limit).join(', ') + (names.length > limit ? ` +${names.length - limit}` : '');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -443,57 +416,32 @@ async function renderHome(main) {
 // TEMAS / TOPICS
 // ============================================================
 function renderTopics(main) {
-  const materia = localStorage.getItem('mm_topics_materia') || '';
-  const nivel = localStorage.getItem('mm_topics_nivel') || '';
-  const topics = getFilteredTopics(materia, nivel);
   main.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-      <h2>Temas por materia</h2>
+      <h2>Temas de Prec&aacute;lculo</h2>
       <button class="btn btn-outline btn-sm" onclick="openSolver()"><i class="ti ti-robot"></i> Resolver</button>
     </div>
-    <div class="filter-bar topic-filter-bar">
-      <span class="select-wrap"><select id="topics-materia-filter" class="select-control" onchange="updateTopicsFilter()">${renderMateriaOptions(materia)}</select></span>
-      <span class="select-wrap"><select id="topics-nivel-filter" class="select-control" onchange="updateTopicsFilter()">${renderNivelOptions(nivel)}</select></span>
-    </div>
-    <div id="topics-grid" class="topic-grid">
-      ${renderTopicCards(topics)}
-    </div>`;
-}
-
-function renderTopicCards(topics) {
-  if (!topics.length) {
-    return `<div class="card empty-state-card">No hay temas para esa combinaci&oacute;n.</div>`;
-  }
-  return topics.map(t => `
-    <div class="card topic-card">
-      <div class="topic-card-head">
-        <i class="ti ${t.icon} topic-card-icon"></i>
-        <div class="topic-card-title">
-          <h3>${t.name}</h3>
-          <div class="topic-chip-row">
-            <span class="topic-level-chip">${MATERIA_NAMES[getTopicMateriaId(t.id)] || 'Matem&aacute;tica'}</span>
-            ${renderTopicLevelBadges(t.id)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Selecciona un tema para practicar. Cada tema tiene teor&iacute;a, ejemplos y ejercicios.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;">
+    ${TOPICS.map(t => `
+      <div class="card topic-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
+            <h3>${t.name}</h3>
+            <span class="badge parcial">Parcial ${t.parcial}</span>
           </div>
         </div>
+        <p style="font-size:.85rem;color:var(--color-text-secondary);margin:.75rem 0;line-height:1.6;">${t.teoria}</p>
+        <div class="topic-actions">
+          <button class="btn btn-primary btn-sm" onclick="startExercise('${t.id}')"><i class="ti ti-player-play"></i> Practicar</button>
+          <button class="btn btn-outline btn-sm" onclick="startFlashcardsForTopic('${t.id}')"><i class="ti ti-cards"></i> Flashcards</button>
+          <button class="btn btn-outline btn-sm" onclick="openKnowledgeTopic('${t.id}')"><i class="ti ti-book"></i> Teor&iacute;a</button>
+          <button class="btn btn-outline btn-sm" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i> Examen</button>
+        </div>
       </div>
-      <p class="topic-card-desc">${t.teoria}</p>
-      <div class="topic-actions">
-        <button class="btn btn-primary btn-sm" onclick="startExercise('${t.id}')"><i class="ti ti-player-play"></i> Practicar</button>
-        <button class="btn btn-outline btn-sm" onclick="startFlashcardsForTopic('${t.id}')"><i class="ti ti-cards"></i> Flashcards</button>
-        <button class="btn btn-outline btn-sm" onclick="openKnowledgeTopic('${t.id}')"><i class="ti ti-book"></i> Teor&iacute;a</button>
-        <button class="btn btn-outline btn-sm" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i> Examen</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function updateTopicsFilter() {
-  const materia = document.getElementById('topics-materia-filter')?.value || '';
-  const nivel = document.getElementById('topics-nivel-filter')?.value || '';
-  localStorage.setItem('mm_topics_materia', materia);
-  localStorage.setItem('mm_topics_nivel', nivel);
-  const grid = document.getElementById('topics-grid');
-  if (grid) grid.innerHTML = renderTopicCards(getFilteredTopics(materia, nivel));
+    `).join('')}
+    </div>`;
 }
 
 // ============================================================
@@ -775,120 +723,91 @@ async function saveExerciseToHistory(correct) {
 // MISIONES
 // ============================================================
 const MISSIONS = [
-  { id:'doom-horde', name:'DOOM: Horda Infernal', desc:'Factorizaci&oacute;n, polinomios y radicales bajo presi&oacute;n.', topics:['factorizacion','polinomios','radicales'], count:10, hpPenalty:15, xpReward:600, icon:'👹', game:'doom', materia:'matematica', niveles:['9no'] },
-  { id:'fifa-champ', name:'FIFA: Campeonato de Ecuaciones', desc:'Ecuaciones lineales y cuadr&aacute;ticas en racha.', topics:['ecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:10, xpReward:500, icon:'⚽', game:'fifa', materia:'matematica', niveles:['7mo','9no','10-11'] },
-  { id:'pokemon-gym', name:'Pok&eacute;mon: Gimnasio Algebraico', desc:'Factorizaci&oacute;n, fracciones algebraicas e inecuaciones.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones'], count:12, hpPenalty:12, xpReward:800, icon:'🔴', game:'pokemon', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'minecraft-builder', name:'Minecraft: Constructor de Bases', desc:'Recursos, proporciones, porcentajes y geometr&iacute;a por bloques.', topics:['mcm-mcd','porcentajes','razones-proporciones','geometria'], count:12, hpPenalty:10, xpReward:900, icon:'⛏️', game:'minecraft', materia:'matematica', niveles:['primaria','7mo','8vo'] },
-  { id:'cod-ops', name:'Call of Duty: Operaci&oacute;n Matem&aacute;tica', desc:'Ecuaciones, inecuaciones, exponenciales y trigonometr&iacute;a.', topics:['ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:20, xpReward:1200, icon:'🎯', game:'cod', materia:'matematica', niveles:['10-11'] },
-  { id:'nfs-street', name:'Need for Speed: Derrape Num&eacute;rico', desc:'N&uacute;meros reales, radicales y logaritmos a contrarreloj.', topics:['numeros-reales','radicales','exp-log'], count:10, hpPenalty:18, xpReward:700, icon:'🏎️', game:'nfs', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'lastofus', name:'The Last of Us: Supervivencia', desc:'Geometr&iacute;a, plano cartesiano y trigonometr&iacute;a por recursos.', topics:['geometria','trigonometria','plano-cartesiano'], count:10, hpPenalty:25, xpReward:900, icon:'🧟', game:'tlou', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'clash-math', name:'Clash of Clans: Batalla Algebraica', desc:'Aldea algebraica con ecuaciones, inecuaciones y funciones.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:10, xpReward:1200, icon:'🏰', game:'coc', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'horizon-math', name:'Horizon: Aventura Matem&aacute;tica', desc:'Exploraci&oacute;n de geometr&iacute;a, trigonometr&iacute;a y coordenadas.', topics:['trigonometria','geometria','plano-cartesiano'], count:12, hpPenalty:15, xpReward:900, icon:'🤖', game:'horizon', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'bomberman', name:'Bomberman: Explosi&oacute;n Algebraica', desc:'Polinomios, fracciones algebraicas y conjuntos.', topics:['polinomios','fracciones-alg','conjuntos'], count:15, hpPenalty:18, xpReward:1000, icon:'💣', game:'bomberman', materia:'matematica', niveles:['8vo','9no'] },
-  { id:'password-math', name:'Password: La Clave Matem&aacute;tica', desc:'Ecuaciones, sistemas e inecuaciones con pocas vidas.', topics:['ecuaciones','inecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:30, xpReward:700, icon:'🔑', game:'password', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'btd6', name:'Bloons TD6: Defensa Matem&aacute;tica', desc:'Defensa mixta con &aacute;lgebra, funciones y geometr&iacute;a.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica'], count:20, hpPenalty:8, xpReward:2000, icon:'🎈', game:'btd6', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'recruta', name:'El Recruta', desc:'Factorizaci&oacute;n esencial para iniciar.', topics:['factorizacion'], count:5, hpPenalty:20, xpReward:300, icon:'⚔️', materia:'matematica', niveles:['9no'] },
-  { id:'soldado', name:'El Soldado', desc:'Ecuaciones e inecuaciones de entrenamiento.', topics:['ecuaciones','inecuaciones'], count:8, hpPenalty:20, xpReward:500, icon:'🎖️', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'veterano', name:'El Veterano', desc:'Resistencia con &aacute;lgebra, funciones y trigonometr&iacute;a.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria'], count:12, hpPenalty:15, xpReward:800, icon:'🏆', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'maestro', name:'El Gran Maestro', desc:'Ruta avanzada con los temas fuertes de secundaria.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica','estadistica','probabilidad'], count:20, hpPenalty:12, xpReward:2500, icon:'👑', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-ecuaciones-7mo', name:'Ecuaciones I', desc:'Lineales simples: ax + b = c.', topics:['ecuaciones'], count:12, hpPenalty:14, xpReward:700, isExam:true, icon:'📋', materia:'matematica', niveles:['7mo'] },
-  { id:'examen-ecuaciones-9no', name:'Ecuaciones II', desc:'Cuadr&aacute;ticas y problemas aplicados.', topics:['ecuaciones'], count:18, hpPenalty:12, xpReward:1000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-ecuaciones-10', name:'Sistemas e Inecuaciones', desc:'Sistemas 2x2, intervalos e inecuaciones.', topics:['sistemas-ecuaciones','inecuaciones'], count:18, hpPenalty:12, xpReward:1100, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-factorizacion-9no', name:'Factorizaci&oacute;n', desc:'M&eacute;todos principales y combinados.', topics:['factorizacion'], count:18, hpPenalty:12, xpReward:1000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-geo-analitica', name:'Geometr&iacute;a Anal&iacute;tica', desc:'Rectas, distancia, pendientes y posiciones.', topics:['geo-analitica','plano-cartesiano'], count:18, hpPenalty:12, xpReward:1100, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-parcial1', name:'Parcial I', desc:'Conjuntos, n&uacute;meros, radicales, polinomios, factorizaci&oacute;n y ecuaciones.', topics:['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-parcial2', name:'Parcial II', desc:'Inecuaciones, plano cartesiano, funciones, geometr&iacute;a y trigonometr&iacute;a.', topics:['inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-parcial3', name:'Parcial III', desc:'Funciones avanzadas, sucesiones y probabilidad.', topics:['exp-log','sucesiones','estadistica','probabilidad'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-simulacro', name:'Simulacro Global', desc:'Prueba mixta de temas curriculares por nivel alto.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica','estadistica','probabilidad'], count:40, hpPenalty:8, xpReward:5000, isExam:true, icon:'🏅', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-tec-mixto', name:'TEC/PAA Mixto', desc:'L&oacute;gica, matem&aacute;tica y verbal para admisi&oacute;n.', topics:['tec-logica','tec-matematica','tec-verbal'], count:15, hpPenalty:8, xpReward:1800, isExam:true, icon:'🎓', materia:'admision', niveles:['tec-paa'] },
-  { id:'examen-tec-matematica', name:'TEC/PAA Matem&aacute;tica', desc:'Razonamiento matem&aacute;tico y l&oacute;gico.', topics:['tec-matematica','tec-logica'], count:10, hpPenalty:10, xpReward:1400, isExam:true, icon:'🎓', materia:'admision', niveles:['tec-paa'] },
-  { id:'examen-tec-verbal', name:'TEC/PAA Verbal', desc:'Vocabulario, inferencia y coherencia textual.', topics:['tec-verbal'], count:8, hpPenalty:10, xpReward:1000, isExam:true, icon:'🎓', materia:'espanol', niveles:['tec-paa'] },
-  { id:'examen-rapido1', name:'Mini-Test: &Aacute;lgebra', desc:'Polinomios, factorizaci&oacute;n y ecuaciones.', topics:['factorizacion','polinomios','ecuaciones'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡', materia:'matematica', niveles:['8vo','9no'] },
-  { id:'examen-rapido2', name:'Mini-Test: Funciones', desc:'Gr&aacute;ficas, exponenciales y trigonometr&iacute;a.', topics:['plano-cartesiano','exp-log','trigonometria'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡', materia:'matematica', niveles:['10-11'] }
+  // === MISIONES TEM&Aacute;TICAS (basadas en juegos) ===
+  { id:'doom-horde', name:'DOOM: Horda Infernal', desc:'Enfrenta 10 ejercicios de Factorizaci&oacute;n. Pierde HP con cada fallo. &iexcl;Sobrevive!', topics:['factorizacion','polinomios','radicales'], count:10, hpPenalty:15, xpReward:600, icon:'👹', game:'doom' },
+  { id:'fifa-champ', name:'FIFA: Campeonato de Ecuaciones', desc:'Golea 8 ecuaciones lineales y cuadr&aacute;ticas seguidas. Racha = goles.', topics:['ecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:10, xpReward:500, icon:'⚽', game:'fifa' },
+  { id:'pokemon-gym', name:'Pok&eacute;mon: Gimnasio Algebraico', desc:'Atrapa 12 ejercicios de todos los tipos. Cada acierto es una medalla.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones'], count:12, hpPenalty:12, xpReward:800, icon:'🔴', game:'pokemon' },
+  { id:'cod-ops', name:'Call of Duty: Operaci&oacute;n Matem&aacute;tica', desc:'Misi&oacute;n sigilosa: 15 ejercicios de alto nivel. Bajo HP = alerta m&aacute;xima.', topics:['ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:20, xpReward:1200, icon:'🎯', game:'cod' },
+  { id:'nfs-street', name:'Need for Speed: Derrape Num&eacute;rico', desc:'Carrera contrarreloj: resuelve 10 ejercicios R&Aacute;PIDO. Tiempo = velocidad.', topics:['numeros-reales','radicales','exp-log'], count:10, hpPenalty:18, xpReward:700, icon:'🏎️', game:'nfs' },
+  { id:'lastofus', name:'The Last of Us: Supervivencia', desc:'Sobrevive 10 rondas de geometr&iacute;a y trigonometr&iacute;a. Cada acierto es un recurso.', topics:['geometria','trigonometria','plano-cartesiano'], count:10, hpPenalty:25, xpReward:900, icon:'🧟', game:'tlou' },
+  { id:'clash-math', name:'Clash of Clans: Batalla Algebraica', desc:'Construye tu aldea: 15 ejercicios mezclados. Sin perder m&aacute;s de 50 HP.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','calculo'], count:15, hpPenalty:10, xpReward:1200, icon:'🏰', game:'coc' },
+  { id:'horizon-math', name:'Horizon: Aventura Matem&aacute;tica', desc:'Explora 12 ejercicios de trigonometr&iacute;a y geometr&iacute;a. Precisi&oacute;n = supervivencia.', topics:['trigonometria','geometria','plano-cartesiano'], count:12, hpPenalty:15, xpReward:900, icon:'🤖', game:'horizon' },
+  { id:'bomberman', name:'Bomberman: Explosi&oacute;n Algebraica', desc:'15 ejercicios explosivos de polinomios y fracciones. &iexcl;No te dejes alcanzar!', topics:['polinomios','fracciones-alg','conjuntos'], count:15, hpPenalty:18, xpReward:1000, icon:'💣', game:'bomberman' },
+  { id:'password-math', name:'Password: La Clave Matem&aacute;tica', desc:'Adivina la soluci&oacute;n de 8 ejercicios desafiantes. 3 vidas, &uacute;salas bien.', topics:['ecuaciones','inecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:30, xpReward:700, icon:'🔑', game:'password' },
+  { id:'btd6', name:'Bloons TD6: Defensa Matem&aacute;tica', desc:'Defiende 20 rondas de ejercicios de todos los temas. Sin errores fatales.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos'], count:20, hpPenalty:8, xpReward:2000, icon:'🎈', game:'btd6' },
+  // === MISIONES CL&Aacute;SICAS ===
+  { id:'recruta', name:'El Recruta', desc:'Supera 5 ejercicios b&aacute;sicos de Factorizaci&oacute;n', topics:['factorizacion'], count:5, hpPenalty:20, xpReward:300, icon:'⚔️' },
+  { id:'soldado', name:'El Soldado', desc:'8 ejercicios de Ecuaciones e Inecuaciones. Disciplina total.', topics:['ecuaciones','inecuaciones'], count:8, hpPenalty:20, xpReward:500, icon:'🎖️' },
+  { id:'veterano', name:'El Veterano', desc:'12 ejercicios de resistencia. Todos los temas del parcial I y II.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria'], count:12, hpPenalty:15, xpReward:800, icon:'🏆' },
+  { id:'maestro', name:'El Gran Maestro', desc:'20 ejercicios de TODOS los temas. Solo para los m&aacute;s valientes.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos','numeros-reales','radicales','polinomios','geometria','plano-cartesiano'], count:20, hpPenalty:12, xpReward:2500, icon:'👑' },
+  // === EX&Aacute;MENES ===
+  { id:'examen-parcial1', name:'Parcial I (Completo)', desc:'30 preguntas - Temas: Conjuntos, N&uacute;meros, Radicales, Polinomios, Factorizaci&oacute;n, Ecuaciones, Sistemas', topics:['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-parcial2', name:'Parcial II (Completo)', desc:'30 preguntas - Temas: Inecuaciones, Plano Cartesiano, Exp/Log, Geometr&iacute;a, Trigonometr&iacute;a', topics:['inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-parcial3', name:'Parcial III (Completo)', desc:'30 preguntas - C&aacute;lculo diferencial e integral', topics:['calculo','exp-log','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-simulacro', name:'Simulacro Global', desc:'40 preguntas de TODOS los temas. &iexcl;Como el examen real!', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos','numeros-reales','radicales','polinomios','geometria','plano-cartesiano'], count:40, hpPenalty:8, xpReward:5000, isExam:true, icon:'🏅' },
+  { id:'examen-tec-mixto', name:'TEC/PAA Mixto', desc:'15 preguntas variables - L&oacute;gica, Matem&aacute;tica y Verbal para admisi&oacute;n', topics:['tec-logica','tec-matematica','tec-verbal'], count:15, hpPenalty:8, xpReward:1800, isExam:true, icon:'🎓' },
+  { id:'examen-tec-matematica', name:'TEC/PAA Matem&aacute;tica', desc:'10 preguntas variables de razonamiento matem&aacute;tico y l&oacute;gico', topics:['tec-matematica','tec-logica'], count:10, hpPenalty:10, xpReward:1400, isExam:true, icon:'🎓' },
+  { id:'examen-tec-verbal', name:'TEC/PAA Verbal', desc:'8 preguntas variables de vocabulario, inferencia y coherencia textual', topics:['tec-verbal'], count:8, hpPenalty:10, xpReward:1000, isExam:true, icon:'🎓' },
+  { id:'examen-rapido1', name:'Mini-Test: &Aacute;lgebra', desc:'10 preguntas r&aacute;pidas de &aacute;lgebra b&aacute;sica', topics:['factorizacion','polinomios','ecuaciones'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡' },
+  { id:'examen-rapido2', name:'Mini-Test: Funciones', desc:'10 preguntas r&aacute;pidas de funciones y gr&aacute;ficas', topics:['plano-cartesiano','exp-log','trigonometria'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡' }
 ];
 
 function renderMissions(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const materia = localStorage.getItem('mm_mission_materia') || '';
-  const nivel = localStorage.getItem('mm_mission_nivel') || '';
   main.innerHTML = `
     <h2>Misiones de Resistencia</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Misiones por materia y nivel. Cada tarjeta adapta los temas que entran en esa ruta.</p>
-    ${renderMissionFilters('mission', materia, nivel)}
-    <div id="mission-list" class="mission-grid">
-      ${renderMissionCards(false, saved, materia, nivel)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Cada misi&oacute;n tiene reglas distintas. Pierde HP, gana XP. &iquest;Aguantar&aacute;s?</p>
+    <div class="mission-grid">
+    ${MISSIONS.filter(m => !m.isExam).map(m => {
+      const done = saved[m.id];
+      return `<div class="card mission-card ${done ? 'completed' : ''}">
+        <div class="mission-header">
+          <span style="font-size:2rem;">${m.icon}</span>
+          <div>
+            <h3>${m.name}</h3>
+            <p style="font-size:.85rem;color:var(--color-text-secondary);">${m.desc}</p>
+          </div>
+        </div>
+        <div class="mission-meta">
+          <span>${m.count} ejercicios</span>
+          <span style="color:var(--color-warning);">+${m.xpReward} XP</span>
+          ${done ? `<span style="color:var(--color-success);">✓ ${done.score}%</span>` : ''}
+        </div>
+        <button class="btn ${done ? 'btn-outline' : 'btn-primary'}" onclick="startMission('${m.id}')">
+          ${done ? 'Repetir' : 'Iniciar'}
+        </button>
+      </div>`;
+    }).join('')}
     </div>`;
 }
 
 function renderExams(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const materia = localStorage.getItem('mm_exam_materia') || '';
-  const nivel = localStorage.getItem('mm_exam_nivel') || '';
   main.innerHTML = `
     <h2>Pruebas y Ex&aacute;menes</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Pruebas curriculares por tema/nivel y ex&aacute;menes de admisi&oacute;n separados.</p>
-    ${renderMissionFilters('exam', materia, nivel)}
-    <div id="exam-list" class="mission-grid">
-      ${renderMissionCards(true, saved, materia, nivel)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Simulaciones de parciales del TEC. Mismo formato que el examen real.</p>
+    <div class="mission-grid">
+    ${MISSIONS.filter(m => m.isExam).map(m => {
+      const done = saved[m.id];
+      return `<div class="card mission-card exam-card ${done ? 'completed' : ''}">
+        <div class="mission-header">
+          <span style="font-size:2rem;">${m.icon}</span>
+          <div>
+            <h3>${m.name}</h3>
+            <p style="font-size:.85rem;color:var(--color-text-secondary);">${m.desc}</p>
+          </div>
+        </div>
+        <div class="mission-meta">
+          <span>${m.count} preguntas</span>
+          <span style="color:var(--color-warning);">+${m.xpReward} XP</span>
+          ${done ? `<span style="color:var(--color-success);">✓ ${done.score}%</span>` : ''}
+        </div>
+        <button class="btn ${done ? 'btn-outline' : 'btn-primary'}" onclick="startMission('${m.id}')">
+          ${done ? 'Repetir' : 'Comenzar Examen'}
+        </button>
+      </div>`;
+    }).join('')}
     </div>`;
-}
-
-function renderMissionFilters(kind, materia, nivel) {
-  return `
-    <div class="filter-bar mission-filter-bar">
-      <span class="select-wrap"><select id="${kind}-materia-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderMateriaOptions(materia)}</select></span>
-      <span class="select-wrap"><select id="${kind}-nivel-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderNivelOptions(nivel)}</select></span>
-    </div>`;
-}
-
-function missionMatchesFilters(mission, materia, nivel) {
-  const missionMateria = mission.materia || getTopicMateriaId(mission.topics?.[0]);
-  if (materia && missionMateria !== materia) return false;
-  if (nivel && !(mission.niveles || []).includes(nivel)) return false;
-  return true;
-}
-
-function renderMissionCards(isExam, saved, materia, nivel) {
-  const list = MISSIONS.filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel));
-  if (!list.length) {
-    return `<div class="card empty-state-card">No hay ${isExam ? 'ex&aacute;menes' : 'misiones'} para esa combinaci&oacute;n.</div>`;
-  }
-  return list.map(m => renderMissionCard(m, saved[m.id], isExam)).join('');
-}
-
-function renderMissionCard(mission, done, isExam) {
-  const levelBadges = (mission.niveles || []).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
-  const materia = MATERIA_NAMES[mission.materia] || 'Matem&aacute;tica';
-  return `<div class="card mission-card ${isExam ? 'exam-card' : 'game-mission'} ${done ? 'completed' : ''}">
-    <div class="mission-icon-wrap">${mission.icon}</div>
-    <div class="mission-body">
-      <div class="mission-title-row">
-        <h3>${mission.name}</h3>
-        ${levelBadges}
-      </div>
-      <p class="mission-desc">${mission.desc}</p>
-      <div class="mission-stats-row">
-        <span><i class="ti ti-book-2"></i>${materia}</span>
-        <span><i class="ti ti-list-check"></i>${mission.count} ${isExam ? 'preguntas' : 'ejercicios'}</span>
-        <span><i class="ti ti-target-arrow"></i>${renderCompactTopicNames(mission.topics)}</span>
-        <span class="mission-xp"><i class="ti ti-star"></i>+${mission.xpReward} XP</span>
-        ${done ? `<span class="mission-score"><i class="ti ti-check"></i>${done.score}%</span>` : ''}
-      </div>
-    </div>
-    <button class="btn ${done ? 'btn-outline' : 'btn-primary'} btn-sm mission-btn" onclick="startMission('${mission.id}')">
-      ${done ? 'Repetir' : (isExam ? 'Comenzar' : 'Iniciar')}
-    </button>
-  </div>`;
-}
-
-function updateMissionFilters(kind) {
-  const materia = document.getElementById(`${kind}-materia-filter`)?.value || '';
-  const nivel = document.getElementById(`${kind}-nivel-filter`)?.value || '';
-  localStorage.setItem(`mm_${kind}_materia`, materia);
-  localStorage.setItem(`mm_${kind}_nivel`, nivel);
-  const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const list = document.getElementById(kind === 'exam' ? 'exam-list' : 'mission-list');
-  if (list) list.innerHTML = renderMissionCards(kind === 'exam', saved, materia, nivel);
 }
 
 function startMission(missionId) {
@@ -1272,7 +1191,6 @@ async function checkBadges() {
 // TIENDA
 // ============================================================
 async function renderShop(main) {
-  state.shopFilter = localStorage.getItem('mm_shop_filter') || 'all';
   main.innerHTML = `
     <h2><i class="ti ti-shopping-bag"></i> Tienda MathMaty</h2>
     <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Gasta tu XP en power-ups, avatares y m&aacute;s.</p>
@@ -1286,67 +1204,54 @@ async function renderShop(main) {
   try {
     const r = await fetch(`${API}/api/shop`, { headers: { Authorization: `Bearer ${state.token}` } });
     const items = await r.json();
-    state.shopItems = items;
     
     document.getElementById('shop-container').innerHTML = `
-      <div class="shop-summary-row">
-        <div class="card shop-xp-card">
+      <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+        <div class="card" style="flex:1;text-align:center;padding:0.75rem;">
           <span style="font-size:1.5rem;font-weight:700;color:var(--color-warning);">${state.xp}</span>
           <p style="font-size:0.75rem;color:var(--color-text-muted);">XP Disponible</p>
         </div>
         ${state.user?.rol === 'padre' ? '' : `
-        <button class="btn btn-outline shop-inventory-btn" onclick="showView('badges')">
+        <button class="btn btn-outline" onclick="showView('badges')" style="flex:1;">
           <i class="ti ti-medal"></i> Mis Logros
         </button>`}
       </div>
-      <div class="shop-toolbar" id="shop-toolbar">${renderShopFilters(items)}</div>
-      <div class="shop-grid shop-items-grid" id="shop-grid">${renderShopItems(items)}</div>`;
+      <div class="shop-grid" id="shop-grid"></div>`;
+    
+    const grid = document.getElementById('shop-grid');
+    const tipos = [...new Set(items.map(i => i.tipo))];
+    let html = '';
+    
+    tipos.forEach(tipo => {
+      const tipoItems = items.filter(i => i.tipo === tipo);
+      const tipoNombres = { powerup: '⚡ Power-Ups', avatar: '👤 Avatares', tema: '🎨 Temas', especial: '🎁 Especiales' };
+      
+      html += `<h3 style="margin:1rem 0 0.5rem;color:var(--color-primary);">${tipoNombres[tipo] || tipo}</h3>`;
+      html += `<div class="shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.6rem;">`;
+      
+      tipoItems.forEach(item => {
+        const puedeComprar = state.xp >= item.precio_xp;
+        html += `
+          <div class="card shop-item ${!puedeComprar ? 'locked' : ''}" style="display:flex;flex-direction:column;gap:0.35rem;text-align:center;padding:0.6rem;">
+            <div style="font-size:1.8rem;line-height:1;">${item.icono || '📦'}</div>
+            <h3 style="font-size:.85rem;line-height:1.2;">${item.nombre}</h3>
+            <p style="font-size:.7rem;color:var(--color-text-secondary);line-height:1.3;">${item.descripcion}</p>
+            <div style="font-size:.8rem;font-weight:600;color:var(--color-warning);">
+              <i class="ti ti-star"></i> ${item.precio_xp} XP
+            </div>
+            <button class="btn ${puedeComprar ? 'btn-primary' : 'btn-outline'} btn-xs" style="font-size:.65rem;padding:0.2rem 0.3rem;"
+                    onclick="buyItem(${item.id})" ${!puedeComprar ? 'disabled' : ''}>
+              ${!puedeComprar ? '❌ XP Insuf.' : '🛒 Comprar'}
+            </button>
+          </div>`;
+      });
+      html += '</div>';
+    });
+    
+    grid.innerHTML = html;
   } catch(e) {
     document.getElementById('shop-container').innerHTML = `<p style="color:var(--color-error);">Error: ${e.message}</p>`;
   }
-}
-
-function renderShopFilters(items) {
-  const labels = { all: 'Todos', powerup: 'Power-Ups', avatar: 'Avatares', tema: 'Temas', especial: 'Especiales' };
-  const tipos = ['all', ...[...new Set(items.map(i => i.tipo))]];
-  return tipos.map(tipo => `
-    <button class="shop-chip ${state.shopFilter === tipo ? 'active' : ''}" onclick="setShopFilter('${tipo}')">
-      ${labels[tipo] || tipo}
-    </button>
-  `).join('');
-}
-
-function renderShopItems(items) {
-  const labels = { powerup: 'Power-Up', avatar: 'Avatar', tema: 'Tema', especial: 'Especial' };
-  const visible = state.shopFilter === 'all' ? items : items.filter(i => i.tipo === state.shopFilter);
-  if (!visible.length) return `<div class="card empty-state-card">No hay art&iacute;culos en esta categor&iacute;a.</div>`;
-  return visible.map(item => {
-    const puedeComprar = state.xp >= item.precio_xp;
-    return `
-      <div class="card shop-item shop-item-premium ${!puedeComprar ? 'locked' : ''}">
-        <div class="shop-item-top">
-          <span class="shop-icon">${item.icono || '📦'}</span>
-          <span class="shop-type">${labels[item.tipo] || item.tipo}</span>
-        </div>
-        <h3>${item.nombre}</h3>
-        <p>${item.descripcion}</p>
-        <div class="shop-card-footer">
-          <span class="shop-price"><i class="ti ti-star"></i> ${item.precio_xp} XP</span>
-          <button class="btn ${puedeComprar ? 'btn-primary' : 'btn-outline'} btn-xs" onclick="buyItem(${item.id})" ${!puedeComprar ? 'disabled' : ''}>
-            ${!puedeComprar ? 'XP insuf.' : 'Comprar'}
-          </button>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function setShopFilter(tipo) {
-  state.shopFilter = tipo;
-  localStorage.setItem('mm_shop_filter', tipo);
-  const toolbar = document.getElementById('shop-toolbar');
-  const grid = document.getElementById('shop-grid');
-  if (toolbar) toolbar.innerHTML = renderShopFilters(state.shopItems || []);
-  if (grid) grid.innerHTML = renderShopItems(state.shopItems || []);
 }
 
 async function buyItem(itemId) {
@@ -2081,24 +1986,14 @@ async function loadChildren() {
     const children = await r.json();
     document.getElementById('children-list').innerHTML = children.length === 0
       ? '<p style="color:var(--color-text-muted);">Sin hijos vinculados</p>'
-      : `
-        <div class="children-picker">
-          <label for="child-select">Hijo</label>
-          <span class="select-wrap">
-            <select id="child-select" class="select-control" onchange="switchToChildView(this.value)">
-              <option value="">Seleccionar hijo</option>
-              ${children.map(c => `<option value="${c.id}">${c.nombre} (@${c.username})</option>`).join('')}
-            </select>
-          </span>
-        </div>
-        ${children.map(c => `
+      : children.map(c => `
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
           <div>
             <strong>${c.nombre}</strong>
             <p style="font-size:.85rem;color:var(--color-text-muted);">@${c.username} — Lv ${c.nivel||1} — ${c.xp||0} XP</p>
           </div>
           <button class="btn btn-primary btn-sm" onclick="showChildReport(${c.id})">Ver Reporte</button>
-        </div>`).join('')}`;
+        </div>`).join('');
   } catch(e) { document.getElementById('children-list').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`; }
 }
 

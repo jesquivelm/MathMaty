@@ -5,11 +5,11 @@
 | ID | Nombre | Descripción |
 |----|--------|-------------|
 | `primaria` | Primaria (I-II Ciclo) | 1° a 6° año. Operaciones básicas, fracciones, geometría elemental, medidas. |
-| `7mo` | 7° año | Números enteros, geometría plana, introducción al álgebra, razón/proporción y estadística básica. |
-| `8vo` | 8° año | Racionales, geometría, semejanza, polinomios, productos notables, funciones iniciales y probabilidad básica. |
-| `9no` | 9° año | Reales, radicales, Pitágoras, trigonometría, factorización, fracciones algebraicas y ecuaciones cuadráticas. |
-| `10-11` | 10°-11° Bachillerato | Geometría analítica, funciones avanzadas, sistemas/inecuaciones, estadística y probabilidad. |
-| `tec-paa` | Admisión TEC/UNA/UCR | Razonamiento lógico, matemático y verbal para pruebas de admisión universitaria. |
+| `7mo` | 7° año / Ujarrás | Números enteros, geometría plana, introducción al álgebra, estadística básica. |
+| `8vo` | 8° año / Térraba | Racionales, cuadriláteros, semejanza, polinomios, productos notables, funciones. |
+| `9no` | 9° año / Zapandí | Reales, Pitágoras, trigonometría, factorización, ecuaciones cuadráticas, funciones lineal y cuadrática. |
+| `10-11` | 10°-11° / Bachillerato | Circunferencia analítica, funciones exponencial/logarítmica, composición, inversa, probabilidad axiomática. |
+| `tec-paa` | TEC / PAA (Admisión) | Razonamiento lógico, matemático y verbal para pruebas de admisión al TEC. |
 
 ## Reglas para clasificar ejercicios nuevos
 
@@ -30,7 +30,7 @@
 - MCM y MCD básico
 - Porcentajes simples
 
-#### `7mo`
+#### `7mo` (Ujarrás)
 - Números enteros (negativos, valor absoluto, operaciones)
 - Números racionales (concepto básico)
 - Recta numérica, relaciones de orden
@@ -41,7 +41,7 @@
 - Ecuaciones lineales simples (`ax + b = c`)
 - Estadística: población, muestra, variables, media, moda, mediana
 
-#### `8vo`
+#### `8vo` (Térraba)
 - Números racionales (operaciones combinadas, decimales periódicos)
 - Cuadriláteros (propiedades, áreas)
 - Teorema de Tales
@@ -54,7 +54,7 @@
 - Ecuaciones de 1er grado avanzadas
 - Espacios muestrales, diagramas de árbol
 
-#### `9no`
+#### `9no` (Zapandí)
 - Números irracionales y reales
 - Radicales (simplificación, operaciones)
 - Racionalización de denominadores
@@ -75,18 +75,17 @@
 - Transformaciones isométricas (reflexión, rotación, traslación, homotecia)
 - Secciones cónicas
 - Intervalos (unión, intersección, diferencia, complemento)
-- Sistemas de ecuaciones 2×2 y 3×3 según programa
-- Inecuaciones e intervalos
 - Composición de funciones
 - Función inversa
 - Función raíz cuadrada
 - Función exponencial y logarítmica
 - Ecuaciones exponenciales y logarítmicas
+- Sistemas de ecuaciones 2×2
 - Varianza, desviación estándar, coeficiente de variación
 - Puntuaciones Z
 - Probabilidad axiomática (adición, complemento, eventos independientes)
 
-#### `tec-paa` (Admisión universitaria)
+#### `tec-paa` (Admisión TEC)
 - Razonamiento lógico (silogismos, tablas de verdad, patrones)
 - Razonamiento matemático (conteo, proporciones, secuencias, figuras)
 - Razonamiento verbal (vocabulario en contexto, inferencias, coherencia textual)
@@ -102,7 +101,6 @@
 
 ## Notas
 - Los ejercicios de `primaria` hasta `10-11` siguen el programa del MEP de Costa Rica.
-- Los programas de educación abierta se clasifican por contenido equivalente, no por nombre de programa.
 - Los ejercicios `tec-paa` son para pruebas de admisión universitaria (TEC, UNA, UCR).
 - Un ejercicio puede tener múltiples niveles si aplica, pero se asigna el más alto.
 - Si hay duda, priorizar el nivel más específico que cubra el contenido.
