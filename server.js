@@ -939,6 +939,11 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         pregunta: ex.question,
         latex: ex.latex_content,
         opciones: ex.options,
+        correcta: (() => {
+          if (Array.isArray(ex.options)) return ex.options[0];
+          if (ex.options && ex.options.o && typeof ex.options.ci === 'number') return ex.options.o[ex.options.ci];
+          return null;
+        })(),
         pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,

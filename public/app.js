@@ -500,10 +500,11 @@ async function generateNewExercise() {
 }
 
 function checkChoice(choice, btn) {
-  const isCorrect = choice === state.currentExercise.opciones[0];
+  const c = state.currentExercise.correcta || state.currentExercise.opciones[0];
+  const isCorrect = choice === c;
   document.querySelectorAll('.choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
+    if (b.textContent === c) b.classList.add('correct');
   });
   
   let xpGanada = 100;
@@ -842,10 +843,11 @@ async function loadMissionExercise(topicId) {
 }
 
 function checkMissionChoice(choice, btn) {
-  const isCorrect = choice === state.currentExercise.opciones[0];
+  const c = state.currentExercise.correcta || state.currentExercise.opciones[0];
+  const isCorrect = choice === c;
   document.querySelectorAll('#mission-choices .choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
+    if (b.textContent === c) b.classList.add('correct');
   });
   
   const penalty = state.missionState.mission.hpPenalty;
