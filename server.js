@@ -934,16 +934,22 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         const match = ex.question.match(/<img src="([^"]+)"/);
         if (match) imageUrl = match[1];
       }
+      let displayOpts, correcta;
+      if (Array.isArray(ex.options)) {
+        displayOpts = ex.options;
+        correcta = ex.options[0];
+      } else if (ex.options && ex.options.o && Array.isArray(ex.options.o)) {
+        displayOpts = ex.options.o;
+        correcta = ex.options.o[ex.options.ci];
+      } else {
+        displayOpts = [];
+        correcta = null;
+      }
       return res.json({
         id: ex.id,
         pregunta: ex.question,
         latex: ex.latex_content,
-        opciones: ex.options,
-        correcta: (() => {
-          if (Array.isArray(ex.options)) return ex.options[0];
-          if (ex.options && ex.options.o && typeof ex.options.ci === 'number') return ex.options.o[ex.options.ci];
-          return null;
-        })(),
+        opciones: displayOpts,
         pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,
