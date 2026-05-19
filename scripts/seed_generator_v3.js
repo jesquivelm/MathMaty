@@ -157,7 +157,7 @@ function genSeq(){
     const src=S+'|'+prefix+'|'+n;
     if((await p.query('SELECT id FROM exercises WHERE source=$1',[src])).rows.length>0){skp++;return false;}
     await p.query("INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,archivo_origen,imagen,nivel)VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)",
-      [ex.t,ex.tx,'',JSON.stringify(ex.o),JSON.stringify([{math:ex.q,expl:''}]),null,ex.d,'tec_paa',2024,src,A,null,N]);
+      [ex.t,ex.tx,'',JSON.stringify({o:ex.o,ci:ex.ci}),JSON.stringify([{math:ex.q,expl:''}]),null,ex.d,'tec_paa',2024,src,A,null,N]);
     ins++;return true;
   }
   

@@ -21,10 +21,18 @@ const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_x5NnjheXrb4H@ep-broad-wildflower-aq3he37e-pooler.c-8.us-east-1.aws.neon.tech/mathmaty?sslmode=require',
-  ssl: { rejectUnauthorized: false }
-});
+const pool = new Pool(
+  process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  } : {
+    user: 'postgres',
+    host: 'localhost',
+    database: 'mathmaty',
+    password: 'Calg.1984', 
+    port: 5432,
+  }
+);
 
 // Log database connection mode
 console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
@@ -47,7 +55,7 @@ app.use(express.json({ limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
-  res.json({ ok: true, hasDb: !!process.env.DATABASE_URL });
+  res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
 
 // Endpoint para subir imagenes
@@ -578,22 +586,15 @@ app.get('/api/refuerzo/ejercicios', authenticateToken, async (req, res) => {
     
     // Obtener ejercicios de los temas d&eacute;biles
     const topicIds = weakAreas.rows.map(row => row.topic_id);
-    const nivelFilter = req.query.nivel;
-    const refParams = [topicIds];
-    let refWhere = `e.topic_id = ANY($1::varchar[])`;
-    if (nivelFilter) {
-      refParams.push(nivelFilter);
-      refWhere += ` AND e.nivel = $${refParams.length}`;
-    }
     const exercises = await pool.query(
       `SELECT e.id, e.difficulty, e.question, e.math_expression, e.hint, 
               e.mana_tip, e.correct_solution, t.name as nombre_tema
        FROM exercises e
        INNER JOIN topics t ON e.topic_id = t.id
-       WHERE ${refWhere}
+       WHERE e.topic_id = ANY($1)
        ORDER BY RANDOM()
        LIMIT 10`,
-      refParams
+      [topicIds]
     );
     
     res.json({
@@ -818,17 +819,6 @@ app.post('/api/config/apis/test', authenticateToken, async (req, res) => {
 // 2. Endpoint de Misiones
 app.get('/api/misiones', async (req, res) => {
     try {
-        const { nivel, topic } = req.query;
-        const params = [];
-        const where = [];
-        if (nivel) {
-          params.push(nivel);
-          where.push(`e.nivel = $${params.length}`);
-        }
-        if (topic) {
-          params.push(topic);
-          where.push(`e.topic_id = $${params.length}`);
-        }
         const consulta = `
             SELECT 
                 e.id, 
@@ -836,15 +826,14 @@ app.get('/api/misiones', async (req, res) => {
                 e.question, 
                 e.math_expression, 
                 e.hint, 
-                e.mana_tip AS mana,
+                e.mana_tip AS ma&ntilde;a,
                 e.correct_solution, 
                 t.name AS nombre_tema
             FROM exercises e
             INNER JOIN topics t ON e.topic_id = t.id
-            ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
             ORDER BY e.id ASC;
         `;
-        const resultado = await pool.query(consulta, params);
+        const resultado = await pool.query(consulta);
         res.json(resultado.rows);
     } catch (err) {
         console.error("Error en misiones:", err);
@@ -928,106 +917,26 @@ async function callLLM(userId, prompt, systemPrompt = '') {
   }
 }
 
-const EXAM_EXERCISE_EXPR = `(nivel = 'tec-paa' OR topic_id LIKE 'tec-%' OR COALESCE(archivo_origen,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']) OR COALESCE(source,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']))`;
-
-function parseJsonValue(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function normalizeExerciseOptions(value) {
-  const parsed = parseJsonValue(value);
-  let options = [];
-  let correct = '';
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExerciseSteps(value) {
-  const parsed = parseJsonValue(value);
-  if (!Array.isArray(parsed)) return [];
-  return parsed.map(step => ({
-    ...step,
-    math: cleanLatexValue(step?.math || ''),
-    expl: cleanMathDelimiters(step?.expl || '')
-  }));
-}
-
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
-    const { topic, difficulty, excludeIds = [], nivel } = req.body;
-    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}`);
+    const { topic, difficulty, excludeIds = [] } = req.body;
+    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}`);
     
     // 1. Intentar obtener de la DB
     const excluded = Array.isArray(excludeIds)
       ? excludeIds.map(Number).filter(Number.isInteger)
       : [];
-    const requestedDifficulty = difficulty || 'basico';
-    const difficultyGroups = {
-      basico: ['basico', 'facil', 'media'],
-      facil: ['basico', 'facil'],
-      media: ['media', 'facil'],
-      medio: ['media', 'facil'],
-      dificil: ['dificil', 'media']
-    };
-    const difficultyList = difficultyGroups[requestedDifficulty] || [requestedDifficulty];
-
-    async function pickExercise(useDifficulty, useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (nivel) {
-        params.push(nivel);
-        where.push(`nivel = $${params.length}`);
-      }
-      if (useDifficulty) {
-        params.push(difficultyList);
-        where.push(`(difficulty = ANY($${params.length}::varchar[]) OR difficulty IS NULL)`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      const query = `SELECT * FROM exercises WHERE ${where.join(' AND ')} ORDER BY RANDOM() LIMIT 1`;
-      return pool.query(query, params);
+    const params = [topic, difficulty || 'basico'];
+    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL)';
+    if (excluded.length > 0) {
+      params.push(excluded);
+      dbQuery += ' AND NOT (id = ANY($3::int[]))';
     }
-
-    let dbRes = await pickExercise(true, true);
-    if (dbRes.rows.length === 0) dbRes = await pickExercise(false, true);
-    if (dbRes.rows.length === 0 && excluded.length > 0) dbRes = await pickExercise(false, false);
+    dbQuery += ' ORDER BY RANDOM() LIMIT 1';
+    const dbRes = await pool.query(dbQuery, params);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
-      const normalizedOptions = normalizeExerciseOptions(ex.options);
       let imageUrl = null;
       if (ex.question && ex.question.includes('<img src="')) {
         const match = ex.question.match(/<img src="([^"]+)"/);
@@ -1035,17 +944,14 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
       }
       return res.json({
         id: ex.id,
-        pregunta: cleanMathDelimiters(ex.question),
-        latex: cleanLatexValue(ex.latex_content),
-        opciones: normalizedOptions.options,
-        correcta: normalizedOptions.correct,
-        pasos: normalizeExerciseSteps(ex.solution_steps),
+        pregunta: ex.question,
+        latex: ex.latex_content,
+        opciones: ex.options,
+        pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,
         category: ex.category,
         exam_year: ex.exam_year,
-        nivel: ex.nivel,
-        archivo_origen: ex.archivo_origen,
         image: imageUrl
       });
     }
@@ -1062,7 +968,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
       };
       const fb = fallbacks[topic] || fallbacks['ecuaciones'];
-      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: -1 });
+      return res.json({ ...fb, id: -1 });
     }
     const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
     Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
@@ -1084,24 +990,14 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const result = await callLLM(req.user.id, prompt, systemPrompt);
     const cleanJson = result.replace(/```json|```/g, '').trim();
     const generated = JSON.parse(cleanJson);
-    const normalizedOptions = normalizeExerciseOptions(generated.opciones);
-    const normalizedSteps = normalizeExerciseSteps(generated.pasos);
-    const generatedExercise = {
-      ...generated,
-      pregunta: cleanMathDelimiters(generated.pregunta),
-      latex: cleanLatexValue(generated.latex),
-      opciones: normalizedOptions.options,
-      correcta: normalizedOptions.correct,
-      pasos: normalizedSteps
-    };
 
     // Guardar para futuros usos
     await pool.query(
       'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [topic, generatedExercise.pregunta, generatedExercise.latex, JSON.stringify(generatedExercise.opciones), JSON.stringify(generatedExercise.pasos), generatedExercise.theory, difficulty || 'basico']
+      [topic, generated.pregunta, generated.latex, JSON.stringify(generated.opciones), JSON.stringify(generated.pasos), generated.theory, difficulty || 'basico']
     );
 
-    res.json(generatedExercise);
+    res.json(generated);
   } catch (err) {
     console.error('Error al generar ejercicio:', err);
     res.status(500).json({ error: 'Error al generar ejercicio con IA' });
@@ -1120,158 +1016,35 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   }
 });
 
-function parseJsonArray(value) {
-  const parsed = parseJsonValue(value);
-  if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === 'object') {
-    if (Array.isArray(parsed.o)) return parsed.o;
-    if (Array.isArray(parsed.options)) return parsed.options;
-  }
-  return [];
-}
-
-function exerciseToFlashcard(ex) {
-  const normalizedOptions = normalizeExerciseOptions(ex.options);
-  const steps = normalizeExerciseSteps(ex.solution_steps);
-  const correct = normalizedOptions.correct || normalizedOptions.options[0] || '';
-  const firstStep = steps.find(s => s && (s.expl || s.math)) || {};
-  const answerParts = [];
-  if (correct) answerParts.push(`Respuesta: ${correct}`);
-  if (firstStep.expl) answerParts.push(firstStep.expl);
-  const back = answerParts.join(' | ') || ex.theory || 'Revisa el procedimiento del ejercicio.';
-  return {
-    id: ex.id,
-    front: cleanMathDelimiters(ex.question) || cleanLatexValue(ex.latex_content) || 'Ejercicio de repaso',
-    back: cleanMathDelimiters(back),
-    latex_front: cleanLatexValue(ex.latex_content),
-    latex_back: cleanLatexValue(firstStep.math || ''),
-    source: ex.source || ex.archivo_origen || '',
-    nivel: ex.nivel || '',
-    difficulty: ex.difficulty || ''
-  };
-}
-
-app.post('/api/ai/generate-flashcards', authenticateToken, async (req, res) => {
-  try {
-    const topic = String(req.body.topic || '').trim();
-    const count = Math.min(50, Math.max(1, parseInt(req.body.count, 10) || 8));
-    const excluded = Array.isArray(req.body.excludeIds)
-      ? req.body.excludeIds.map(Number).filter(Number.isInteger)
-      : [];
-    if (!topic) return res.status(400).json({ error: 'Tema requerido' });
-
-    async function queryCards(useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (req.body.nivel) {
-        params.push(req.body.nivel);
-        where.push(`nivel = $${params.length}`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      params.push(count);
-      return pool.query(
-        `SELECT id, topic_id, question, latex_content, options, solution_steps, theory, difficulty, category, source, exam_year, nivel, archivo_origen
-         FROM exercises
-         WHERE ${where.join(' AND ')}
-         ORDER BY RANDOM()
-         LIMIT $${params.length}`,
-        params
-      );
-    }
-
-    let result = await queryCards(true);
-    if (result.rows.length === 0 && excluded.length > 0) result = await queryCards(false);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'No hay ejercicios para generar flashcards de este tema' });
-
-    res.json({
-      cards: result.rows.map(exerciseToFlashcard),
-      total: result.rows.length
-    });
-  } catch (err) {
-    console.error('Error generando flashcards:', err);
-    res.status(500).json({ error: 'Error al generar flashcards' });
-  }
-});
-
 // ADMIN: Banco de Ejercicios
 app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic, topics, nivel, tipo, q } = req.query;
-    const params = [];
-    const where = [];
-    if (topic) {
-      params.push(topic);
-      where.push(`topic_id = $${params.length}`);
-    } else if (topics) {
-      const topicList = String(topics).split(',').map(t => t.trim()).filter(Boolean);
-      if (topicList.length > 0) {
-        params.push(topicList);
-        where.push(`topic_id = ANY($${params.length}::varchar[])`);
-      }
-    }
-    if (nivel) {
-      params.push(nivel);
-      where.push(`nivel = $${params.length}`);
-    }
-    if (q) {
-      params.push(`%${q}%`);
-      where.push(`(question ILIKE $${params.length} OR COALESCE(source,'') ILIKE $${params.length} OR COALESCE(archivo_origen,'') ILIKE $${params.length})`);
-    }
-    if (tipo === 'examen') where.push(EXAM_EXERCISE_EXPR);
-    if (tipo === 'practica') where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-    if (tipo === 'generado') where.push(`(archivo_origen = 'generacion-programatica' OR COALESCE(source,'') ILIKE 'gen-prog%')`);
-    const query = `
-      SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel,archivo_origen
-      FROM exercises
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY nivel NULLS LAST, topic_id, id DESC`;
-    const result = await pool.query(query, params);
+    const { topic } = req.query;
+    const q = topic
+      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
+      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises ORDER BY topic_id,id DESC';
+    const result = await pool.query(q, topic ? [topic] : []);
     res.json(result.rows);
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-app.get('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM exercises WHERE id=$1', [req.params.id]);
-    if (!result.rows.length) return res.status(404).json({error:'No encontrado'});
-    res.json(result.rows[0]);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
 app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source } = req.body;
     await pool.query(
-      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,imagen,nivel)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        topic_id, question, latex,
-        JSON.stringify(options), JSON.stringify(steps),
-        theory || null, difficulty || 'basico',
-        category || 'ejercicio', exam_year || null,
-        source || null, imagen || null, nivel || null
-      ]
-    );
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-app.put('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
-  try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
-    await pool.query(
-      `UPDATE exercises SET topic_id=$1,question=$2,latex_content=$3,options=$4,solution_steps=$5,theory=$6,difficulty=$7,category=$8,exam_year=$9,source=$10,imagen=$11,nivel=$12 WHERE id=$13`,
-      [
-        topic_id, question, latex,
-        JSON.stringify(options), JSON.stringify(steps),
-        theory || null, difficulty || 'basico',
-        category || 'ejercicio', exam_year || null,
-        source || null, imagen || null, nivel || null,
-        req.params.id
+        topic_id,
+        question,
+        latex,
+        JSON.stringify(options),
+        JSON.stringify(steps),
+        theory || null,
+        difficulty || 'basico',
+        category || 'ejercicio',
+        exam_year || null,
+        source || null
       ]
     );
     res.json({ ok: true });
@@ -2177,12 +1950,6 @@ app.get('/api/auth/search-students', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS imagen TEXT`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS category VARCHAR(50)`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS exam_year INTEGER`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS source TEXT`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT`); } catch(e) {}
     // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
     const check = await pool.query(`
       SELECT EXISTS (
@@ -2207,7 +1974,6 @@ async function initDatabase() {
     } else {
       console.log('✅  Base de datos: todas las tablas presentes');
     }
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT`); } catch(e) {}
   } catch (err) {
     console.error('⚠️  Error de base de datos:');
     console.error('   Mensaje:', JSON.stringify(err.message));

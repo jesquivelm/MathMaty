@@ -626,92 +626,13 @@ async function renderExercise(main) {
   await generateNewExercise();
 }
 
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function parseMaybeJson(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function normalizeExerciseOptions(value, correctValue = '') {
-  const parsed = parseMaybeJson(value);
-  let options = [];
-  let correct = correctValue;
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    if (!correct) correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    if (!correct) correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExercisePayload(data) {
-  const normalizedOptions = normalizeExerciseOptions(data?.opciones ?? data?.options, data?.correcta);
-  const pasos = Array.isArray(data?.pasos) ? data.pasos.map(p => ({
-    ...p,
-    math: cleanLatexValue(p?.math || ''),
-    expl: cleanMathDelimiters(p?.expl || '')
-  })) : [];
-  return {
-    ...data,
-    pregunta: cleanMathDelimiters(data?.pregunta || ''),
-    latex: cleanLatexValue(data?.latex || ''),
-    opciones: normalizedOptions.options,
-    correcta: normalizedOptions.correct,
-    pasos
-  };
-}
-
-function randomIndex(max) {
-  if (window.crypto?.getRandomValues) {
-    const value = new Uint32Array(1);
-    window.crypto.getRandomValues(value);
-    return value[0] % max;
-  }
-  return Math.floor(Math.random() * max);
-}
-
-function shuffleArray(items) {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomIndex(i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 function formatExerciseSource(data) {
-  const sourceParts = [];
-  if (data?.archivo_origen) sourceParts.push(data.archivo_origen);
-  if (data?.source) sourceParts.push(data.source);
-  if (data?.exam_year) sourceParts.push(`año ${data.exam_year}`);
-  const meta = [];
-  if (sourceParts.length) meta.push(`Fuente: ${sourceParts.join(' | ')}`);
-  if (Number(data?.id) > 0) meta.push(`ID producto: ${data.id}`);
-  return meta.join(' | ');
+  if (!data?.source && !data?.archivo_origen && !data?.exam_year) return '';
+  const parts = [];
+  if (data.archivo_origen) parts.push(data.archivo_origen);
+  if (data.source) parts.push(data.source);
+  if (data.exam_year) parts.push(`año ${data.exam_year}`);
+  return `Fuente: ${parts.join(' | ')}`;
 }
 
 async function generateNewExercise() {
@@ -726,10 +647,8 @@ async function generateNewExercise() {
         nivel
       })
     });
-    let data = await r.json();
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
 
     // Registrar el ID para no repetirlo (máximo 200 para no sobrecargar)
     if (data.id && data.id > 0) {
@@ -764,7 +683,7 @@ async function generateNewExercise() {
     
     const area = document.getElementById('choice-area');
     area.innerHTML = '';
-    const shuffled = shuffleArray(data.opciones);
+    const shuffled = [...data.opciones].sort(() => Math.random() - 0.5);
     shuffled.forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
@@ -773,10 +692,7 @@ async function generateNewExercise() {
       area.appendChild(btn);
     });
   } catch(e) {
-    const loading = document.getElementById('ex-loading');
-    document.getElementById('ex-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML =
+    document.getElementById('ex-loading').innerHTML =
       `<div style="text-align:center;padding:1.5rem;">
         <p style="color:var(--color-warning);font-size:1.05rem;">⚠️ No se pudo cargar el ejercicio</p>
         <p style="color:var(--color-text-muted);font-size:.85rem;margin:.5rem 0;">${e.message}</p>
@@ -845,7 +761,7 @@ function showExerciseResolution() {
       </div>`;
     }).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
     // Show theory if available
     if (state.currentExercise.theory) {
@@ -1113,24 +1029,15 @@ function updateMissionFilters(kind) {
 function startMission(missionId) {
   const mission = MISSIONS.find(m => m.id === missionId);
   if (!mission) return;
-  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], topicQueue:shuffleArray(mission.topics || []), startTime: Date.now() };
+  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], startTime: Date.now() };
   _doomDeathPlayed = false;
   _prevHp = 100;
   showView('mission-run');
 }
 
-function getNextMissionTopic() {
-  const mission = state.missionState?.mission;
-  if (!mission) return TOPICS[0]?.id;
-  if (!state.missionState.topicQueue?.length) {
-    state.missionState.topicQueue = shuffleArray(mission.topics || []);
-  }
-  return state.missionState.topicQueue.shift() || mission.topics[0];
-}
-
 async function renderMissionRun(main) {
   const m = state.missionState.mission;
-  const topicId = getNextMissionTopic();
+  const topicId = m.topics[Math.floor(Math.random() * m.topics.length)];
   main.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:1rem;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -1195,10 +1102,8 @@ async function loadMissionExercise(topicId) {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
       body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel })
     });
-    let data = await r.json();
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
     
     state.currentExercise = data;
     if (data.id && data.id > 0 && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
@@ -1234,7 +1139,7 @@ async function loadMissionExercise(topicId) {
     
     const area = document.getElementById('mission-choices');
     area.innerHTML = '';
-    shuffleArray(data.opciones).forEach(c => {
+    [...data.opciones].sort(() => Math.random() - 0.5).forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.textContent = c;
@@ -1242,10 +1147,7 @@ async function loadMissionExercise(topicId) {
       area.appendChild(btn);
     });
   } catch(e) {
-    const loading = document.getElementById('mission-loading');
-    document.getElementById('mission-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
+    document.getElementById('mission-loading').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
   }
 }
 
@@ -1286,7 +1188,7 @@ function checkMissionChoice(choice, btn) {
       </div>
     `).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
   }
   document.getElementById('mission-action').classList.remove('hidden');
@@ -1296,6 +1198,7 @@ function missionNext() {
   state.missionState.current++;
   if (state.missionState.hp <= 0) { endMission('Sin HP'); return; }
   if (state.missionState.current >= state.missionState.mission.count) { endMission('Completada'); return; }
+  const topicId = state.missionState.mission.topics[Math.floor(Math.random() * state.missionState.mission.topics.length)];
   renderMissionRun(document.getElementById('main-content'));
 }
 
@@ -3627,8 +3530,6 @@ function renderFlashcardDeck(main) {
   const total = fcState.cards.length;
   const current = fcState.index;
   const card = fcState.cards[current];
-  const latexFront = cleanLatexValue(card.latex_front);
-  const latexBack = cleanLatexValue(card.latex_back);
   const progressPct = Math.round((current / total) * 100);
 
   main.innerHTML = `
@@ -3681,7 +3582,7 @@ function renderFlashcardDeck(main) {
             <div style="font-size:1.15rem;font-weight:600;line-height:1.6;color:var(--color-text);margin:0 0 1rem;">
               ${card.front}
             </div>
-            ${latexFront ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
+            ${card.latex_front ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
             <div style="margin-top:1.5rem;font-size:.78rem;color:var(--color-text-muted);">
               <i class="ti ti-hand-click"></i> Toca para ver la respuesta
             </div>
@@ -3708,7 +3609,7 @@ function renderFlashcardDeck(main) {
             <div style="font-size:1.05rem;line-height:1.7;color:var(--color-text);margin:0 0 1rem;">
               ${card.back}
             </div>
-            ${latexBack ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
+            ${card.latex_back ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
           </div>
         </div>
       </div>
@@ -3730,16 +3631,16 @@ function renderFlashcardDeck(main) {
     </div>`;
 
   // Renderizar LaTeX si hay
-  if (latexFront) {
+  if (card.latex_front) {
     setTimeout(() => {
       const el = document.getElementById('fc-latex-front');
-      if (el) try { katex.render(latexFront, el, { displayMode: true, throwOnError: false }); } catch(e) {}
+      if (el) try { katex.render(card.latex_front, el, { displayMode: true, throwOnError: false }); } catch(e) {}
     }, 50);
   }
-  if (latexBack) {
+  if (card.latex_back) {
     setTimeout(() => {
       const el = document.getElementById('fc-latex-back');
-      if (el) try { katex.render(latexBack, el, { displayMode: true, throwOnError: false }); } catch(e) {}
+      if (el) try { katex.render(card.latex_back, el, { displayMode: true, throwOnError: false }); } catch(e) {}
     }, 50);
   }
 

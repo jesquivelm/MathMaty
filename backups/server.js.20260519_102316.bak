@@ -930,58 +930,6 @@ async function callLLM(userId, prompt, systemPrompt = '') {
 
 const EXAM_EXERCISE_EXPR = `(nivel = 'tec-paa' OR topic_id LIKE 'tec-%' OR COALESCE(archivo_origen,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']) OR COALESCE(source,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']))`;
 
-function parseJsonValue(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function normalizeExerciseOptions(value) {
-  const parsed = parseJsonValue(value);
-  let options = [];
-  let correct = '';
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExerciseSteps(value) {
-  const parsed = parseJsonValue(value);
-  if (!Array.isArray(parsed)) return [];
-  return parsed.map(step => ({
-    ...step,
-    math: cleanLatexValue(step?.math || ''),
-    expl: cleanMathDelimiters(step?.expl || '')
-  }));
-}
-
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
     const { topic, difficulty, excludeIds = [], nivel } = req.body;
@@ -1027,19 +975,26 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
-      const normalizedOptions = normalizeExerciseOptions(ex.options);
       let imageUrl = null;
       if (ex.question && ex.question.includes('<img src="')) {
         const match = ex.question.match(/<img src="([^"]+)"/);
         if (match) imageUrl = match[1];
       }
+      let correcta = null;
+      if (ex.options && typeof ex.options === 'object') {
+        if (Array.isArray(ex.options)) {
+          correcta = ex.options[0];
+        } else if (ex.options.o && typeof ex.options.ci === 'number') {
+          correcta = ex.options.o[ex.options.ci];
+        }
+      }
       return res.json({
         id: ex.id,
-        pregunta: cleanMathDelimiters(ex.question),
-        latex: cleanLatexValue(ex.latex_content),
-        opciones: normalizedOptions.options,
-        correcta: normalizedOptions.correct,
-        pasos: normalizeExerciseSteps(ex.solution_steps),
+        pregunta: ex.question,
+        latex: ex.latex_content,
+        opciones: ex.options,
+        correcta: correcta,
+        pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,
         category: ex.category,
@@ -1062,7 +1017,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
       };
       const fb = fallbacks[topic] || fallbacks['ecuaciones'];
-      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: -1 });
+      return res.json({ ...fb, id: -1 });
     }
     const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
     Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
@@ -1084,24 +1039,14 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const result = await callLLM(req.user.id, prompt, systemPrompt);
     const cleanJson = result.replace(/```json|```/g, '').trim();
     const generated = JSON.parse(cleanJson);
-    const normalizedOptions = normalizeExerciseOptions(generated.opciones);
-    const normalizedSteps = normalizeExerciseSteps(generated.pasos);
-    const generatedExercise = {
-      ...generated,
-      pregunta: cleanMathDelimiters(generated.pregunta),
-      latex: cleanLatexValue(generated.latex),
-      opciones: normalizedOptions.options,
-      correcta: normalizedOptions.correct,
-      pasos: normalizedSteps
-    };
 
     // Guardar para futuros usos
     await pool.query(
       'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [topic, generatedExercise.pregunta, generatedExercise.latex, JSON.stringify(generatedExercise.opciones), JSON.stringify(generatedExercise.pasos), generatedExercise.theory, difficulty || 'basico']
+      [topic, generated.pregunta, generated.latex, JSON.stringify(generated.opciones), JSON.stringify(generated.pasos), generated.theory, difficulty || 'basico']
     );
 
-    res.json(generatedExercise);
+    res.json(generated);
   } catch (err) {
     console.error('Error al generar ejercicio:', err);
     res.status(500).json({ error: 'Error al generar ejercicio con IA' });
@@ -1121,19 +1066,23 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
 });
 
 function parseJsonArray(value) {
-  const parsed = parseJsonValue(value);
-  if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === 'object') {
-    if (Array.isArray(parsed.o)) return parsed.o;
-    if (Array.isArray(parsed.options)) return parsed.options;
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch(e) {
+      return [];
+    }
   }
   return [];
 }
 
 function exerciseToFlashcard(ex) {
-  const normalizedOptions = normalizeExerciseOptions(ex.options);
-  const steps = normalizeExerciseSteps(ex.solution_steps);
-  const correct = normalizedOptions.correct || normalizedOptions.options[0] || '';
+  const options = parseJsonArray(ex.options);
+  const steps = parseJsonArray(ex.solution_steps);
+  const correct = options[0] || '';
   const firstStep = steps.find(s => s && (s.expl || s.math)) || {};
   const answerParts = [];
   if (correct) answerParts.push(`Respuesta: ${correct}`);
@@ -1141,10 +1090,10 @@ function exerciseToFlashcard(ex) {
   const back = answerParts.join(' | ') || ex.theory || 'Revisa el procedimiento del ejercicio.';
   return {
     id: ex.id,
-    front: cleanMathDelimiters(ex.question) || cleanLatexValue(ex.latex_content) || 'Ejercicio de repaso',
-    back: cleanMathDelimiters(back),
-    latex_front: cleanLatexValue(ex.latex_content),
-    latex_back: cleanLatexValue(firstStep.math || ''),
+    front: ex.question || ex.latex_content || 'Ejercicio de repaso',
+    back,
+    latex_front: ex.latex_content || '',
+    latex_back: firstStep.math || '',
     source: ex.source || ex.archivo_origen || '',
     nivel: ex.nivel || '',
     difficulty: ex.difficulty || ''

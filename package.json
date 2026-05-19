@@ -13,13 +13,17 @@
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "canvas": "^3.2.3",
     "cloudinary": "^2.10.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.2",
     "katex": "^0.16.45",
     "pdf-parse": "^2.4.5",
+    "pdf2pic": "^3.2.0",
+    "pdfjs-dist": "^4.8.69",
     "pg": "^8.20.0",
+    "sharp": "^0.34.5",
     "xlsx": "^0.18.5"
   }
 }
