@@ -1028,8 +1028,8 @@ function normalizeExerciseSteps(value) {
 
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
-    const { topic, difficulty, excludeIds = [], nivel } = req.body;
-    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}`);
+    const { topic, difficulty, excludeIds = [], nivel, strictExclude = false } = req.body;
+    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}, Strict: ${!!strictExclude}`);
     
     // 1. Intentar obtener de la DB
     const excluded = Array.isArray(excludeIds)
@@ -1067,7 +1067,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
 
     let dbRes = await pickExercise(true, true);
     if (dbRes.rows.length === 0) dbRes = await pickExercise(false, true);
-    if (dbRes.rows.length === 0 && excluded.length > 0) dbRes = await pickExercise(false, false);
+    if (dbRes.rows.length === 0 && excluded.length > 0 && !strictExclude) dbRes = await pickExercise(false, false);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
@@ -1095,6 +1095,12 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     }
 
     // 2. Si no hay en la DB, ofrecer ejercicios de respaldo
+    if (strictExclude && excluded.length > 0) {
+      const anyDbExercise = await pickExercise(false, false);
+      if (anyDbExercise.rows.length > 0) {
+        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
+      }
+    }
     const configRes = await pool.query('SELECT * FROM api_config ORDER BY prioridad DESC LIMIT 1');
     if (configRes.rows.length === 0 && !process.env.ANTHROPIC_API_KEY) {
       // Fallback: ejercicios genericos locales
@@ -1106,7 +1112,11 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
       };
       const fb = fallbacks[topic] || fallbacks['ecuaciones'];
-      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: -1 });
+      const fallbackId = -Math.max(1, [...String(topic || 'fallback')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0));
+      if (strictExclude && excluded.includes(fallbackId)) {
+        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
+      }
+      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: fallbackId });
     }
     const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
     Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
@@ -1140,12 +1150,12 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     };
 
     // Guardar para futuros usos
-    await pool.query(
-      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+    const inserted = await pool.query(
+      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
       [topic, generatedExercise.pregunta, generatedExercise.latex, JSON.stringify(generatedExercise.opciones), JSON.stringify(generatedExercise.pasos), generatedExercise.theory, difficulty || 'basico']
     );
 
-    res.json(generatedExercise);
+    res.json({ ...generatedExercise, id: inserted.rows[0]?.id || -1 });
   } catch (err) {
     console.error('Error al generar ejercicio:', err);
     res.status(500).json({ error: 'Error al generar ejercicio con IA' });

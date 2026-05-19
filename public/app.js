@@ -741,7 +741,8 @@ async function generateNewExercise() {
         topic: state.currentTopic.id,
         difficulty: state.currentDiff,
         excludeIds: state.seenExerciseIds,
-        nivel
+        nivel,
+        strictExclude: true
       })
     });
     let data = await r.json();
@@ -750,7 +751,7 @@ async function generateNewExercise() {
     if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
 
     // Registrar el ID para no repetirlo (máximo 200 para no sobrecargar)
-    if (data.id && data.id > 0) {
+    if (Number.isInteger(Number(data.id))) {
       if (!state.seenExerciseIds.includes(data.id)) {
         state.seenExerciseIds.push(data.id);
         if (state.seenExerciseIds.length > 200) state.seenExerciseIds.shift();
@@ -1205,21 +1206,24 @@ function startExamTimer() {
   }, 1000);
 }
 
-async function loadMissionExercise(topicId) {
+async function loadMissionExercise(topicId, attemptedTopics = []) {
   try {
     const mk = state.missionState.mission.isExam ? 'exam' : 'mission';
     const nivel = localStorage.getItem(`mm_${mk}_nivel`) || '';
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel })
+      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel, strictExclude: true })
     });
     let data = await r.json();
+    if (r.status === 409 && attemptedTopics.length < (state.missionState.mission.topics || []).length) {
+      return loadMissionExercise(getNextMissionTopic(), [...attemptedTopics, topicId]);
+    }
     if (data.error) throw new Error(data.error);
     data = normalizeExercisePayload(data);
     if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
     
     state.currentExercise = data;
-    if (data.id && data.id > 0 && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
+    if (Number.isInteger(Number(data.id)) && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
