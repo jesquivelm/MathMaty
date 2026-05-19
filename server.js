@@ -22,10 +22,43 @@ const port = process.env.PORT || 3030;
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/mathmaty';
 
+function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.searchParams.get('sslmode') === 'require' && !parsed.searchParams.has('uselibpqcompat')) {
+      parsed.searchParams.set('uselibpqcompat', 'true');
+    }
+    return parsed.toString();
+  } catch(e) {
+    return rawUrl;
+  }
+}
+
+const DATABASE_CONNECTION_STRING = normalizeDatabaseUrl(process.env.DATABASE_URL || DEFAULT_DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
+  connectionString: DATABASE_CONNECTION_STRING,
   ssl: { rejectUnauthorized: false }
 });
+
+function getDatabaseInfo() {
+  const source = process.env.DATABASE_URL ? 'DATABASE_URL' : 'fallback local';
+  const rawUrl = DATABASE_CONNECTION_STRING;
+  try {
+    const parsed = new URL(rawUrl);
+    return {
+      source,
+      host: parsed.hostname,
+      port: parsed.port || '5432',
+      database: parsed.pathname.replace(/^\//, '') || '-',
+      user: parsed.username || '-',
+      sslmode: parsed.searchParams.get('sslmode') || 'default'
+    };
+  } catch(e) {
+    return { source, host: 'No disponible', port: '-', database: '-', user: '-', sslmode: '-' };
+  }
+}
 
 // Log database connection mode
 console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local fallback');
@@ -685,6 +718,16 @@ app.post('/api/reporte/registrar-ejercicio', authenticateToken, async (req, res)
 });
 
 // ENDPOINTS DE CONFIGURACI&Oacute;N DE APIs
+
+app.get('/api/config/db', authenticateToken, async (req, res) => {
+  try {
+    const db = getDatabaseInfo();
+    const check = await pool.query('SELECT current_database() AS database, current_user AS user');
+    res.json({ ...db, connected: true, activeDatabase: check.rows[0].database, activeUser: check.rows[0].user });
+  } catch (err) {
+    res.json({ ...getDatabaseInfo(), connected: false, error: err.message });
+  }
+});
 
 // Obtener configuraciones de APIs del usuario
 app.get('/api/config/apis', authenticateToken, async (req, res) => {

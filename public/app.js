@@ -2137,16 +2137,17 @@ async function renderReports(main) {
 // ============================================================
 // CONFIGURACI&Oacute;N
 // ============================================================
-const CONFIG_TABS = ['ia', 'doom', 'cuenta'];
+const CONFIG_TABS = ['ia', 'doom', 'db', 'cuenta'];
 let currentConfigTab = 'ia';
 
 function renderConfig(main) {
   main.innerHTML = `
     <h2>Configuraci&oacute;n</h2>
     <div class="config-tabs">
-      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
-      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
-      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
+      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" data-tab="ia" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
+      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" data-tab="doom" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
+      <button class="config-tab ${currentConfigTab === 'db' ? 'active' : ''}" data-tab="db" onclick="switchConfigTab('db')"><i class="ti ti-database"></i> DB</button>
+      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" data-tab="cuenta" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
     </div>
     <div id="config-content"></div>`;
   switchConfigTab(currentConfigTab);
@@ -2154,12 +2155,13 @@ function renderConfig(main) {
 
 function switchConfigTab(tab) {
   currentConfigTab = tab;
-  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.textContent.includes(tab === 'ia' ? 'IA' : tab === 'doom' ? 'Doom' : 'Cuenta')));
+  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   const container = document.getElementById('config-content');
   if (!container) return;
   
   if (tab === 'ia') renderConfigIA(container);
   else if (tab === 'doom') renderConfigDoom(container);
+  else if (tab === 'db') renderConfigDB(container);
   else if (tab === 'cuenta') renderConfigCuenta(container);
 }
 
@@ -2271,6 +2273,30 @@ function renderConfigCuenta(container) {
         <div><strong>Racha Máxima:</strong> ${state.user?.racha_maxima || 0}</div>
       </div>
     </div>`;
+}
+
+async function renderConfigDB(container) {
+  container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-text-muted);">Consultando conexi&oacute;n...</p></div>`;
+  try {
+    const r = await fetch(`${API}/api/config/db`, { headers: { Authorization: `Bearer ${state.token}` } });
+    const db = await r.json();
+    container.innerHTML = `
+      <div class="card" style="margin-top:1rem;">
+        <h3><i class="ti ti-database"></i> Database</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem;">
+          <div><strong>Estado:</strong> <span style="color:${db.connected ? 'var(--color-success)' : 'var(--color-error)'};">${db.connected ? 'Conectada' : 'Sin conexi&oacute;n'}</span></div>
+          <div><strong>Origen:</strong> ${db.source || '-'}</div>
+          <div><strong>Host:</strong> ${db.host || '-'}</div>
+          <div><strong>Puerto:</strong> ${db.port || '-'}</div>
+          <div><strong>Base:</strong> ${db.activeDatabase || db.database || '-'}</div>
+          <div><strong>Usuario:</strong> ${db.activeUser || db.user || '-'}</div>
+          <div><strong>SSL:</strong> ${db.sslmode || '-'}</div>
+        </div>
+        ${db.error ? `<p style="color:var(--color-error);font-size:.85rem;margin-top:1rem;">${db.error}</p>` : ''}
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-error);">No se pudo consultar la conexi&oacute;n.</p></div>`;
+  }
 }
 
 function uploadDoomVideo(key, input, isPng) {
