@@ -29,6 +29,19 @@ const DOOM_HP_RANGES = [
 
 // HP thresholds for states: each slot covers (next_lower, threshold]
 const DOOM_HIT_THRESHOLDS = [100, 75, 50, 25, 10, 0];
+let _doomVideos = {};
+
+async function loadDoomVideos() {
+  try {
+    const r = await fetch('/api/doom-videos');
+    _doomVideos = await r.json();
+    window._doomVideos = _doomVideos;
+  } catch(e) { _doomVideos = {}; window._doomVideos = {}; }
+}
+
+async function reloadDoomVideos() {
+  await loadDoomVideos();
+}
 
 function getDoomThreshold(hp) {
   for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
@@ -168,6 +181,7 @@ function renderCompactTopicNames(topicIds, limit = 3) {
 document.addEventListener('DOMContentLoaded', async () => {
   if (state.token) { await fetchProfile(); loadGlossary(); }
   else showAuth();
+  loadDoomVideos();
   initDoomWidget();
   initDraggableWhiteboard();
 });
@@ -325,7 +339,7 @@ async function handleLogin(e) {
   } else { document.getElementById('auth-error').textContent = data.error; }
 }
 
-function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; showAuth(); }
+function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; window.location.reload(); }
 
 // ============================================================
 // NAVEGACI&Oacute;N
@@ -334,7 +348,11 @@ function showView(view) {
   state.view = view;
   document.getElementById('auth-container')?.classList.add('hidden');
   document.getElementById('app-container')?.classList.remove('hidden');
-  document.getElementById('doom-widget')?.classList.remove('hidden');
+  const dw = document.getElementById('doom-widget');
+  if (dw) {
+    dw.classList.remove('hidden');
+    dw.style.display = 'flex';
+  }
   document.getElementById('sidebar')?.classList.remove('mobile-open');
   
   const main = document.getElementById('main-content');
@@ -644,10 +662,11 @@ async function generateNewExercise() {
 }
 
 function checkChoice(choice, btn) {
-  const isCorrect = choice === state.currentExercise.opciones[0];
+  const c = state.currentExercise.correcta || state.currentExercise.opciones[0];
+  const isCorrect = choice === c;
   document.querySelectorAll('.choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
+    if (b.textContent === c) b.classList.add('correct');
   });
   
   let xpGanada = 100;
@@ -1015,10 +1034,11 @@ async function loadMissionExercise(topicId) {
 }
 
 function checkMissionChoice(choice, btn) {
-  const isCorrect = choice === state.currentExercise.opciones[0];
+  const c = state.currentExercise.correcta || state.currentExercise.opciones[0];
+  const isCorrect = choice === c;
   document.querySelectorAll('#mission-choices .choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
+    if (b.textContent === c) b.classList.add('correct');
   });
   
   const penalty = state.missionState.mission.hpPenalty;
@@ -1912,7 +1932,7 @@ function renderConfigIA(container) {
 }
 
 function renderConfigDoom(container) {
-  const doomVideos = ( window._doomVideos || {});
+  const doomVideos = _doomVideos;
   
   // 12 video slots exactly as the user described
   const slots = [
@@ -2006,17 +2026,15 @@ function uploadDoomVideo(key, input, isPng) {
       });
       const result = await r.json();
       if (result.ok) {
-        window._doomVideos = window._doomVideos || {};
-        window._doomVideos[key] = result.url;
+        _doomVideos[key] = dataUrl;
         if (labelEl) labelEl.textContent = file.name;
       } else {
         if (labelEl) labelEl.textContent = 'Error: ' + (result.error || 'desconocido');
-        console.error('uploadDoomVideo error:', result.error);
       }
     } catch(err) {
       if (labelEl) labelEl.textContent = 'Error al subir';
-      console.error('uploadDoomVideo error:', err);
     }
+    loadDoomVideos();
     switchConfigTab('doom');
   };
   reader.readAsDataURL(file);
@@ -2025,7 +2043,8 @@ function uploadDoomVideo(key, input, isPng) {
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
   fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } }).catch(() => {});
-  if (window._doomVideos) delete window._doomVideos[key];
+  delete _doomVideos[key];
+  loadDoomVideos();
   switchConfigTab('doom');
 }
 
@@ -2491,7 +2510,7 @@ async function updateUI() {
 
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = ( window._doomVideos || {});
+  const doomVideos = _doomVideos;
   
   faceEl.className = 'doom-face';
   if (hp <= 0) faceEl.classList.add('dead');
@@ -2547,7 +2566,7 @@ async function updateUI() {
 function updateDoomDisplay(hp) {
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = ( window._doomVideos || {});
+  const doomVideos = _doomVideos;
   
   if (hp <= 0) {
     if (video) video.style.display = 'none';
