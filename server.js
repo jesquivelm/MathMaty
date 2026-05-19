@@ -20,14 +20,15 @@ const app = express();
 const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
+const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/mathmaty';
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://neondb_owner:npg_x5NnjheXrb4H@ep-broad-wildflower-aq3he37e-pooler.c-8.us-east-1.aws.neon.tech/mathmaty?sslmode=require',
+  connectionString: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
 // Log database connection mode
-console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local fallback');
 console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
   console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
