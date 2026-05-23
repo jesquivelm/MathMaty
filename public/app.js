@@ -615,7 +615,7 @@ async function renderExercise(main) {
             <div id="ex-image-container" style="display:none;margin-bottom:1.5rem;text-align:center;"></div>
             <div id="ex-graph-container" class="hidden" style="width:100%;height:250px;margin-bottom:1rem;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             <div id="choice-area" class="choice-grid"></div>
-            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
+            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;"><i class="ti ti-flag"></i> Reportar error</button></div>
           </div>
         </div>
         <div id="resolution-area" class="hidden">
@@ -793,7 +793,11 @@ async function generateNewExercise() {
       area.appendChild(btn);
     });
     const repBtn = document.getElementById('report-btn');
-    if (repBtn) { repBtn.dataset.id = data.id; repBtn.style.display = ''; }
+    if (repBtn) {
+      repBtn.dataset.id = data.id;
+      repBtn.style.display = '';
+      repBtn.onclick = showReportDialog;
+    }
   } catch(e) {
     const loading = document.getElementById('ex-loading');
     document.getElementById('ex-content')?.classList.add('hidden');
@@ -849,7 +853,7 @@ function showReportOption() {
   const id = state.currentExercise.id;
   if (!id || id < 0) return;
   const repBtn = document.getElementById('report-btn');
-  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; }
+  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; repBtn.onclick = showReportDialog; }
 }
 
 function showReportDialog() {
@@ -883,12 +887,10 @@ async function submitReport(exerciseId) {
     const data = await r.json();
     if (data.ok) {
       document.getElementById('report-modal')?.remove();
-      const repBtn = document.getElementById('report-btn');
-      if (repBtn) { repBtn.style.display = 'none'; }
-      const mRepBtn = document.getElementById('mission-report-btn');
-      if (mRepBtn) { mRepBtn.style.display = 'none'; }
-      const repArea = document.getElementById('report-area');
-      if (repArea && !repArea.querySelector('.reportado')) repArea.insertAdjacentHTML('beforeend', '<span class="reportado" style="font-size:.78rem;color:var(--color-success);"><i class="ti ti-check"></i> Reportado</span>');
+      ['report-btn','mission-report-btn'].forEach(id => {
+        const b = document.getElementById(id);
+        if (b) { b.textContent = ''; b.innerHTML = '<i class="ti ti-check"></i> Reportado'; b.style.cssText = 'color:var(--color-success);border-color:var(--color-success);font-size:.78rem;'; b.disabled = true; }
+      });
     } else {
       alert('Error: ' + (data.error || 'desconocido'));
     }
@@ -1230,7 +1232,7 @@ async function renderMissionRun(main) {
             <button class="btn btn-outline btn-sm" onclick="showMissionTheory()" id="mission-theory-btn" style="display:none;"><i class="ti ti-info-circle"></i> Teoría</button>
           </div>
           <div id="mission-choices" class="choice-grid"></div>
-          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
+          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;"><i class="ti ti-flag"></i> Reportar error</button></div>
         </div>
       </div>
       <div id="mission-action" class="hidden">
@@ -1319,7 +1321,11 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
       area.appendChild(btn);
     });
     const mRepBtn = document.getElementById('mission-report-btn');
-    if (mRepBtn) { mRepBtn.dataset.id = data.id; mRepBtn.style.display = ''; }
+    if (mRepBtn) {
+      mRepBtn.dataset.id = data.id;
+      mRepBtn.style.display = '';
+      mRepBtn.onclick = showReportDialog;
+    }
   } catch(e) {
     const loading = document.getElementById('mission-loading');
     document.getElementById('mission-content')?.classList.add('hidden');
