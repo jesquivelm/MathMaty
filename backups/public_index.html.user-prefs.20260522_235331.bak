@@ -27,7 +27,6 @@
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-outline btn-xs" onclick="openSolver()" title="Resolver"><i class="ti ti-robot"></i> <span class="action-label">Resolver</span></button>
-                    <button class="btn btn-outline btn-xs" onclick="showView('profile')" title="Perfil"><i class="ti ti-user-circle"></i></button>
                     <button class="btn btn-outline btn-xs" onclick="toggleWhiteboard()" title="Pizarra"><i class="ti ti-pencil"></i></button>
                     <button class="btn btn-outline btn-xs" onclick="showView('reports')" title="Reportes"><i class="ti ti-chart-bar"></i></button>
                     <button class="btn btn-outline btn-xs" onclick="showView('config')" title="Configuraci&oacute;n"><i class="ti ti-settings"></i></button>
@@ -190,9 +189,6 @@
     <div id="event-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1004;display:flex;align-items:center;justify-content:center;">
         <div class="card" style="max-width:550px;width:90%;max-height:90vh;overflow-y:auto;"><div id="event-modal-content"></div></div>
     </div>
-
-    <!-- Profile Modal -->
-    <div id="profile-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1005;display:flex;align-items:center;justify-content:center;"></div>
 
     <script src="math-keyboard.js"></script>
     <script src="math-graph.js"></script>

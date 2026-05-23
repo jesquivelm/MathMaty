@@ -6,12 +6,9 @@ const state = {
   correctCount: 0, view: 'auth',
   token: localStorage.getItem('mathmaty_token'),
   seenExerciseIds: [],   // IDs ya vistos — se mandan al backend para no repetir
-  recentExerciseIds: [],
   missionState: null, examTimer: null, activeEvent: null,
   whiteboardColor: '#3b82f6', whiteboardSize: 3, whiteboardMode: 'pen',
-  eraserSize: 20,
-  shopFilter: 'all',
-  nivel_educativo: null, selected_topics: null
+  eraserSize: 20, shopFilter: 'all'
 };
 
 // DoomGuy video slots: 12 videos + 1 PNG
@@ -92,14 +89,11 @@ const TOPICS = [
 const TOPIC_NAMES = Object.fromEntries(TOPICS.map(t => [t.id, t.name]));
 
 const NIVELES = [
-  { id:'primer-ciclo', name:'1°-3° Escuela' },
-  { id:'segundo-ciclo', name:'4°-6° Escuela' },
+  { id:'primaria', name:'Primaria (1°-6°)' },
   { id:'7mo', name:'7° año' },
   { id:'8vo', name:'8° año' },
   { id:'9no', name:'9° año' },
   { id:'10-11', name:'10°-11° Bachillerato' },
-  { id:'universitario', name:'Universitario' },
-  { id:'calculo', name:'C&aacute;lculo' },
   { id:'tec-paa', name:'Admisión TEC/UNA/UCR' }
 ];
 
@@ -115,42 +109,13 @@ const MATERIA_NAMES = Object.fromEntries(MATERIAS.map(m => [m.id, m.name]));
 const MATERIA_SHORT_NAMES = { matematica:'Matem&aacute;tica', admision:'Admisi&oacute;n', logica:'L&oacute;gica', espanol:'Verbal' };
 
 const TOPIC_NIVELES = {
-  'primer-ciclo': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
-  'segundo-ciclo': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales'],
+  primaria: ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
   '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica','razones-proporciones'],
   '8vo': ['numeros-reales','polinomios','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones','ecuaciones'],
   '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad','polinomios'],
   '10-11': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones'],
-  universitario: ['calculo','matrices','vectores','sucesiones','geo-analitica'],
-  calculo: ['calculo'],
   'tec-paa': ['tec-logica','tec-matematica','tec-verbal']
 };
-
-function allNivelIds() { return NIVELES.map(n => n.id); }
-function allTopicIds() { return TOPICS.map(t => t.id); }
-
-function arrayFromPreference(value, fallback) {
-  const arr = Array.isArray(value) ? value.map(v => String(v || '').trim()).filter(Boolean) : [];
-  return arr.length ? arr : fallback;
-}
-
-function getUserNivelPrefs() {
-  return arrayFromPreference(state.user?.preferencias_niveles, allNivelIds()).filter(id => NIVEL_NAMES[id]);
-}
-
-function getUserTopicPrefs() {
-  return arrayFromPreference(state.user?.preferencias_temas, allTopicIds()).filter(id => TOPIC_NAMES[id]);
-}
-
-function hasAllNivelPrefs(ids = getUserNivelPrefs()) {
-  const all = allNivelIds();
-  return ids.length >= all.length && all.every(id => ids.includes(id));
-}
-
-function hasAllTopicPrefs(ids = getUserTopicPrefs()) {
-  const all = allTopicIds();
-  return ids.length >= all.length && all.every(id => ids.includes(id));
-}
 
 function topicMatchesMateria(topic, materia) {
   if (!materia) return true;
@@ -176,25 +141,6 @@ function renderMateriaOptions(selected = '') {
 
 function renderNivelOptions(selected = '', allLabel = 'Todos los niveles') {
   return `<option value="">${allLabel}</option>${NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('')}`;
-}
-
-function renderAcademicLevelOptions(selected = '7mo') {
-  return NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('');
-}
-
-function legacyNivelFromAcademic(id) {
-  const map = {
-    'primer-ciclo': 'primaria-1-3',
-    'segundo-ciclo': 'primaria-4-6',
-    '7mo': 'secundaria-7-9',
-    '8vo': 'secundaria-7-9',
-    '9no': 'secundaria-7-9',
-    '10-11': 'secundaria-10-11',
-    universitario: 'universitario',
-    calculo: 'calculo',
-    'tec-paa': 'secundaria-10-11'
-  };
-  return map[id] || 'secundaria-10-11';
 }
 
 function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas') {
@@ -324,7 +270,7 @@ function openGlossary(termName) {
   document.getElementById('glossary-title').textContent = item.term;
   document.getElementById('glossary-def').textContent = item.definition;
   document.getElementById('glossary-example').textContent = item.example;
-  document.getElementById('glossary-mana').textContent = item['ma&ntilde;a'] || item['maña'] || item.mana || '';
+  document.getElementById('glossary-mana').textContent = item.ma&ntilde;a;
   document.getElementById('glossary-modal').classList.remove('hidden');
 }
 
@@ -342,16 +288,13 @@ async function fetchProfile() {
     state.xp = state.user.xp || 0;
     state.streak = state.user.racha_actual || 0;
     state.nivel = state.user.nivel || 1;
-    state.nivel_educativo = state.user.nivel_educativo || null;
-    state.selected_topics = state.user.selected_topics || null;
-    loadRecentExerciseIds();
     if (state.user.rol === 'padre') {
       document.getElementById('parent-btn')?.classList.remove('hidden');
       document.getElementById('game-catalog-btn')?.classList.remove('hidden');
     }
     await loadDoomVideosFromServer();
     await checkBadges();
-    showView(state.user.rol === 'estudiante' && !state.user.preferencias_inicializadas ? 'profile' : 'home');
+    showView('home');
     updateUI();
   } catch(e) { logout(); }
 }
@@ -414,15 +357,10 @@ function showRegister() {
       <form onsubmit="handleRegister(event)">
         <input type="text" id="reg-username" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;" placeholder="Usuario" required>
         <input type="text" id="reg-nombre" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;" placeholder="Nombre Completo" required>
-        <select id="reg-rol" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;" onchange="toggleRegisterStudentFields()">
+        <select id="reg-rol" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;">
           <option value="estudiante">Estudiante</option>
           <option value="padre">Padre</option>
         </select>
-        <div id="reg-study-fields">
-          <select id="reg-nivel-academico" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;">
-            ${renderAcademicLevelOptions('7mo')}
-          </select>
-        </div>
         <input type="password" id="reg-password" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:1.5rem;" placeholder="Contrase&ntilde;a" required>
         <button type="submit" class="btn btn-primary" style="width:100%;">Registrarse</button>
       </form>
@@ -432,24 +370,13 @@ function showRegister() {
     </div>`;
 }
 
-function toggleRegisterStudentFields() {
-  const role = document.getElementById('reg-rol')?.value || 'estudiante';
-  const fields = document.getElementById('reg-study-fields');
-  if (fields) fields.style.display = role === 'estudiante' ? 'block' : 'none';
-}
-
 async function handleRegister(e) {
   e.preventDefault();
-  const role = document.getElementById('reg-rol').value;
   const body = {
     username: document.getElementById('reg-username').value,
     nombre: document.getElementById('reg-nombre').value,
-    rol: role,
-    password: document.getElementById('reg-password').value,
-    nivel_academico: document.getElementById('reg-nivel-academico')?.value || '7mo',
-    nivel_educativo: legacyNivelFromAcademic(document.getElementById('reg-nivel-academico')?.value || '7mo'),
-    preferencias_niveles: role === 'estudiante' ? allNivelIds() : [],
-    preferencias_temas: role === 'estudiante' ? allTopicIds() : []
+    rol: document.getElementById('reg-rol').value,
+    password: document.getElementById('reg-password').value
   };
   const r = await fetch(`${API}/api/auth/register`, {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
@@ -492,7 +419,6 @@ function showView(view) {
   const views = {
     home: renderHome, topics: renderTopics, exercise: renderExercise,
     leaderboard: renderLeaderboard, reports: renderReports, config: renderConfig,
-    profile: renderProfile,
     'parent-dashboard': renderParentDashboard, missions: renderMissions,
     exams: renderExams, admin: renderAdmin, 'mission-run': renderMissionRun,
     events: renderEvents, badges: renderBadges, shop: renderShop,
@@ -544,9 +470,6 @@ async function renderHome(main) {
             <button class="btn btn-outline" onclick="showView('knowledge')">
               <i class="ti ti-library"></i> Biblioteca
             </button>
-            <button class="btn btn-outline" onclick="showProfilePanel()">
-              <i class="ti ti-user"></i> Perfil
-            </button>
           </div>
         </div>
       </div>
@@ -595,116 +518,60 @@ async function renderHome(main) {
 }
 
 // ============================================================
-// PERFIL DE ESTUDIO
-// ============================================================
-function renderProfile(main) {
-  const nivelAcademico = state.user?.nivel_academico || '7mo';
-  const nivelPrefs = new Set(getUserNivelPrefs());
-  const topicPrefs = new Set(getUserTopicPrefs());
-  main.innerHTML = `
-    <h2>Perfil de Estudio</h2>
-    <div class="profile-grid">
-      <div class="card profile-panel">
-        <h3><i class="ti ti-user-cog"></i> Cuenta</h3>
-        <div class="profile-form-row">
-          <label>Nivel</label>
-          <select id="profile-nivel-academico" class="select-control">${renderAcademicLevelOptions(nivelAcademico)}</select>
-        </div>
-        <div class="profile-info-grid">
-          <div><strong>Usuario:</strong> ${state.user?.username || '-'}</div>
-          <div><strong>Nombre:</strong> ${state.user?.nombre || '-'}</div>
-          <div><strong>Rol:</strong> ${state.user?.rol || '-'}</div>
-          <div><strong>XP:</strong> ${state.xp || 0}</div>
-        </div>
-      </div>
-      <div class="card profile-panel">
-        <div class="profile-panel-head">
-          <h3><i class="ti ti-school"></i> Años</h3>
-          <div class="profile-actions">
-            <button class="btn btn-outline btn-xs" onclick="setProfileChecks('nivel', true)">Todos</button>
-            <button class="btn btn-outline btn-xs" onclick="setProfileChecks('nivel', false)">Limpiar</button>
-          </div>
-        </div>
-        <div class="profile-check-grid">
-          ${NIVELES.map(n => `<label class="profile-check"><input type="checkbox" data-profile-group="nivel" value="${n.id}"${nivelPrefs.has(n.id) ? ' checked' : ''}><span>${n.name}</span></label>`).join('')}
-        </div>
-      </div>
-      <div class="card profile-panel profile-panel-wide">
-        <div class="profile-panel-head">
-          <h3><i class="ti ti-target-arrow"></i> Temas</h3>
-          <div class="profile-actions">
-            <button class="btn btn-outline btn-xs" onclick="setProfileChecks('tema', true)">Todos</button>
-            <button class="btn btn-outline btn-xs" onclick="setProfileChecks('tema', false)">Limpiar</button>
-          </div>
-        </div>
-        <div class="profile-check-grid topic-profile-grid">
-          ${sortTopicsForHierarchy(TOPICS).map(t => `<label class="profile-check"><input type="checkbox" data-profile-group="tema" value="${t.id}"${topicPrefs.has(t.id) ? ' checked' : ''}><span>${t.name}</span></label>`).join('')}
-        </div>
-      </div>
-    </div>
-    <div class="profile-savebar">
-      <button class="btn btn-primary" onclick="saveStudyProfile()"><i class="ti ti-device-floppy"></i> Guardar Perfil</button>
-      <button class="btn btn-outline" onclick="showView('home')">Inicio</button>
-    </div>`;
-}
-
-function setProfileChecks(group, checked) {
-  document.querySelectorAll(`input[data-profile-group="${group}"]`).forEach(input => { input.checked = checked; });
-}
-
-async function saveStudyProfile() {
-  const nivelAcademico = document.getElementById('profile-nivel-academico')?.value || '7mo';
-  const preferenciasNiveles = [...document.querySelectorAll('input[data-profile-group="nivel"]:checked')].map(i => i.value);
-  const preferenciasTemas = [...document.querySelectorAll('input[data-profile-group="tema"]:checked')].map(i => i.value);
-  const body = {
-    nivel_academico: nivelAcademico,
-    preferencias_niveles: preferenciasNiveles.length ? preferenciasNiveles : allNivelIds(),
-    preferencias_temas: preferenciasTemas.length ? preferenciasTemas : allTopicIds()
-  };
-  const r = await fetch(`${API}/api/auth/preferences`, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-    body:JSON.stringify(body)
-  });
-  const data = await r.json();
-  if (!r.ok) { alert(data.error || 'No se pudo guardar'); return; }
-  state.user = data;
-  alert('Perfil actualizado');
-  showView('home');
-  updateUI();
-}
-
-// ============================================================
 // TEMAS / TOPICS
 // ============================================================
 function renderTopics(main) {
-  const activeTopics = Array.isArray(state.selected_topics) && state.selected_topics.length > 0 ? state.selected_topics : TOPICS.map(t => t.id);
-  const filtered = TOPICS.filter(t => activeTopics.includes(t.id));
-  const hiddenCount = TOPICS.length - filtered.length;
+  const materia = localStorage.getItem('mm_topics_materia') || '';
+  const nivel = localStorage.getItem('mm_topics_nivel') || '';
+  const topics = getFilteredTopics(materia, nivel);
   main.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:.5rem;">
-      <div>
-        <h2>Temas de Prec&aacute;lculo</h2>
-        ${hiddenCount > 0 ? `<p style="font-size:.8rem;color:var(--color-text-muted);">${hiddenCount} temas ocultos seg&uacute;n tu nivel — <a href="#" onclick="showProfilePanel();return false;" style="color:var(--color-primary);">ajustar</a></p>` : ''}
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+      <h2>Temas por materia</h2>
       <button class="btn btn-outline btn-sm" onclick="openSolver()"><i class="ti ti-robot"></i> Resolver</button>
     </div>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Selecciona un tema para practicar. Cada tema tiene teor&iacute;a, ejemplos y ejercicios.</p>
-    ${filtered.length === 0 ? '<div class="card" style="text-align:center;padding:2rem;"><p style="color:var(--color-text-muted);">No hay temas activos. <a href="#" onclick="showProfilePanel();return false;" style="color:var(--color-primary);">Configura tus temas en el perfil</a></p></div>' : `
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;">
-    ${filtered.map(t => `
-      <div class="card topic-card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-          <div>
-            <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
-            <h3>${t.name}</h3>
-            <span class="badge parcial">Parcial ${t.parcial}</span>
+    <div class="filter-bar topic-filter-bar">
+      <span class="select-wrap"><select id="topics-materia-filter" class="select-control" onchange="updateTopicsFilter()">${renderMateriaOptions(materia)}</select></span>
+      <span class="select-wrap"><select id="topics-nivel-filter" class="select-control" onchange="updateTopicsFilter()">${renderNivelOptions(nivel)}</select></span>
+    </div>
+    <div id="topics-grid" class="topic-grid">
+      ${renderTopicCards(topics)}
+    </div>`;
+}
+
+function renderTopicCards(topics) {
+  if (!topics.length) {
+    return `<div class="card empty-state-card">No hay temas para esa combinaci&oacute;n.</div>`;
+  }
+  return topics.map(t => `
+    <div class="card topic-card">
+      <div class="topic-card-head">
+        <i class="ti ${t.icon} topic-card-icon"></i>
+        <div class="topic-card-title">
+          <h3>${t.name}</h3>
+          <div class="topic-chip-row">
+            <span class="topic-level-chip">${MATERIA_NAMES[getTopicMateriaId(t.id)] || 'Matem&aacute;tica'}</span>
+            ${renderTopicLevelBadges(t.id)}
           </div>
         </div>
       </div>
-    `).join('')}
-    </div>`}
-`;
+      <p class="topic-card-desc">${t.teoria}</p>
+      <div class="topic-actions">
+        <button class="btn btn-primary btn-sm" onclick="startExercise('${t.id}')"><i class="ti ti-player-play"></i> Practicar</button>
+        <button class="btn btn-outline btn-sm" onclick="startFlashcardsForTopic('${t.id}')"><i class="ti ti-cards"></i> Flashcards</button>
+        <button class="btn btn-outline btn-sm" onclick="openKnowledgeTopic('${t.id}')"><i class="ti ti-book"></i> Teor&iacute;a</button>
+        <button class="btn btn-outline btn-sm" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i> Examen</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateTopicsFilter() {
+  const materia = document.getElementById('topics-materia-filter')?.value || '';
+  const nivel = document.getElementById('topics-nivel-filter')?.value || '';
+  localStorage.setItem('mm_topics_materia', materia);
+  localStorage.setItem('mm_topics_nivel', nivel);
+  const grid = document.getElementById('topics-grid');
+  if (grid) grid.innerHTML = renderTopicCards(getFilteredTopics(materia, nivel));
 }
 
 // ============================================================
@@ -748,7 +615,6 @@ async function renderExercise(main) {
             <div id="ex-image-container" style="display:none;margin-bottom:1.5rem;text-align:center;"></div>
             <div id="ex-graph-container" class="hidden" style="width:100%;height:250px;margin-bottom:1rem;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             <div id="choice-area" class="choice-grid"></div>
-            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;" onclick="reportThis(this)"><i class="ti ti-flag"></i> Reportar error</button></div>
           </div>
         </div>
         <div id="resolution-area" class="hidden">
@@ -855,41 +721,6 @@ function shuffleArray(items) {
   return arr;
 }
 
-function loadRecentExerciseIds() {
-  try {
-    const raw = JSON.parse(localStorage.getItem('mm_recent_exercise_ids') || '[]');
-    state.recentExerciseIds = Array.isArray(raw) ? raw.map(Number).filter(Number.isInteger) : [];
-  } catch(e) {
-    state.recentExerciseIds = [];
-  }
-  return state.recentExerciseIds;
-}
-
-function rememberExerciseId(id) {
-  const num = Number(id);
-  if (!Number.isInteger(num) || num <= 0) return;
-  const next = [num, ...loadRecentExerciseIds().filter(x => x !== num)].slice(0, 150);
-  state.recentExerciseIds = next;
-  localStorage.setItem('mm_recent_exercise_ids', JSON.stringify(next));
-}
-
-function mergedIds(...lists) {
-  return [...new Set(lists.flat().map(Number).filter(Number.isInteger))];
-}
-
-function practiceNivelScope(selectedNivel = '') {
-  if (selectedNivel) return [selectedNivel];
-  const prefs = getUserNivelPrefs();
-  return hasAllNivelPrefs(prefs) ? [] : prefs;
-}
-
-function preferredTopicScope(topicIds = []) {
-  const prefs = getUserTopicPrefs();
-  if (hasAllTopicPrefs(prefs)) return topicIds;
-  const scoped = topicIds.filter(id => prefs.includes(id));
-  return scoped.length ? scoped : topicIds;
-}
-
 function formatExerciseSource(data) {
   const sourceParts = [];
   if (data?.archivo_origen) sourceParts.push(data.archivo_origen);
@@ -904,16 +735,13 @@ function formatExerciseSource(data) {
 async function generateNewExercise() {
   try {
     const nivel = document.getElementById('topics-nivel-filter')?.value || '';
-    const excludeIds = mergedIds(state.seenExerciseIds);
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
       body:JSON.stringify({
         topic: state.currentTopic.id,
         difficulty: state.currentDiff,
-        excludeIds,
-        recentIds: loadRecentExerciseIds(),
+        excludeIds: state.seenExerciseIds,
         nivel,
-        niveles: practiceNivelScope(nivel),
         strictExclude: true
       })
     });
@@ -928,7 +756,6 @@ async function generateNewExercise() {
         state.seenExerciseIds.push(data.id);
         if (state.seenExerciseIds.length > 200) state.seenExerciseIds.shift();
       }
-      rememberExerciseId(data.id);
     }
     
     state.currentExercise = data;
@@ -964,8 +791,6 @@ async function generateNewExercise() {
       btn.onclick = () => checkChoice(c, btn);
       area.appendChild(btn);
     });
-    const repBtn = document.getElementById('report-btn');
-    if (repBtn) { repBtn.dataset.id = data.id; repBtn.style.display = ''; }
   } catch(e) {
     const loading = document.getElementById('ex-loading');
     document.getElementById('ex-content')?.classList.add('hidden');
@@ -1014,40 +839,8 @@ function checkChoice(choice, btn) {
   saveExerciseToHistory(isCorrect);
   
   if (state.correctCount % 10 === 0 && isCorrect) setTimeout(triggerGame, 1000);
+  // Restore 1 HP per correct answer if dead
   if (state.hp <= 0 && isCorrect) state.hp = 5;
-}
-
-function showReportOption() {
-  const id = state.currentExercise.id;
-  if (!id || id < 0) return;
-  const repBtn = document.getElementById('report-btn');
-  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; }
-}
-
-function reportThis(btn) {
-  const id = btn?.dataset?.id;
-  if (!id) return;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader"></i> Enviando...';
-  fetch(`${API}/api/exercises/${id}/report`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-    body: '{}'
-  }).then(r => r.json()).then(data => {
-    if (data.ok) {
-      btn.style.cssText = 'color:var(--color-success);border-color:var(--color-success);background:rgba(16,185,129,.1);font-size:.78rem;padding:.2rem .5rem;border-radius:var(--radius-md);';
-      btn.innerHTML = '<i class="ti ti-check"></i> Reportado';
-      btn.disabled = true;
-    } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-flag"></i> Reportar error';
-      alert('Error: ' + (data.error || 'desconocido'));
-    }
-  }).catch(() => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-flag"></i> Reportar error';
-    alert('Error al enviar reporte');
-  });
 }
 
 function showExerciseResolution() {
@@ -1127,7 +920,7 @@ async function saveExerciseToHistory(correct) {
   try {
     await fetch(`${API}/api/reporte/registrar-ejercicio`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ exercise_id:state.currentExercise?.id, topic_id:state.currentTopic.id, correcto:correct, tiempo_segundos:30, hp_antes:state.hp, hp_despues:state.hp, dificultad:state.currentDiff })
+      body:JSON.stringify({ topic_id:state.currentTopic.id, correcto:correct, tiempo_segundos:30, hp_antes:state.hp, hp_despues:state.hp, dificultad:state.currentDiff })
     });
     // Registrar XP
     await fetch(`${API}/api/leaderboard/actualizar`, {
@@ -1336,35 +1129,10 @@ function updateMissionFilters(kind) {
   if (list) list.innerHTML = renderMissionCards(kind === 'exam', saved, materia, nivel, topic);
 }
 
-function missionNivelScope(mission, kind) {
-  const selected = localStorage.getItem(`mm_${kind}_nivel`) || '';
-  if (selected) return [selected];
-  const missionLevels = mission.niveles || [];
-  const prefs = getUserNivelPrefs();
-  if (hasAllNivelPrefs(prefs)) return missionLevels;
-  const scoped = missionLevels.filter(id => prefs.includes(id));
-  return scoped.length ? scoped : missionLevels;
-}
-
-function missionTopicScope(mission, kind) {
-  const selectedTopic = localStorage.getItem(`mm_${kind}_topic`) || '';
-  const levelScope = missionNivelScope(mission, kind);
-  let topics = selectedTopic ? (mission.topics || []).filter(id => id === selectedTopic) : [...(mission.topics || [])];
-  topics = preferredTopicScope(topics);
-  if (levelScope.length) {
-    const levelMatched = topics.filter(id => levelScope.some(level => topicMatchesNivel({ id }, level)));
-    if (levelMatched.length) topics = levelMatched;
-  }
-  return topics.length ? topics : [...(mission.topics || [])];
-}
-
 function startMission(missionId) {
   const mission = MISSIONS.find(m => m.id === missionId);
   if (!mission) return;
-  const kind = mission.isExam ? 'exam' : 'mission';
-  const runtimeTopics = missionTopicScope(mission, kind);
-  const runtimeNiveles = missionNivelScope(mission, kind);
-  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], runtimeTopics, runtimeNiveles, topicQueue:shuffleArray(runtimeTopics), startTime: Date.now() };
+  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], topicQueue:shuffleArray(mission.topics || []), startTime: Date.now() };
   _doomDeathPlayed = false;
   _prevHp = 100;
   showView('mission-run');
@@ -1374,9 +1142,9 @@ function getNextMissionTopic() {
   const mission = state.missionState?.mission;
   if (!mission) return TOPICS[0]?.id;
   if (!state.missionState.topicQueue?.length) {
-    state.missionState.topicQueue = shuffleArray(state.missionState.runtimeTopics || mission.topics || []);
+    state.missionState.topicQueue = shuffleArray(mission.topics || []);
   }
-  return state.missionState.topicQueue.shift() || state.missionState.runtimeTopics?.[0] || mission.topics[0];
+  return state.missionState.topicQueue.shift() || mission.topics[0];
 }
 
 async function renderMissionRun(main) {
@@ -1408,7 +1176,6 @@ async function renderMissionRun(main) {
             <button class="btn btn-outline btn-sm" onclick="showMissionTheory()" id="mission-theory-btn" style="display:none;"><i class="ti ti-info-circle"></i> Teoría</button>
           </div>
           <div id="mission-choices" class="choice-grid"></div>
-          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;" onclick="reportThis(this)"><i class="ti ti-flag"></i> Reportar error</button></div>
         </div>
       </div>
       <div id="mission-action" class="hidden">
@@ -1443,26 +1210,12 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
   try {
     const mk = state.missionState.mission.isExam ? 'exam' : 'mission';
     const nivel = localStorage.getItem(`mm_${mk}_nivel`) || '';
-    const seenKey = 'mm_seen_' + state.missionState.mission.id;
-    const seen = JSON.parse(localStorage.getItem(seenKey) || '[]');
-    const missionTopics = state.missionState.runtimeTopics || state.missionState.mission.topics || [topicId];
-    const missionNiveles = state.missionState.runtimeNiveles || missionNivelScope(state.missionState.mission, mk);
-    const excludeAll = [...new Set([...(state.missionState.exercises || []), ...seen])];
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({
-        topic: topicId,
-        topics: missionTopics,
-        difficulty: 'any',
-        excludeIds: excludeAll,
-        recentIds: loadRecentExerciseIds(),
-        nivel,
-        niveles: missionNiveles,
-        strictExclude: true
-      })
+      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel, strictExclude: true })
     });
     let data = await r.json();
-    if (r.status === 409 && attemptedTopics.length < missionTopics.length) {
+    if (r.status === 409 && attemptedTopics.length < (state.missionState.mission.topics || []).length) {
       return loadMissionExercise(getNextMissionTopic(), [...attemptedTopics, topicId]);
     }
     if (data.error) throw new Error(data.error);
@@ -1471,8 +1224,6 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     
     state.currentExercise = data;
     if (Number.isInteger(Number(data.id)) && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
-    if (Number.isInteger(Number(data.id)) && !seen.includes(data.id)) { seen.push(data.id); localStorage.setItem(seenKey, JSON.stringify(seen)); }
-    rememberExerciseId(data.id);
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
@@ -1512,8 +1263,6 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
       btn.onclick = () => checkMissionChoice(c, btn);
       area.appendChild(btn);
     });
-    const mRepBtn = document.getElementById('mission-report-btn');
-    if (mRepBtn) { mRepBtn.dataset.id = data.id; mRepBtn.style.display = ''; }
   } catch(e) {
     const loading = document.getElementById('mission-loading');
     document.getElementById('mission-content')?.classList.add('hidden');
@@ -1563,26 +1312,6 @@ function checkMissionChoice(choice, btn) {
     });
   }
   document.getElementById('mission-action').classList.remove('hidden');
-  saveMissionExerciseToHistory(isCorrect);
-}
-
-async function saveMissionExerciseToHistory(correct) {
-  try {
-    const topicId = state.currentExercise?.topic_id || state.currentTopic?.id || state.missionState?.runtimeTopics?.[0] || state.missionState?.mission?.topics?.[0];
-    await fetch(`${API}/api/reporte/registrar-ejercicio`, {
-      method:'POST',
-      headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({
-        exercise_id: state.currentExercise?.id,
-        topic_id: topicId,
-        correcto: correct,
-        tiempo_segundos: 30,
-        hp_antes: state.hp,
-        hp_despues: state.missionState?.hp,
-        dificultad: state.currentDiff
-      })
-    });
-  } catch(e) {}
 }
 
 function missionNext() {
@@ -1613,7 +1342,6 @@ function endMission(reason) {
   // Revive after mission
   if (state.hp <= 0) state.hp = 30;
   
-  localStorage.removeItem('mm_seen_' + m.id);
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   saved[m.id] = { score, xpEarned, date: new Date().toISOString() };
   localStorage.setItem('mm_missions', JSON.stringify(saved));
@@ -2551,126 +2279,28 @@ function renderConfigCuenta(container) {
     </div>`;
 }
 
-// ============================================================
-// PERFIL — Nivel educativo + selecci&oacute;n de temas
-// ============================================================
-let _profileNivelEducativo = null;
-let _profileSelectedTopics = null;
-
-function showProfilePanel() {
-  _profileNivelEducativo = state.nivel_educativo || 'secundaria-10-11';
-  _profileSelectedTopics = Array.isArray(state.selected_topics) ? [...state.selected_topics] : [];
-  if (_profileSelectedTopics.length === 0) {
-    _profileSelectedTopics = [...getTopicsForNivelLocal(_profileNivelEducativo)];
-  }
-  renderProfilePanel();
-  document.getElementById('profile-modal')?.classList.remove('hidden');
-}
-
-function hideProfilePanel() {
-  document.getElementById('profile-modal')?.classList.add('hidden');
-}
-
-function getTopicsForNivelLocal(nivelId) {
-  const MAP = {
-    'primaria-1-3':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica'],
-    'primaria-4-6':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica','estadistica','geometria','plano-cartesiano'],
-    'secundaria-7-9':    ['conjuntos','numeros-reales','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','ecuaciones','plano-cartesiano','geometria','inecuaciones'],
-    'secundaria-10-11':  ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
-    'universitario':     ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','calculo','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','matrices','vectores','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
-    'calculo':           ['calculo','exp-log','trigonometria','matrices','vectores','sucesiones','geo-analitica','inecuaciones','polinomios','factorizacion']
-  };
-  return MAP[nivelId] || MAP['secundaria-10-11'];
-}
-
-function renderProfilePanel() {
-  const modal = document.getElementById('profile-modal');
-  if (!modal) return;
-  const nivel = _profileNivelEducativo;
-  const availableTopics = getTopicsForNivelLocal(nivel);
-  const selected = _profileSelectedTopics;
-
-  modal.innerHTML = `
-    <div class="modal-overlay" onclick="hideProfilePanel()">
-      <div class="card" style="max-width:560px;max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-          <h2><i class="ti ti-user"></i> Mi Perfil</h2>
-          <button class="btn btn-outline btn-sm" onclick="hideProfilePanel()"><i class="ti ti-x"></i></button>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem;padding:.75rem;background:var(--color-bg);border-radius:var(--radius-md);">
-          <div><strong>Usuario:</strong> ${state.user?.username||'-'}</div>
-          <div><strong>Rol:</strong> ${state.user?.rol||'-'}</div>
-          <div><strong>Nombre:</strong> ${state.user?.nombre||'-'}</div>
-          <div><strong>Email:</strong> ${state.user?.email||'-'}</div>
-        </div>
-
-        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:.5rem;">Nivel Educativo</label>
-        <select id="profile-nivel" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:1.25rem;" onchange="onProfileNivelChange(this.value)">
-          <option value="primaria-1-3" ${nivel==='primaria-1-3'?'selected':''}>Primaria (1° - 3°)</option>
-          <option value="primaria-4-6" ${nivel==='primaria-4-6'?'selected':''}>Primaria (4° - 6°)</option>
-          <option value="secundaria-7-9" ${nivel==='secundaria-7-9'?'selected':''}>Secundaria (7° - 9°)</option>
-          <option value="secundaria-10-11" ${nivel==='secundaria-10-11'?'selected':''}>Secundaria (10° - 11°)</option>
-          <option value="universitario" ${nivel==='universitario'?'selected':''}>Universitario (Inicio)</option>
-          <option value="calculo" ${nivel==='calculo'?'selected':''}>Cálculo Avanzado</option>
-        </select>
-
-        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:.5rem;">Temas disponibles</label>
-        <p style="font-size:.8rem;color:var(--color-text-muted);margin-bottom:.75rem;">Marca los temas que quieres practicar. Solo estos aparecer&aacute;n en la lista de temas.</p>
-        <div style="display:flex;flex-direction:column;gap:.35rem;" id="profile-topics-list">
-          ${TOPICS.map(t => {
-            const disabled = !availableTopics.includes(t.id);
-            const checked = selected.includes(t.id);
-            return `<label class="profile-topic-row" style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:var(--radius-sm);background:${disabled?'var(--color-bg)':'transparent'};opacity:${disabled?0.5:1};cursor:${disabled?'not-allowed':'pointer'};">
-              <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''} onchange="onProfileTopicToggle('${t.id}', this.checked)" style="accent-color:var(--color-primary);">
-              <i class="ti ${t.icon}" style="font-size:1.1rem;color:var(--color-primary);"></i>
-              <span>${t.name}</span>
-              ${disabled?'<span style="font-size:.7rem;color:var(--color-text-muted);margin-left:auto;">No disponible en este nivel</span>':''}
-            </label>`;
-          }).join('')}
-        </div>
-
-        <div style="display:flex;gap:.5rem;margin-top:1.5rem;">
-          <button class="btn btn-primary" style="flex:1;" onclick="saveProfilePreferences()"><i class="ti ti-device-floppy"></i> Guardar</button>
-          <button class="btn btn-outline" onclick="hideProfilePanel()">Cancelar</button>
-        </div>
-      </div>
-    </div>`;
-}
-
-function onProfileNivelChange(newNivel) {
-  _profileNivelEducativo = newNivel;
-  // Resetear temas a los disponibles por defecto
-  _profileSelectedTopics = [...getTopicsForNivelLocal(newNivel)];
-  renderProfilePanel();
-}
-
-function onProfileTopicToggle(topicId, checked) {
-  if (checked) {
-    if (!_profileSelectedTopics.includes(topicId)) _profileSelectedTopics.push(topicId);
-  } else {
-    _profileSelectedTopics = _profileSelectedTopics.filter(t => t !== topicId);
-  }
-}
-
-async function saveProfilePreferences() {
+async function renderConfigDB(container) {
+  container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-text-muted);">Consultando conexi&oacute;n...</p></div>`;
   try {
-    const r = await fetch(`${API}/api/auth/preferences`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({
-        nivel_educativo: _profileNivelEducativo,
-        selected_topics: _profileSelectedTopics
-      })
-    });
-    if (!r.ok) { const d = await r.json(); alert(d.error || 'Error al guardar'); return; }
-    const data = await r.json();
-    state.nivel_educativo = data.user.nivel_educativo;
-    state.selected_topics = data.user.selected_topics;
-    state.user.nivel_educativo = data.user.nivel_educativo;
-    state.user.selected_topics = data.user.selected_topics;
-    hideProfilePanel();
-  } catch(e) { alert('Error de conexi&oacute;n'); }
+    const r = await fetch(`${API}/api/config/db`, { headers: { Authorization: `Bearer ${state.token}` } });
+    const db = await r.json();
+    container.innerHTML = `
+      <div class="card" style="margin-top:1rem;">
+        <h3><i class="ti ti-database"></i> Database</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem;">
+          <div><strong>Estado:</strong> <span style="color:${db.connected ? 'var(--color-success)' : 'var(--color-error)'};">${db.connected ? 'Conectada' : 'Sin conexi&oacute;n'}</span></div>
+          <div><strong>Origen:</strong> ${db.source || '-'}</div>
+          <div><strong>Host:</strong> ${db.host || '-'}</div>
+          <div><strong>Puerto:</strong> ${db.port || '-'}</div>
+          <div><strong>Base:</strong> ${db.activeDatabase || db.database || '-'}</div>
+          <div><strong>Usuario:</strong> ${db.activeUser || db.user || '-'}</div>
+          <div><strong>SSL:</strong> ${db.sslmode || '-'}</div>
+        </div>
+        ${db.error ? `<p style="color:var(--color-error);font-size:.85rem;margin-top:1rem;">${db.error}</p>` : ''}
+      </div>`;
+  } catch(e) {
+    container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-error);">No se pudo consultar la conexi&oacute;n.</p></div>`;
+  }
 }
 
 function uploadDoomVideo(key, input, isPng) {
