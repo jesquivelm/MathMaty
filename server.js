@@ -1035,7 +1035,8 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const excluded = Array.isArray(excludeIds)
       ? excludeIds.map(Number).filter(Number.isInteger)
       : [];
-    const requestedDifficulty = difficulty || 'basico';
+    const skipDifficulty = difficulty === 'any';
+    const requestedDifficulty = skipDifficulty ? null : (difficulty || 'basico');
     const difficultyGroups = {
       basico: ['basico', 'facil', 'media'],
       facil: ['basico', 'facil'],
@@ -1053,7 +1054,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         params.push(nivel);
         where.push(`nivel = $${params.length}`);
       }
-      if (useDifficulty) {
+      if (useDifficulty && !skipDifficulty) {
         params.push(difficultyList);
         where.push(`(difficulty = ANY($${params.length}::varchar[]) OR difficulty IS NULL)`);
       }

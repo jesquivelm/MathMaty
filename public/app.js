@@ -1246,9 +1246,12 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
   try {
     const mk = state.missionState.mission.isExam ? 'exam' : 'mission';
     const nivel = localStorage.getItem(`mm_${mk}_nivel`) || '';
+    const seenKey = 'mm_seen_' + state.missionState.mission.id;
+    const seen = JSON.parse(localStorage.getItem(seenKey) || '[]');
+    const excludeAll = [...new Set([...(state.missionState.exercises || []), ...seen])];
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel, strictExclude: true })
+      body:JSON.stringify({ topic: topicId, difficulty: 'any', excludeIds: excludeAll, nivel, strictExclude: true })
     });
     let data = await r.json();
     if (r.status === 409 && attemptedTopics.length < (state.missionState.mission.topics || []).length) {
@@ -1260,6 +1263,7 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     
     state.currentExercise = data;
     if (Number.isInteger(Number(data.id)) && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
+    if (Number.isInteger(Number(data.id)) && !seen.includes(data.id)) { seen.push(data.id); localStorage.setItem(seenKey, JSON.stringify(seen)); }
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
@@ -1380,6 +1384,7 @@ function endMission(reason) {
   // Revive after mission
   if (state.hp <= 0) state.hp = 30;
   
+  localStorage.removeItem('mm_seen_' + m.id);
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   saved[m.id] = { score, xpEarned, date: new Date().toISOString() };
   localStorage.setItem('mm_missions', JSON.stringify(saved));
