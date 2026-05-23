@@ -555,6 +555,7 @@ async function renderExercise(main) {
             <div id="ex-image-container" style="display:none;margin-bottom:1.5rem;text-align:center;"></div>
             <div id="ex-graph-container" class="hidden" style="width:100%;height:250px;margin-bottom:1rem;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             <div id="choice-area" class="choice-grid"></div>
+            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
           </div>
         </div>
         <div id="resolution-area" class="hidden">
@@ -647,6 +648,8 @@ async function generateNewExercise() {
       btn.onclick = () => checkChoice(c, btn);
       area.appendChild(btn);
     });
+    const repBtn = document.getElementById('report-btn');
+    if (repBtn) { repBtn.dataset.id = data.id; repBtn.style.display = ''; }
   } catch(e) {
     document.getElementById('ex-loading').innerHTML =
       `<div style="text-align:center;padding:1.5rem;">
@@ -692,8 +695,59 @@ function checkChoice(choice, btn) {
   saveExerciseToHistory(isCorrect);
   
   if (state.correctCount % 10 === 0 && isCorrect) setTimeout(triggerGame, 1000);
-  // Restore 1 HP per correct answer if dead
   if (state.hp <= 0 && isCorrect) state.hp = 5;
+}
+
+function showReportOption() {
+  const id = state.currentExercise.id;
+  if (!id || id < 0) return;
+  const repBtn = document.getElementById('report-btn');
+  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; }
+}
+
+function showReportDialog() {
+  const id = document.getElementById('report-btn')?.dataset?.id;
+  if (!id) return;
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);';
+  div.id = 'report-modal';
+  div.onclick = e => { if (e.target === div) div.remove(); };
+  div.innerHTML = `
+    <div class="card" style="max-width:480px;width:90%;padding:1.5rem;" onclick="event.stopPropagation()">
+      <h3 style="margin-bottom:.75rem;">Reportar ejercicio</h3>
+      <p style="font-size:.85rem;color:var(--color-text-secondary);margin-bottom:1rem;">¿Que tiene de incorrecto este ejercicio?</p>
+      <textarea id="report-comment" rows="3" style="width:100%;padding:.5rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font-family:inherit;resize:vertical;" placeholder="Opcional: describe el error..."></textarea>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('report-modal').remove()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="submitReport(${id})">Enviar reporte</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+async function submitReport(exerciseId) {
+  const comentario = document.getElementById('report-comment').value.trim();
+  try {
+    const r = await fetch(`${API}/api/exercises/${exerciseId}/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+      body: JSON.stringify({ comentario: comentario || undefined })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      document.getElementById('report-modal')?.remove();
+      const repBtn = document.getElementById('report-btn');
+      if (repBtn) { repBtn.style.display = 'none'; }
+      const mRepBtn = document.getElementById('mission-report-btn');
+      if (mRepBtn) { mRepBtn.style.display = 'none'; }
+      const repArea = document.getElementById('report-area');
+      if (repArea && !repArea.querySelector('.reportado')) repArea.insertAdjacentHTML('beforeend', '<span class="reportado" style="font-size:.78rem;color:var(--color-success);"><i class="ti ti-check"></i> Reportado</span>');
+    } else {
+      alert('Error: ' + (data.error || 'desconocido'));
+    }
+  } catch(e) {
+    alert('Error al enviar reporte');
+  }
 }
 
 function showExerciseResolution() {
@@ -948,6 +1002,7 @@ async function renderMissionRun(main) {
             <button class="btn btn-outline btn-sm" onclick="showMissionTheory()" id="mission-theory-btn" style="display:none;"><i class="ti ti-info-circle"></i> Teoría</button>
           </div>
           <div id="mission-choices" class="choice-grid"></div>
+          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
         </div>
       </div>
       <div id="mission-action" class="hidden">
@@ -1028,6 +1083,8 @@ async function loadMissionExercise(topicId) {
       btn.onclick = () => checkMissionChoice(c, btn);
       area.appendChild(btn);
     });
+    const mRepBtn = document.getElementById('mission-report-btn');
+    if (mRepBtn) { mRepBtn.dataset.id = data.id; mRepBtn.style.display = ''; }
   } catch(e) {
     document.getElementById('mission-loading').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
   }
