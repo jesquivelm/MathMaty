@@ -22,29 +22,14 @@ const port = process.env.PORT || 3030;
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
 const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/mathmaty';
 
-function normalizeDatabaseUrl(rawUrl) {
-  if (!rawUrl) return rawUrl;
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.searchParams.get('sslmode') === 'require' && !parsed.searchParams.has('uselibpqcompat')) {
-      parsed.searchParams.set('uselibpqcompat', 'true');
-    }
-    return parsed.toString();
-  } catch(e) {
-    return rawUrl;
-  }
-}
-
-const DATABASE_CONNECTION_STRING = normalizeDatabaseUrl(process.env.DATABASE_URL || DEFAULT_DATABASE_URL);
-
 const pool = new Pool({
-  connectionString: DATABASE_CONNECTION_STRING,
+  connectionString: process.env.DATABASE_URL || DEFAULT_DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
 function getDatabaseInfo() {
   const source = process.env.DATABASE_URL ? 'DATABASE_URL' : 'fallback local';
-  const rawUrl = DATABASE_CONNECTION_STRING;
+  const rawUrl = process.env.DATABASE_URL || DEFAULT_DATABASE_URL;
   try {
     const parsed = new URL(rawUrl);
     return {
@@ -1028,8 +1013,8 @@ function normalizeExerciseSteps(value) {
 
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
-    const { topic, difficulty, excludeIds = [], nivel, strictExclude = false } = req.body;
-    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}, Strict: ${!!strictExclude}`);
+    const { topic, difficulty, excludeIds = [], nivel } = req.body;
+    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}`);
     
     // 1. Intentar obtener de la DB
     const excluded = Array.isArray(excludeIds)
@@ -1067,7 +1052,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
 
     let dbRes = await pickExercise(true, true);
     if (dbRes.rows.length === 0) dbRes = await pickExercise(false, true);
-    if (dbRes.rows.length === 0 && excluded.length > 0 && !strictExclude) dbRes = await pickExercise(false, false);
+    if (dbRes.rows.length === 0 && excluded.length > 0) dbRes = await pickExercise(false, false);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
@@ -1095,12 +1080,6 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     }
 
     // 2. Si no hay en la DB, ofrecer ejercicios de respaldo
-    if (strictExclude && excluded.length > 0) {
-      const anyDbExercise = await pickExercise(false, false);
-      if (anyDbExercise.rows.length > 0) {
-        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
-      }
-    }
     const configRes = await pool.query('SELECT * FROM api_config ORDER BY prioridad DESC LIMIT 1');
     if (configRes.rows.length === 0 && !process.env.ANTHROPIC_API_KEY) {
       // Fallback: ejercicios genericos locales
@@ -1112,11 +1091,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
       };
       const fb = fallbacks[topic] || fallbacks['ecuaciones'];
-      const fallbackId = -Math.max(1, [...String(topic || 'fallback')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0));
-      if (strictExclude && excluded.includes(fallbackId)) {
-        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
-      }
-      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: fallbackId });
+      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: -1 });
     }
     const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
     Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
@@ -1150,50 +1125,15 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     };
 
     // Guardar para futuros usos
-    const inserted = await pool.query(
-      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+    await pool.query(
+      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [topic, generatedExercise.pregunta, generatedExercise.latex, JSON.stringify(generatedExercise.opciones), JSON.stringify(generatedExercise.pasos), generatedExercise.theory, difficulty || 'basico']
     );
 
-    res.json({ ...generatedExercise, id: inserted.rows[0]?.id || -1 });
+    res.json(generatedExercise);
   } catch (err) {
     console.error('Error al generar ejercicio:', err);
     res.status(500).json({ error: 'Error al generar ejercicio con IA' });
-  }
-});
-
-app.post('/api/exercises/:id/report', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { comentario } = req.body;
-    await pool.query(
-      `INSERT INTO exercise_reports (exercise_id, user_id, comentario)
-       VALUES ($1, $2, $3) ON CONFLICT (exercise_id, user_id) DO NOTHING`,
-      [id, req.user.id, comentario || null]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Error al reportar ejercicio:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/exercises/reported', authenticateToken, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT er.id, er.exercise_id, er.comentario, er.revisado, er.created_at,
-             u.username AS reportado_por,
-             e.topic_id, e.question, e.options, e.difficulty, e.source, e.exam_year
-      FROM exercise_reports er
-      JOIN users u ON u.id = er.user_id
-      JOIN exercises e ON e.id = er.exercise_id
-      WHERE er.revisado = FALSE
-      ORDER BY er.created_at DESC
-    `);
-    res.json(r.rows);
-  } catch (err) {
-    console.error('Error al obtener reportes:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
@@ -2379,12 +2319,6 @@ async function initDatabase() {
         inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP, fin TIMESTAMP,
         ejercicios_completados INTEGER DEFAULT 0, ejercicios_correctos INTEGER DEFAULT 0,
         xp_ganada INTEGER DEFAULT 0, juego_descanso BOOLEAN DEFAULT FALSE
-      )`,
-      `CREATE TABLE IF NOT EXISTS exercise_reports (
-        id SERIAL PRIMARY KEY, exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        comentario TEXT, revisado BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(exercise_id, user_id)
       )`,
     ];
     let count = 0;

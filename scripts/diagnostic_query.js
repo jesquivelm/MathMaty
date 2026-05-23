@@ -1,0 +1,27 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED='0';
+const{Pool}=require('pg');
+const p=new Pool({connectionString:process.env.DATABASE_URL||'postgresql://neondb_owner:npg_x5NnjheXrb4H@ep-broad-wildflower-aq3he37e-pooler.c-8.us-east.1.aws.neon.tech/mathmaty?sslmode=require',ssl:{rejectUnauthorized:false}});
+(async()=>{
+  console.log('=== NIVEL DISTRIBUTION ===');
+  let r=await p.query("SELECT COALESCE(nivel,'(NULL)') as nivel, COUNT(1)c FROM exercises GROUP BY nivel ORDER BY nivel");
+  r.rows.forEach(x=>console.log(x.nivel,'=>',x.c));
+  r=await p.query('SELECT COUNT(1) FROM exercises WHERE nivel IS NULL');
+  console.log('NULL nivel:',r.rows[0].count);
+  console.log('=== DIFFICULTY DISTRIBUTION ===');
+  r=await p.query("SELECT COALESCE(difficulty,'(NULL)') as d, COUNT(1)c FROM exercises GROUP BY difficulty ORDER BY difficulty");
+  r.rows.forEach(x=>console.log(x.d,'=>',x.c));
+  r=await p.query('SELECT COUNT(1) FROM exercises WHERE difficulty IS NULL');
+  console.log('NULL difficulty:',r.rows[0].count);
+  console.log('=== TOPICS WITHOUT THEORY ===');
+  r=await p.query("SELECT topic_id, COUNT(1) FROM exercises WHERE theory IS NULL OR theory = '' GROUP BY topic_id ORDER BY topic_id");
+  r.rows.forEach(x=>console.log(x.topic_id,'=>',x.count));
+  r=await p.query("SELECT COUNT(1) FROM exercises WHERE theory IS NULL OR theory = ''");
+  console.log('Total without theory:',r.rows[0].count);
+  console.log('=== TOPICS WITH IMAGEN ===');
+  r=await p.query("SELECT COUNT(1) FROM exercises WHERE imagen IS NOT NULL AND imagen != ''");
+  console.log('With imagen:',r.rows[0].count);
+  console.log('=== TOPIC LEVEL COUNTS ===');
+  r=await p.query("SELECT topic_id, nivel, COUNT(1)c FROM exercises GROUP BY topic_id, nivel ORDER BY topic_id, nivel");
+  r.rows.forEach(x=>console.log(x.topic_id.padEnd(22),String(x.nivel||'NULL').padEnd(10),x.c));
+  await p.end();
+})();

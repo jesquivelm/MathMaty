@@ -20,48 +20,22 @@ const app = express();
 const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/mathmaty';
 
-function normalizeDatabaseUrl(rawUrl) {
-  if (!rawUrl) return rawUrl;
-  try {
-    const parsed = new URL(rawUrl);
-    if (parsed.searchParams.get('sslmode') === 'require' && !parsed.searchParams.has('uselibpqcompat')) {
-      parsed.searchParams.set('uselibpqcompat', 'true');
-    }
-    return parsed.toString();
-  } catch(e) {
-    return rawUrl;
+const pool = new Pool(
+  process.env.DATABASE_URL ? {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  } : {
+    user: 'postgres',
+    host: 'localhost',
+    database: 'mathmaty',
+    password: 'Calg.1984', 
+    port: 5432,
   }
-}
-
-const DATABASE_CONNECTION_STRING = normalizeDatabaseUrl(process.env.DATABASE_URL || DEFAULT_DATABASE_URL);
-
-const pool = new Pool({
-  connectionString: DATABASE_CONNECTION_STRING,
-  ssl: { rejectUnauthorized: false }
-});
-
-function getDatabaseInfo() {
-  const source = process.env.DATABASE_URL ? 'DATABASE_URL' : 'fallback local';
-  const rawUrl = DATABASE_CONNECTION_STRING;
-  try {
-    const parsed = new URL(rawUrl);
-    return {
-      source,
-      host: parsed.hostname,
-      port: parsed.port || '5432',
-      database: parsed.pathname.replace(/^\//, '') || '-',
-      user: parsed.username || '-',
-      sslmode: parsed.searchParams.get('sslmode') || 'default'
-    };
-  } catch(e) {
-    return { source, host: 'No disponible', port: '-', database: '-', user: '-', sslmode: '-' };
-  }
-}
+);
 
 // Log database connection mode
-console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local fallback');
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local');
 console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
 if (process.env.DATABASE_URL) {
   console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
@@ -81,7 +55,7 @@ app.use(express.json({ limit: '50mb' }));
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => {
-  res.json({ ok: true, hasDb: !!process.env.DATABASE_URL });
+  res.json({ ok: true, env: process.env.VERCEL ? 'vercel' : 'local', hasDb: !!process.env.DATABASE_URL });
 });
 
 // Endpoint para subir imagenes
@@ -612,22 +586,15 @@ app.get('/api/refuerzo/ejercicios', authenticateToken, async (req, res) => {
     
     // Obtener ejercicios de los temas d&eacute;biles
     const topicIds = weakAreas.rows.map(row => row.topic_id);
-    const nivelFilter = req.query.nivel;
-    const refParams = [topicIds];
-    let refWhere = `e.topic_id = ANY($1::varchar[])`;
-    if (nivelFilter) {
-      refParams.push(nivelFilter);
-      refWhere += ` AND e.nivel = $${refParams.length}`;
-    }
     const exercises = await pool.query(
       `SELECT e.id, e.difficulty, e.question, e.math_expression, e.hint, 
               e.mana_tip, e.correct_solution, t.name as nombre_tema
        FROM exercises e
        INNER JOIN topics t ON e.topic_id = t.id
-       WHERE ${refWhere}
+       WHERE e.topic_id = ANY($1)
        ORDER BY RANDOM()
        LIMIT 10`,
-      refParams
+      [topicIds]
     );
     
     res.json({
@@ -718,16 +685,6 @@ app.post('/api/reporte/registrar-ejercicio', authenticateToken, async (req, res)
 });
 
 // ENDPOINTS DE CONFIGURACI&Oacute;N DE APIs
-
-app.get('/api/config/db', authenticateToken, async (req, res) => {
-  try {
-    const db = getDatabaseInfo();
-    const check = await pool.query('SELECT current_database() AS database, current_user AS user');
-    res.json({ ...db, connected: true, activeDatabase: check.rows[0].database, activeUser: check.rows[0].user });
-  } catch (err) {
-    res.json({ ...getDatabaseInfo(), connected: false, error: err.message });
-  }
-});
 
 // Obtener configuraciones de APIs del usuario
 app.get('/api/config/apis', authenticateToken, async (req, res) => {
@@ -862,17 +819,6 @@ app.post('/api/config/apis/test', authenticateToken, async (req, res) => {
 // 2. Endpoint de Misiones
 app.get('/api/misiones', async (req, res) => {
     try {
-        const { nivel, topic } = req.query;
-        const params = [];
-        const where = [];
-        if (nivel) {
-          params.push(nivel);
-          where.push(`e.nivel = $${params.length}`);
-        }
-        if (topic) {
-          params.push(topic);
-          where.push(`e.topic_id = $${params.length}`);
-        }
         const consulta = `
             SELECT 
                 e.id, 
@@ -880,15 +826,14 @@ app.get('/api/misiones', async (req, res) => {
                 e.question, 
                 e.math_expression, 
                 e.hint, 
-                e.mana_tip AS mana,
+                e.mana_tip AS ma&ntilde;a,
                 e.correct_solution, 
                 t.name AS nombre_tema
             FROM exercises e
             INNER JOIN topics t ON e.topic_id = t.id
-            ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
             ORDER BY e.id ASC;
         `;
-        const resultado = await pool.query(consulta, params);
+        const resultado = await pool.query(consulta);
         res.json(resultado.rows);
     } catch (err) {
         console.error("Error en misiones:", err);
@@ -972,106 +917,26 @@ async function callLLM(userId, prompt, systemPrompt = '') {
   }
 }
 
-const EXAM_EXERCISE_EXPR = `(nivel = 'tec-paa' OR topic_id LIKE 'tec-%' OR COALESCE(archivo_origen,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']) OR COALESCE(source,'') ILIKE ANY(ARRAY['%TEC%','%PAA%','%UNA%','%UCR%','%MATEM%','%admision%','%admisión%']))`;
-
-function parseJsonValue(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function normalizeExerciseOptions(value) {
-  const parsed = parseJsonValue(value);
-  let options = [];
-  let correct = '';
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExerciseSteps(value) {
-  const parsed = parseJsonValue(value);
-  if (!Array.isArray(parsed)) return [];
-  return parsed.map(step => ({
-    ...step,
-    math: cleanLatexValue(step?.math || ''),
-    expl: cleanMathDelimiters(step?.expl || '')
-  }));
-}
-
 app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   try {
-    const { topic, difficulty, excludeIds = [], nivel, strictExclude = false } = req.body;
-    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}, Nivel: ${nivel}, Strict: ${!!strictExclude}`);
+    const { topic, difficulty, excludeIds = [] } = req.body;
+    console.log(`[Exercise Request] Topic: ${topic}, Diff: ${difficulty}`);
     
     // 1. Intentar obtener de la DB
     const excluded = Array.isArray(excludeIds)
       ? excludeIds.map(Number).filter(Number.isInteger)
       : [];
-    const requestedDifficulty = difficulty || 'basico';
-    const difficultyGroups = {
-      basico: ['basico', 'facil', 'media'],
-      facil: ['basico', 'facil'],
-      media: ['media', 'facil'],
-      medio: ['media', 'facil'],
-      dificil: ['dificil', 'media']
-    };
-    const difficultyList = difficultyGroups[requestedDifficulty] || [requestedDifficulty];
-
-    async function pickExercise(useDifficulty, useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (nivel) {
-        params.push(nivel);
-        where.push(`nivel = $${params.length}`);
-      }
-      if (useDifficulty) {
-        params.push(difficultyList);
-        where.push(`(difficulty = ANY($${params.length}::varchar[]) OR difficulty IS NULL)`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      const query = `SELECT * FROM exercises WHERE ${where.join(' AND ')} ORDER BY RANDOM() LIMIT 1`;
-      return pool.query(query, params);
+    const params = [topic, difficulty || 'basico'];
+    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL)';
+    if (excluded.length > 0) {
+      params.push(excluded);
+      dbQuery += ' AND NOT (id = ANY($3::int[]))';
     }
-
-    let dbRes = await pickExercise(true, true);
-    if (dbRes.rows.length === 0) dbRes = await pickExercise(false, true);
-    if (dbRes.rows.length === 0 && excluded.length > 0 && !strictExclude) dbRes = await pickExercise(false, false);
+    dbQuery += ' ORDER BY RANDOM() LIMIT 1';
+    const dbRes = await pool.query(dbQuery, params);
 
     if (dbRes.rows.length > 0) {
       const ex = dbRes.rows[0];
-      const normalizedOptions = normalizeExerciseOptions(ex.options);
       let imageUrl = null;
       if (ex.question && ex.question.includes('<img src="')) {
         const match = ex.question.match(/<img src="([^"]+)"/);
@@ -1079,28 +944,19 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
       }
       return res.json({
         id: ex.id,
-        pregunta: cleanMathDelimiters(ex.question),
-        latex: cleanLatexValue(ex.latex_content),
-        opciones: normalizedOptions.options,
-        correcta: normalizedOptions.correct,
-        pasos: normalizeExerciseSteps(ex.solution_steps),
+        pregunta: ex.question,
+        latex: ex.latex_content,
+        opciones: ex.options,
+        pasos: ex.solution_steps,
         theory: ex.theory,
         source: ex.source,
         category: ex.category,
         exam_year: ex.exam_year,
-        nivel: ex.nivel,
-        archivo_origen: ex.archivo_origen,
         image: imageUrl
       });
     }
 
     // 2. Si no hay en la DB, ofrecer ejercicios de respaldo
-    if (strictExclude && excluded.length > 0) {
-      const anyDbExercise = await pickExercise(false, false);
-      if (anyDbExercise.rows.length > 0) {
-        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
-      }
-    }
     const configRes = await pool.query('SELECT * FROM api_config ORDER BY prioridad DESC LIMIT 1');
     if (configRes.rows.length === 0 && !process.env.ANTHROPIC_API_KEY) {
       // Fallback: ejercicios genericos locales
@@ -1112,11 +968,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         'exp-log': { pregunta:'Simplifica: log₂(8) + log₂(4)', latex:'log_2(8) + log_2(4)', opciones:['5','6','4','3'], pasos:[{math:'log₂(8) = 3',expl:'Porque 2³ = 8'},{math:'log₂(4) = 2',expl:'Porque 2² = 4'},{math:'3 + 2 = 5',expl:'Sumamos ambos resultados'}], theory:'El logaritmo es el exponente al que hay que elevar la base para obtener el argumento.' }
       };
       const fb = fallbacks[topic] || fallbacks['ecuaciones'];
-      const fallbackId = -Math.max(1, [...String(topic || 'fallback')].reduce((sum, ch) => sum + ch.charCodeAt(0), 0));
-      if (strictExclude && excluded.includes(fallbackId)) {
-        return res.status(409).json({ error: 'No hay más ejercicios nuevos para este ciclo' });
-      }
-      return res.json({ ...fb, latex: cleanLatexValue(fb.latex), pasos: normalizeExerciseSteps(fb.pasos), id: fallbackId });
+      return res.json({ ...fb, id: -1 });
     }
     const systemPrompt = `Eres un tutor de matem&aacute;ticas experto del TEC de Costa Rica. 
     Tu objetivo es ayudar a estudiantes de Prec&aacute;lculo.
@@ -1138,62 +990,17 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const result = await callLLM(req.user.id, prompt, systemPrompt);
     const cleanJson = result.replace(/```json|```/g, '').trim();
     const generated = JSON.parse(cleanJson);
-    const normalizedOptions = normalizeExerciseOptions(generated.opciones);
-    const normalizedSteps = normalizeExerciseSteps(generated.pasos);
-    const generatedExercise = {
-      ...generated,
-      pregunta: cleanMathDelimiters(generated.pregunta),
-      latex: cleanLatexValue(generated.latex),
-      opciones: normalizedOptions.options,
-      correcta: normalizedOptions.correct,
-      pasos: normalizedSteps
-    };
 
     // Guardar para futuros usos
-    const inserted = await pool.query(
-      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [topic, generatedExercise.pregunta, generatedExercise.latex, JSON.stringify(generatedExercise.opciones), JSON.stringify(generatedExercise.pasos), generatedExercise.theory, difficulty || 'basico']
+    await pool.query(
+      'INSERT INTO exercises (topic_id, question, latex_content, options, solution_steps, theory, difficulty) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [topic, generated.pregunta, generated.latex, JSON.stringify(generated.opciones), JSON.stringify(generated.pasos), generated.theory, difficulty || 'basico']
     );
 
-    res.json({ ...generatedExercise, id: inserted.rows[0]?.id || -1 });
+    res.json(generated);
   } catch (err) {
     console.error('Error al generar ejercicio:', err);
     res.status(500).json({ error: 'Error al generar ejercicio con IA' });
-  }
-});
-
-app.post('/api/exercises/:id/report', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { comentario } = req.body;
-    await pool.query(
-      `INSERT INTO exercise_reports (exercise_id, user_id, comentario)
-       VALUES ($1, $2, $3) ON CONFLICT (exercise_id, user_id) DO NOTHING`,
-      [id, req.user.id, comentario || null]
-    );
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Error al reportar ejercicio:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/exercises/reported', authenticateToken, async (req, res) => {
-  try {
-    const r = await pool.query(`
-      SELECT er.id, er.exercise_id, er.comentario, er.revisado, er.created_at,
-             u.username AS reportado_por,
-             e.topic_id, e.question, e.options, e.difficulty, e.source, e.exam_year
-      FROM exercise_reports er
-      JOIN users u ON u.id = er.user_id
-      JOIN exercises e ON e.id = er.exercise_id
-      WHERE er.revisado = FALSE
-      ORDER BY er.created_at DESC
-    `);
-    res.json(r.rows);
-  } catch (err) {
-    console.error('Error al obtener reportes:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1209,158 +1016,35 @@ app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   }
 });
 
-function parseJsonArray(value) {
-  const parsed = parseJsonValue(value);
-  if (Array.isArray(parsed)) return parsed;
-  if (parsed && typeof parsed === 'object') {
-    if (Array.isArray(parsed.o)) return parsed.o;
-    if (Array.isArray(parsed.options)) return parsed.options;
-  }
-  return [];
-}
-
-function exerciseToFlashcard(ex) {
-  const normalizedOptions = normalizeExerciseOptions(ex.options);
-  const steps = normalizeExerciseSteps(ex.solution_steps);
-  const correct = normalizedOptions.correct || normalizedOptions.options[0] || '';
-  const firstStep = steps.find(s => s && (s.expl || s.math)) || {};
-  const answerParts = [];
-  if (correct) answerParts.push(`Respuesta: ${correct}`);
-  if (firstStep.expl) answerParts.push(firstStep.expl);
-  const back = answerParts.join(' | ') || ex.theory || 'Revisa el procedimiento del ejercicio.';
-  return {
-    id: ex.id,
-    front: cleanMathDelimiters(ex.question) || cleanLatexValue(ex.latex_content) || 'Ejercicio de repaso',
-    back: cleanMathDelimiters(back),
-    latex_front: cleanLatexValue(ex.latex_content),
-    latex_back: cleanLatexValue(firstStep.math || ''),
-    source: ex.source || ex.archivo_origen || '',
-    nivel: ex.nivel || '',
-    difficulty: ex.difficulty || ''
-  };
-}
-
-app.post('/api/ai/generate-flashcards', authenticateToken, async (req, res) => {
-  try {
-    const topic = String(req.body.topic || '').trim();
-    const count = Math.min(50, Math.max(1, parseInt(req.body.count, 10) || 8));
-    const excluded = Array.isArray(req.body.excludeIds)
-      ? req.body.excludeIds.map(Number).filter(Number.isInteger)
-      : [];
-    if (!topic) return res.status(400).json({ error: 'Tema requerido' });
-
-    async function queryCards(useExcluded) {
-      const params = [topic];
-      const where = ['topic_id = $1'];
-      if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-      if (req.body.nivel) {
-        params.push(req.body.nivel);
-        where.push(`nivel = $${params.length}`);
-      }
-      if (useExcluded && excluded.length > 0) {
-        params.push(excluded);
-        where.push(`NOT (id = ANY($${params.length}::int[]))`);
-      }
-      params.push(count);
-      return pool.query(
-        `SELECT id, topic_id, question, latex_content, options, solution_steps, theory, difficulty, category, source, exam_year, nivel, archivo_origen
-         FROM exercises
-         WHERE ${where.join(' AND ')}
-         ORDER BY RANDOM()
-         LIMIT $${params.length}`,
-        params
-      );
-    }
-
-    let result = await queryCards(true);
-    if (result.rows.length === 0 && excluded.length > 0) result = await queryCards(false);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'No hay ejercicios para generar flashcards de este tema' });
-
-    res.json({
-      cards: result.rows.map(exerciseToFlashcard),
-      total: result.rows.length
-    });
-  } catch (err) {
-    console.error('Error generando flashcards:', err);
-    res.status(500).json({ error: 'Error al generar flashcards' });
-  }
-});
-
 // ADMIN: Banco de Ejercicios
 app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic, topics, nivel, tipo, q } = req.query;
-    const params = [];
-    const where = [];
-    if (topic) {
-      params.push(topic);
-      where.push(`topic_id = $${params.length}`);
-    } else if (topics) {
-      const topicList = String(topics).split(',').map(t => t.trim()).filter(Boolean);
-      if (topicList.length > 0) {
-        params.push(topicList);
-        where.push(`topic_id = ANY($${params.length}::varchar[])`);
-      }
-    }
-    if (nivel) {
-      params.push(nivel);
-      where.push(`nivel = $${params.length}`);
-    }
-    if (q) {
-      params.push(`%${q}%`);
-      where.push(`(question ILIKE $${params.length} OR COALESCE(source,'') ILIKE $${params.length} OR COALESCE(archivo_origen,'') ILIKE $${params.length})`);
-    }
-    if (tipo === 'examen') where.push(EXAM_EXERCISE_EXPR);
-    if (tipo === 'practica') where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
-    if (tipo === 'generado') where.push(`(archivo_origen = 'generacion-programatica' OR COALESCE(source,'') ILIKE 'gen-prog%')`);
-    const query = `
-      SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel,archivo_origen
-      FROM exercises
-      ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-      ORDER BY nivel NULLS LAST, topic_id, id DESC`;
-    const result = await pool.query(query, params);
+    const { topic } = req.query;
+    const q = topic
+      ? 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises WHERE topic_id=$1 ORDER BY id DESC'
+      : 'SELECT id,topic_id,question,difficulty,category,source,exam_year FROM exercises ORDER BY topic_id,id DESC';
+    const result = await pool.query(q, topic ? [topic] : []);
     res.json(result.rows);
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-app.get('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM exercises WHERE id=$1', [req.params.id]);
-    if (!result.rows.length) return res.status(404).json({error:'No encontrado'});
-    res.json(result.rows[0]);
   } catch(e) { res.status(500).json({error:e.message}); }
 });
 
 app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source } = req.body;
     await pool.query(
-      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,imagen,nivel)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [
-        topic_id, question, latex,
-        JSON.stringify(options), JSON.stringify(steps),
-        theory || null, difficulty || 'basico',
-        category || 'ejercicio', exam_year || null,
-        source || null, imagen || null, nivel || null
-      ]
-    );
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({error:e.message}); }
-});
-
-app.put('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
-  try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
-    await pool.query(
-      `UPDATE exercises SET topic_id=$1,question=$2,latex_content=$3,options=$4,solution_steps=$5,theory=$6,difficulty=$7,category=$8,exam_year=$9,source=$10,imagen=$11,nivel=$12 WHERE id=$13`,
-      [
-        topic_id, question, latex,
-        JSON.stringify(options), JSON.stringify(steps),
-        theory || null, difficulty || 'basico',
-        category || 'ejercicio', exam_year || null,
-        source || null, imagen || null, nivel || null,
-        req.params.id
+        topic_id,
+        question,
+        latex,
+        JSON.stringify(options),
+        JSON.stringify(steps),
+        theory || null,
+        difficulty || 'basico',
+        category || 'ejercicio',
+        exam_year || null,
+        source || null
       ]
     );
     res.json({ ok: true });
@@ -2266,176 +1950,37 @@ app.get('/api/auth/search-students', authenticateToken, async (req, res) => {
 
 async function initDatabase() {
   try {
-    const tables = [
-      `CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL, nombre VARCHAR(100) NOT NULL,
-        email VARCHAR(100) UNIQUE, rol VARCHAR(20) NOT NULL CHECK (rol IN ('estudiante','padre','admin')),
-        xp INTEGER DEFAULT 0, nivel INTEGER DEFAULT 1, hp INTEGER DEFAULT 100,
-        racha_actual INTEGER DEFAULT 0, racha_maxima INTEGER DEFAULT 0,
-        tiempo_practica INTEGER DEFAULT 0,
-        fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        ultimo_acceso TIMESTAMP DEFAULT CURRENT_TIMESTAMP, activo BOOLEAN DEFAULT TRUE
-      )`,
-      `CREATE TABLE IF NOT EXISTS exercises (
-        id SERIAL PRIMARY KEY, topic_id VARCHAR(50) NOT NULL,
-        question TEXT NOT NULL, latex_content TEXT, options JSONB NOT NULL,
-        solution_steps JSONB NOT NULL, theory TEXT,
-        difficulty VARCHAR(20) DEFAULT 'basico', category VARCHAR(50),
-        exam_year INTEGER, source TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS exercise_history (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        exercise_id INTEGER, topic_id VARCHAR(50) NOT NULL,
-        correcto BOOLEAN NOT NULL, tiempo_segundos INTEGER,
-        hp_antes INTEGER, hp_despues INTEGER, dificultad VARCHAR(20),
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS topic_progress (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        topic_id VARCHAR(50) NOT NULL, ejercicios_completados INTEGER DEFAULT 0,
-        ejercicios_correctos INTEGER DEFAULT 0, fallos_acumulados INTEGER DEFAULT 0,
-        ultima_practica TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, topic_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS knowledge_library (
-        id SERIAL PRIMARY KEY, topic_id VARCHAR(50) NOT NULL,
-        titulo VARCHAR(200) NOT NULL, contenido TEXT NOT NULL,
-        ejemplos JSONB, manas TEXT, nivel_desde INTEGER DEFAULT 1,
-        nivel_hasta INTEGER DEFAULT 10, orden INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS doom_videos (key VARCHAR(50) PRIMARY KEY, data TEXT NOT NULL)`,
-      `CREATE TABLE IF NOT EXISTS leaderboard (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        xp_total INTEGER DEFAULT 0, ejercicios_resueltos INTEGER DEFAULT 0,
-        tasa_exito DECIMAL(5,2) DEFAULT 0, racha_maxima INTEGER DEFAULT 0,
-        posicion_global INTEGER, ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS shop_items (
-        id SERIAL PRIMARY KEY, nombre VARCHAR(100) NOT NULL,
-        descripcion TEXT, tipo VARCHAR(30) NOT NULL, precio_xp INTEGER NOT NULL,
-        icono VARCHAR(200), efecto JSONB, stock INTEGER DEFAULT -1,
-        nivel_requerido INTEGER DEFAULT 1, activo BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS user_inventory (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        item_id INTEGER REFERENCES shop_items(id) ON DELETE CASCADE,
-        cantidad INTEGER DEFAULT 1, fecha_adquisicion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, item_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS badges (
-        id SERIAL PRIMARY KEY, codigo VARCHAR(50) UNIQUE NOT NULL,
-        nombre VARCHAR(100) NOT NULL, descripcion TEXT, icono VARCHAR(200),
-        tipo VARCHAR(30) NOT NULL, criterio JSONB NOT NULL,
-        xp_bonus INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS user_badges (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        badge_id INTEGER REFERENCES badges(id) ON DELETE CASCADE,
-        fecha_obtenido TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, badge_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS api_config (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        proveedor VARCHAR(50) NOT NULL, api_key_encrypted TEXT,
-        activa BOOLEAN DEFAULT TRUE, prioridad INTEGER DEFAULT 0,
-        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, proveedor)
-      )`,
-      `CREATE TABLE IF NOT EXISTS events (
-        id SERIAL PRIMARY KEY, titulo VARCHAR(200) NOT NULL, descripcion TEXT,
-        tipo VARCHAR(30) NOT NULL, tema_id VARCHAR(50),
-        fecha_inicio TIMESTAMP NOT NULL, fecha_fin TIMESTAMP NOT NULL,
-        xp_recompensa INTEGER DEFAULT 0, badge_recompensa VARCHAR(100),
-        requisito_nivel INTEGER DEFAULT 1, activo BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS event_participants (
-        id SERIAL PRIMARY KEY, event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        puntuacion INTEGER DEFAULT 0, ejercicios_completados INTEGER DEFAULT 0,
-        ejercicios_correctos INTEGER DEFAULT 0, tiempo_total_seg INTEGER DEFAULT 0,
-        posicion_final INTEGER, participo BOOLEAN DEFAULT FALSE,
-        UNIQUE(event_id, user_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS missions (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        mision_id VARCHAR(50), estado VARCHAR(20), progreso INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS xp_history (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        cantidad INTEGER NOT NULL, fuente VARCHAR(50) NOT NULL,
-        referencia_id INTEGER, timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`,
-      `CREATE TABLE IF NOT EXISTS parent_child_relations (
-        id SERIAL PRIMARY KEY, parent_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        child_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE(parent_id, child_id)
-      )`,
-      `CREATE TABLE IF NOT EXISTS game_sessions (
-        id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP, fin TIMESTAMP,
-        ejercicios_completados INTEGER DEFAULT 0, ejercicios_correctos INTEGER DEFAULT 0,
-        xp_ganada INTEGER DEFAULT 0, juego_descanso BOOLEAN DEFAULT FALSE
-      )`,
-      `CREATE TABLE IF NOT EXISTS exercise_reports (
-        id SERIAL PRIMARY KEY, exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        comentario TEXT, revisado BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(exercise_id, user_id)
-      )`,
-    ];
-    let count = 0;
-    for (const sql of tables) {
-      try { await pool.query(sql); count++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+    // Verificar que la tabla knowledge_library existe, si no, ejecutar schema
+    const check = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'knowledge_library'
+      )
+    `);
+    
+    if (!check.rows[0].exists) {
+      console.log('⚠️  Tablas no encontradas. Ejecutando schema automáticamente...');
+      const schemaPath = path.join(__dirname, 'database_schema.sql');
+      if (fs.existsSync(schemaPath)) {
+        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
+        const statements = schemaSql.split(';').filter(s => s.trim().length > 0);
+        for (const stmt of statements) {
+          try { await pool.query(stmt); } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+        }
+        console.log('✅  Schema ejecutado');
+      } else {
+        console.log('❌  No se encuentra database_schema.sql');
+      }
+    } else {
+      console.log('✅  Base de datos: todas las tablas presentes');
     }
-    console.log('✅  ' + count + '/' + tables.length + ' tablas creadas/verificadas');
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS imagen TEXT`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)`); } catch(e) {}
-    try { await pool.query(`ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT`); } catch(e) {}
   } catch (err) {
-    console.error('⚠️  Error de base de datos:', err.message);
+    console.error('⚠️  Error de base de datos:');
+    console.error('   Mensaje:', JSON.stringify(err.message));
+    console.error('   Code:', err.code);
+    console.error('   Stack:', (err.stack || '').split('\n').slice(0,4).join('\n'));
   }
 }
-
-// API: GET doom videos from database
-app.get('/api/doom-videos', async (req, res) => {
-  try {
-    const r = await pool.query('SELECT key, data FROM doom_videos');
-    const videos = {};
-    r.rows.forEach(row => { videos[row.key] = row.data; });
-    res.json(videos);
-  } catch(e) { res.json({}); }
-});
-
-// API: SAVE doom video to database
-app.post('/api/doom-videos', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
-      return res.status(403).json({ error: 'Solo administradores' });
-    }
-    const { key, image } = req.body;
-    if (!key || !image) return res.status(400).json({ error: 'Faltan campos' });
-    await pool.query(
-      `INSERT INTO doom_videos (key, data) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET data = $2`,
-      [key, image]
-    );
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
-
-// API: DELETE doom video
-app.delete('/api/doom-videos/:key', authenticateToken, async (req, res) => {
-  try {
-    if (req.user.rol !== 'padre' && req.user.rol !== 'admin') {
-      return res.status(403).json({ error: 'Solo administradores' });
-    }
-    await pool.query('DELETE FROM doom_videos WHERE key = $1', [req.params.key]);
-    res.json({ ok: true });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 initDatabase();
 app.listen(port, () => {

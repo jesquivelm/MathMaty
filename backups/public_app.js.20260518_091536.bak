@@ -29,19 +29,6 @@ const DOOM_HP_RANGES = [
 
 // HP thresholds for states: each slot covers (next_lower, threshold]
 const DOOM_HIT_THRESHOLDS = [100, 75, 50, 25, 10, 0];
-let _doomVideos = {};
-
-async function loadDoomVideos() {
-  try {
-    const r = await fetch('/api/doom-videos');
-    _doomVideos = await r.json();
-    window._doomVideos = _doomVideos;
-  } catch(e) { _doomVideos = {}; window._doomVideos = {}; }
-}
-
-async function reloadDoomVideos() {
-  await loadDoomVideos();
-}
 
 function getDoomThreshold(hp) {
   for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
@@ -106,7 +93,6 @@ const MATERIAS = [
 
 const NIVEL_NAMES = Object.fromEntries(NIVELES.map(n => [n.id, n.name]));
 const MATERIA_NAMES = Object.fromEntries(MATERIAS.map(m => [m.id, m.name]));
-const MATERIA_SHORT_NAMES = { matematica:'Matem&aacute;tica', admision:'Admisi&oacute;n', logica:'L&oacute;gica', espanol:'Verbal' };
 
 const TOPIC_NIVELES = {
   primaria: ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
@@ -155,65 +141,6 @@ function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos lo
   return `${allOption}${groups}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
 }
 
-function getNivelOrder(nivelId) {
-  const idx = NIVELES.findIndex(n => n.id === nivelId);
-  return idx === -1 ? NIVELES.length : idx;
-}
-
-function getMateriaOrder(materiaId) {
-  const idx = MATERIAS.findIndex(m => m.id === materiaId);
-  return idx === -1 ? MATERIAS.length : idx;
-}
-
-function getTopicOrder(topicId) {
-  const idx = TOPICS.findIndex(t => t.id === topicId);
-  return idx === -1 ? TOPICS.length : idx;
-}
-
-function sortNivelIds(ids = []) {
-  return [...ids].sort((a, b) => getNivelOrder(a) - getNivelOrder(b));
-}
-
-function getTopicPrimaryNivelId(topicId, preferredNivel = '') {
-  const levels = getTopicLevelIds(topicId);
-  if (preferredNivel && levels.includes(preferredNivel)) return preferredNivel;
-  return levels[0] || '';
-}
-
-function sortTopicsForHierarchy(topics, preferredNivel = '') {
-  return [...topics].sort((a, b) => {
-    const nivelDiff = getNivelOrder(getTopicPrimaryNivelId(a.id, preferredNivel)) - getNivelOrder(getTopicPrimaryNivelId(b.id, preferredNivel));
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getTopicMateriaId(a.id)) - getMateriaOrder(getTopicMateriaId(b.id));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(a.id) - getTopicOrder(b.id);
-    if (topicDiff) return topicDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
-}
-
-function renderHierarchyTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas', preferredNivel = '') {
-  const sorted = sortTopicsForHierarchy(topics, preferredNivel);
-  const used = new Set();
-  const groups = [];
-  NIVELES.forEach(nivel => {
-    MATERIAS.forEach(materia => {
-      const items = sorted.filter(t =>
-        !used.has(t.id) &&
-        getTopicPrimaryNivelId(t.id, preferredNivel) === nivel.id &&
-        getTopicMateriaId(t.id) === materia.id
-      );
-      items.forEach(t => used.add(t.id));
-      if (items.length) {
-        groups.push(`<optgroup label="${nivel.name} / ${materia.name}">${items.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>`);
-      }
-    });
-  });
-  const remaining = sorted.filter(t => !used.has(t.id));
-  const allOption = allLabel === null ? '' : `<option value="">${allLabel}</option>`;
-  return `${allOption}${groups.join('')}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
-}
-
 function getTopicLevelIds(topicId) {
   return NIVELES.filter(n => (TOPIC_NIVELES[n.id] || []).includes(topicId)).map(n => n.id);
 }
@@ -241,7 +168,6 @@ function renderCompactTopicNames(topicIds, limit = 3) {
 document.addEventListener('DOMContentLoaded', async () => {
   if (state.token) { await fetchProfile(); loadGlossary(); }
   else showAuth();
-  loadDoomVideos();
   initDoomWidget();
   initDraggableWhiteboard();
 });
@@ -399,7 +325,7 @@ async function handleLogin(e) {
   } else { document.getElementById('auth-error').textContent = data.error; }
 }
 
-function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; window.location.reload(); }
+function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; showAuth(); }
 
 // ============================================================
 // NAVEGACI&Oacute;N
@@ -408,11 +334,7 @@ function showView(view) {
   state.view = view;
   document.getElementById('auth-container')?.classList.add('hidden');
   document.getElementById('app-container')?.classList.remove('hidden');
-  const dw = document.getElementById('doom-widget');
-  if (dw) {
-    dw.classList.remove('hidden');
-    dw.style.display = 'flex';
-  }
+  document.getElementById('doom-widget')?.classList.remove('hidden');
   document.getElementById('sidebar')?.classList.remove('mobile-open');
   
   const main = document.getElementById('main-content');
@@ -615,7 +537,6 @@ async function renderExercise(main) {
             <div id="ex-image-container" style="display:none;margin-bottom:1.5rem;text-align:center;"></div>
             <div id="ex-graph-container" class="hidden" style="width:100%;height:250px;margin-bottom:1rem;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             <div id="choice-area" class="choice-grid"></div>
-            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
           </div>
         </div>
         <div id="resolution-area" class="hidden">
@@ -645,114 +566,30 @@ async function renderExercise(main) {
   await generateNewExercise();
 }
 
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function parseMaybeJson(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function normalizeExerciseOptions(value, correctValue = '') {
-  const parsed = parseMaybeJson(value);
-  let options = [];
-  let correct = correctValue;
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    if (!correct) correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    if (!correct) correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExercisePayload(data) {
-  const normalizedOptions = normalizeExerciseOptions(data?.opciones ?? data?.options, data?.correcta);
-  const pasos = Array.isArray(data?.pasos) ? data.pasos.map(p => ({
-    ...p,
-    math: cleanLatexValue(p?.math || ''),
-    expl: cleanMathDelimiters(p?.expl || '')
-  })) : [];
-  return {
-    ...data,
-    pregunta: cleanMathDelimiters(data?.pregunta || ''),
-    latex: cleanLatexValue(data?.latex || ''),
-    opciones: normalizedOptions.options,
-    correcta: normalizedOptions.correct,
-    pasos
-  };
-}
-
-function randomIndex(max) {
-  if (window.crypto?.getRandomValues) {
-    const value = new Uint32Array(1);
-    window.crypto.getRandomValues(value);
-    return value[0] % max;
-  }
-  return Math.floor(Math.random() * max);
-}
-
-function shuffleArray(items) {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomIndex(i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 function formatExerciseSource(data) {
-  const sourceParts = [];
-  if (data?.archivo_origen) sourceParts.push(data.archivo_origen);
-  if (data?.source) sourceParts.push(data.source);
-  if (data?.exam_year) sourceParts.push(`año ${data.exam_year}`);
-  const meta = [];
-  if (sourceParts.length) meta.push(`Fuente: ${sourceParts.join(' | ')}`);
-  if (Number(data?.id) > 0) meta.push(`ID producto: ${data.id}`);
-  return meta.join(' | ');
+  if (!data?.source && !data?.archivo_origen && !data?.exam_year) return '';
+  const parts = [];
+  if (data.archivo_origen) parts.push(data.archivo_origen);
+  if (data.source) parts.push(data.source);
+  if (data.exam_year) parts.push(`año ${data.exam_year}`);
+  return `Fuente: ${parts.join(' | ')}`;
 }
 
 async function generateNewExercise() {
   try {
-    const nivel = document.getElementById('topics-nivel-filter')?.value || '';
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
       body:JSON.stringify({
         topic: state.currentTopic.id,
         difficulty: state.currentDiff,
-        excludeIds: state.seenExerciseIds,
-        nivel,
-        strictExclude: true
+        excludeIds: state.seenExerciseIds   // ← evitar repetidos
       })
     });
-    let data = await r.json();
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
 
     // Registrar el ID para no repetirlo (máximo 200 para no sobrecargar)
-    if (Number.isInteger(Number(data.id))) {
+    if (data.id && data.id > 0) {
       if (!state.seenExerciseIds.includes(data.id)) {
         state.seenExerciseIds.push(data.id);
         if (state.seenExerciseIds.length > 200) state.seenExerciseIds.shift();
@@ -784,7 +621,7 @@ async function generateNewExercise() {
     
     const area = document.getElementById('choice-area');
     area.innerHTML = '';
-    const shuffled = shuffleArray(data.opciones);
+    const shuffled = [...data.opciones].sort(() => Math.random() - 0.5);
     shuffled.forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
@@ -792,13 +629,8 @@ async function generateNewExercise() {
       btn.onclick = () => checkChoice(c, btn);
       area.appendChild(btn);
     });
-    const repBtn = document.getElementById('report-btn');
-    if (repBtn) { repBtn.dataset.id = data.id; repBtn.style.display = ''; }
   } catch(e) {
-    const loading = document.getElementById('ex-loading');
-    document.getElementById('ex-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML =
+    document.getElementById('ex-loading').innerHTML =
       `<div style="text-align:center;padding:1.5rem;">
         <p style="color:var(--color-warning);font-size:1.05rem;">⚠️ No se pudo cargar el ejercicio</p>
         <p style="color:var(--color-text-muted);font-size:.85rem;margin:.5rem 0;">${e.message}</p>
@@ -812,11 +644,10 @@ async function generateNewExercise() {
 }
 
 function checkChoice(choice, btn) {
-  const correctAnswer = state.currentExercise.correcta || state.currentExercise.opciones[0];
-  const isCorrect = choice === correctAnswer;
+  const isCorrect = choice === state.currentExercise.opciones[0];
   document.querySelectorAll('.choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
   });
   
   let xpGanada = 100;
@@ -842,59 +673,8 @@ function checkChoice(choice, btn) {
   saveExerciseToHistory(isCorrect);
   
   if (state.correctCount % 10 === 0 && isCorrect) setTimeout(triggerGame, 1000);
+  // Restore 1 HP per correct answer if dead
   if (state.hp <= 0 && isCorrect) state.hp = 5;
-}
-
-function showReportOption() {
-  const id = state.currentExercise.id;
-  if (!id || id < 0) return;
-  const repBtn = document.getElementById('report-btn');
-  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; }
-}
-
-function showReportDialog() {
-  const id = document.getElementById('report-btn')?.dataset?.id;
-  if (!id) return;
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);';
-  div.id = 'report-modal';
-  div.onclick = e => { if (e.target === div) div.remove(); };
-  div.innerHTML = `
-    <div class="card" style="max-width:480px;width:90%;padding:1.5rem;" onclick="event.stopPropagation()">
-      <h3 style="margin-bottom:.75rem;">Reportar ejercicio</h3>
-      <p style="font-size:.85rem;color:var(--color-text-secondary);margin-bottom:1rem;">¿Que tiene de incorrecto este ejercicio?</p>
-      <textarea id="report-comment" rows="3" style="width:100%;padding:.5rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font-family:inherit;resize:vertical;" placeholder="Opcional: describe el error..."></textarea>
-      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('report-modal').remove()">Cancelar</button>
-        <button class="btn btn-primary btn-sm" onclick="submitReport(${id})">Enviar reporte</button>
-      </div>
-    </div>`;
-  document.body.appendChild(div);
-}
-
-async function submitReport(exerciseId) {
-  const comentario = document.getElementById('report-comment').value.trim();
-  try {
-    const r = await fetch(`${API}/api/exercises/${exerciseId}/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ comentario: comentario || undefined })
-    });
-    const data = await r.json();
-    if (data.ok) {
-      document.getElementById('report-modal')?.remove();
-      const repBtn = document.getElementById('report-btn');
-      if (repBtn) { repBtn.style.display = 'none'; }
-      const mRepBtn = document.getElementById('mission-report-btn');
-      if (mRepBtn) { mRepBtn.style.display = 'none'; }
-      const repArea = document.getElementById('report-area');
-      if (repArea && !repArea.querySelector('.reportado')) repArea.insertAdjacentHTML('beforeend', '<span class="reportado" style="font-size:.78rem;color:var(--color-success);"><i class="ti ti-check"></i> Reportado</span>');
-    } else {
-      alert('Error: ' + (data.error || 'desconocido'));
-    }
-  } catch(e) {
-    alert('Error al enviar reporte');
-  }
 }
 
 function showExerciseResolution() {
@@ -918,7 +698,7 @@ function showExerciseResolution() {
       </div>`;
     }).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
     // Show theory if available
     if (state.currentExercise.theory) {
@@ -1031,14 +811,12 @@ function renderMissions(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   const materia = localStorage.getItem('mm_mission_materia') || '';
   const nivel = localStorage.getItem('mm_mission_nivel') || '';
-  const savedTopic = localStorage.getItem('mm_mission_topic') || '';
-  const topic = getMissionFilterTopics(false, materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
   main.innerHTML = `
     <h2>Misiones de Resistencia</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Misiones por nivel, materia y tema. Cada tarjeta adapta los temas que entran en esa ruta.</p>
-    ${renderMissionFilters('mission', materia, nivel, topic)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Misiones por materia y nivel. Cada tarjeta adapta los temas que entran en esa ruta.</p>
+    ${renderMissionFilters('mission', materia, nivel)}
     <div id="mission-list" class="mission-grid">
-      ${renderMissionCards(false, saved, materia, nivel, topic)}
+      ${renderMissionCards(false, saved, materia, nivel)}
     </div>`;
 }
 
@@ -1046,100 +824,32 @@ function renderExams(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   const materia = localStorage.getItem('mm_exam_materia') || '';
   const nivel = localStorage.getItem('mm_exam_nivel') || '';
-  const savedTopic = localStorage.getItem('mm_exam_topic') || '';
-  const topic = getMissionFilterTopics(true, materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
   main.innerHTML = `
     <h2>Pruebas y Ex&aacute;menes</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Pruebas curriculares por nivel, materia y tema, con ex&aacute;menes de admisi&oacute;n separados.</p>
-    ${renderMissionFilters('exam', materia, nivel, topic)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Pruebas curriculares por tema/nivel y ex&aacute;menes de admisi&oacute;n separados.</p>
+    ${renderMissionFilters('exam', materia, nivel)}
     <div id="exam-list" class="mission-grid">
-      ${renderMissionCards(true, saved, materia, nivel, topic)}
+      ${renderMissionCards(true, saved, materia, nivel)}
     </div>`;
 }
 
-function renderMissionFilters(kind, materia, nivel, topic) {
-  const isExam = kind === 'exam';
+function renderMissionFilters(kind, materia, nivel) {
   return `
     <div class="filter-bar mission-filter-bar">
-      <span class="select-wrap"><select id="${kind}-nivel-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderNivelOptions(nivel)}</select></span>
       <span class="select-wrap"><select id="${kind}-materia-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderMateriaOptions(materia)}</select></span>
-      <span class="select-wrap"><select id="${kind}-topic-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderMissionTopicOptions(isExam, materia, nivel, topic)}</select></span>
+      <span class="select-wrap"><select id="${kind}-nivel-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderNivelOptions(nivel)}</select></span>
     </div>`;
 }
 
-function getMissionMateriaId(mission) {
-  return mission.materia || getTopicMateriaId(mission.topics?.[0]);
-}
-
-function getMissionNivelId(mission, preferredNivel = '') {
-  const niveles = sortNivelIds(mission.niveles || []);
-  if (preferredNivel && niveles.includes(preferredNivel)) return preferredNivel;
-  return niveles[0] || '';
-}
-
-function getMissionTopicId(mission, preferredTopic = '') {
-  const topics = (mission.topics || []).map(id => TOPICS.find(t => t.id === id)).filter(Boolean);
-  if (preferredTopic && topics.some(t => t.id === preferredTopic)) return preferredTopic;
-  return sortTopicsForHierarchy(topics, getMissionNivelId(mission))[0]?.id || '';
-}
-
-function getMissionFilterTopics(isExam, materia = '', nivel = '') {
-  const topicIds = new Set();
-  MISSIONS
-    .filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel, ''))
-    .forEach(m => (m.topics || []).forEach(id => {
-      const topic = TOPICS.find(t => t.id === id);
-      if (!topic) return;
-      if (materia && !topicMatchesMateria(topic, materia)) return;
-      if (nivel && !topicMatchesNivel(topic, nivel)) return;
-      topicIds.add(id);
-    }));
-  return sortTopicsForHierarchy([...topicIds].map(id => TOPICS.find(t => t.id === id)).filter(Boolean), nivel);
-}
-
-function renderMissionTopicOptions(isExam, materia = '', nivel = '', selected = '') {
-  return renderHierarchyTopicOptions(getMissionFilterTopics(isExam, materia, nivel), selected, 'Todos los temas', nivel);
-}
-
-function refreshMissionTopicOptions(kind) {
-  const isExam = kind === 'exam';
-  const materia = document.getElementById(`${kind}-materia-filter`)?.value || '';
-  const nivel = document.getElementById(`${kind}-nivel-filter`)?.value || '';
-  const select = document.getElementById(`${kind}-topic-filter`);
-  if (!select) return '';
-  const current = select.value;
-  const topics = getMissionFilterTopics(isExam, materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-  return select.value;
-}
-
-function missionMatchesFilters(mission, materia, nivel, topic) {
-  const missionMateria = getMissionMateriaId(mission);
+function missionMatchesFilters(mission, materia, nivel) {
+  const missionMateria = mission.materia || getTopicMateriaId(mission.topics?.[0]);
   if (materia && missionMateria !== materia) return false;
   if (nivel && !(mission.niveles || []).includes(nivel)) return false;
-  if (topic && !(mission.topics || []).includes(topic)) return false;
   return true;
 }
 
-function sortMissionsForHierarchy(missions, preferredNivel = '', preferredTopic = '') {
-  return [...missions].sort((a, b) => {
-    const nivelDiff = getNivelOrder(getMissionNivelId(a, preferredNivel)) - getNivelOrder(getMissionNivelId(b, preferredNivel));
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getMissionMateriaId(a)) - getMateriaOrder(getMissionMateriaId(b));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(getMissionTopicId(a, preferredTopic)) - getTopicOrder(getMissionTopicId(b, preferredTopic));
-    if (topicDiff) return topicDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
-}
-
-function renderMissionCards(isExam, saved, materia, nivel, topic) {
-  const list = sortMissionsForHierarchy(
-    MISSIONS.filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel, topic)),
-    nivel,
-    topic
-  );
+function renderMissionCards(isExam, saved, materia, nivel) {
+  const list = MISSIONS.filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel));
   if (!list.length) {
     return `<div class="card empty-state-card">No hay ${isExam ? 'ex&aacute;menes' : 'misiones'} para esa combinaci&oacute;n.</div>`;
   }
@@ -1147,8 +857,8 @@ function renderMissionCards(isExam, saved, materia, nivel, topic) {
 }
 
 function renderMissionCard(mission, done, isExam) {
-  const levelBadges = sortNivelIds(mission.niveles || []).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
-  const materia = MATERIA_NAMES[getMissionMateriaId(mission)] || 'Matem&aacute;tica';
+  const levelBadges = (mission.niveles || []).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
+  const materia = MATERIA_NAMES[mission.materia] || 'Matem&aacute;tica';
   return `<div class="card mission-card ${isExam ? 'exam-card' : 'game-mission'} ${done ? 'completed' : ''}">
     <div class="mission-icon-wrap">${mission.icon}</div>
     <div class="mission-body">
@@ -1174,36 +884,25 @@ function renderMissionCard(mission, done, isExam) {
 function updateMissionFilters(kind) {
   const materia = document.getElementById(`${kind}-materia-filter`)?.value || '';
   const nivel = document.getElementById(`${kind}-nivel-filter`)?.value || '';
-  const topic = refreshMissionTopicOptions(kind);
   localStorage.setItem(`mm_${kind}_materia`, materia);
   localStorage.setItem(`mm_${kind}_nivel`, nivel);
-  localStorage.setItem(`mm_${kind}_topic`, topic);
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   const list = document.getElementById(kind === 'exam' ? 'exam-list' : 'mission-list');
-  if (list) list.innerHTML = renderMissionCards(kind === 'exam', saved, materia, nivel, topic);
+  if (list) list.innerHTML = renderMissionCards(kind === 'exam', saved, materia, nivel);
 }
 
 function startMission(missionId) {
   const mission = MISSIONS.find(m => m.id === missionId);
   if (!mission) return;
-  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], topicQueue:shuffleArray(mission.topics || []), startTime: Date.now() };
+  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], startTime: Date.now() };
   _doomDeathPlayed = false;
   _prevHp = 100;
   showView('mission-run');
 }
 
-function getNextMissionTopic() {
-  const mission = state.missionState?.mission;
-  if (!mission) return TOPICS[0]?.id;
-  if (!state.missionState.topicQueue?.length) {
-    state.missionState.topicQueue = shuffleArray(mission.topics || []);
-  }
-  return state.missionState.topicQueue.shift() || mission.topics[0];
-}
-
 async function renderMissionRun(main) {
   const m = state.missionState.mission;
-  const topicId = getNextMissionTopic();
+  const topicId = m.topics[Math.floor(Math.random() * m.topics.length)];
   main.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:1rem;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -1230,7 +929,6 @@ async function renderMissionRun(main) {
             <button class="btn btn-outline btn-sm" onclick="showMissionTheory()" id="mission-theory-btn" style="display:none;"><i class="ti ti-info-circle"></i> Teoría</button>
           </div>
           <div id="mission-choices" class="choice-grid"></div>
-          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
         </div>
       </div>
       <div id="mission-action" class="hidden">
@@ -1261,24 +959,17 @@ function startExamTimer() {
   }, 1000);
 }
 
-async function loadMissionExercise(topicId, attemptedTopics = []) {
+async function loadMissionExercise(topicId) {
   try {
-    const mk = state.missionState.mission.isExam ? 'exam' : 'mission';
-    const nivel = localStorage.getItem(`mm_${mk}_nivel`) || '';
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel, strictExclude: true })
+      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [] })
     });
-    let data = await r.json();
-    if (r.status === 409 && attemptedTopics.length < (state.missionState.mission.topics || []).length) {
-      return loadMissionExercise(getNextMissionTopic(), [...attemptedTopics, topicId]);
-    }
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
     
     state.currentExercise = data;
-    if (Number.isInteger(Number(data.id)) && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
+    if (data.id && data.id > 0 && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
@@ -1311,29 +1002,23 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     
     const area = document.getElementById('mission-choices');
     area.innerHTML = '';
-    shuffleArray(data.opciones).forEach(c => {
+    [...data.opciones].sort(() => Math.random() - 0.5).forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.textContent = c;
       btn.onclick = () => checkMissionChoice(c, btn);
       area.appendChild(btn);
     });
-    const mRepBtn = document.getElementById('mission-report-btn');
-    if (mRepBtn) { mRepBtn.dataset.id = data.id; mRepBtn.style.display = ''; }
   } catch(e) {
-    const loading = document.getElementById('mission-loading');
-    document.getElementById('mission-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
+    document.getElementById('mission-loading').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
   }
 }
 
 function checkMissionChoice(choice, btn) {
-  const correctAnswer = state.currentExercise.correcta || state.currentExercise.opciones[0];
-  const isCorrect = choice === correctAnswer;
+  const isCorrect = choice === state.currentExercise.opciones[0];
   document.querySelectorAll('#mission-choices .choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
   });
   
   const penalty = state.missionState.mission.hpPenalty;
@@ -1365,7 +1050,7 @@ function checkMissionChoice(choice, btn) {
       </div>
     `).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
   }
   document.getElementById('mission-action').classList.remove('hidden');
@@ -1375,6 +1060,7 @@ function missionNext() {
   state.missionState.current++;
   if (state.missionState.hp <= 0) { endMission('Sin HP'); return; }
   if (state.missionState.current >= state.missionState.mission.count) { endMission('Completada'); return; }
+  const topicId = state.missionState.mission.topics[Math.floor(Math.random() * state.missionState.mission.topics.length)];
   renderMissionRun(document.getElementById('main-content'));
 }
 
@@ -1736,22 +1422,15 @@ async function useItem(itemId) {
 // BIBLIOTECA DE CONOCIMIENTO
 // ============================================================
 async function renderKnowledge(main) {
-  const nivel = localStorage.getItem('mm_knowledge_nivel') || '';
-  const materia = localStorage.getItem('mm_knowledge_materia') || '';
-  const savedTopic = localStorage.getItem('mm_knowledge_topic') || '';
-  const topic = getFilteredTopics(materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
   main.innerHTML = `
     <h2><i class="ti ti-library"></i> Biblioteca de Conocimiento</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Explicaciones detalladas, ejemplos y ma&ntilde;as organizadas por nivel, materia y tema.</p>
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Explicaciones detalladas, ejemplos y ma&ntilde;as organizadas por materia y nivel.</p>
     <div class="filter-bar">
       <span class="select-wrap">
-        <select id="knowledge-nivel" class="select-control" onchange="updateKnowledgeFilters()">${renderNivelOptions(nivel, 'Todos los niveles')}</select>
+        <select id="knowledge-materia" class="select-control" onchange="renderKnowledgeGrid()">${renderMateriaOptions()}</select>
       </span>
       <span class="select-wrap">
-        <select id="knowledge-materia" class="select-control" onchange="updateKnowledgeFilters()">${renderMateriaOptions(materia)}</select>
-      </span>
-      <span class="select-wrap">
-        <select id="knowledge-topic" class="select-control" onchange="updateKnowledgeFilters()">${renderHierarchyTopicOptions(getFilteredTopics(materia, nivel), topic, 'Todos los temas', nivel)}</select>
+        <select id="knowledge-nivel" class="select-control" onchange="renderKnowledgeGrid()">${renderNivelOptions('', 'Todos los niveles')}</select>
       </span>
     </div>
     <div id="knowledge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
@@ -1766,33 +1445,10 @@ async function renderKnowledge(main) {
   searchGlossary(); // Carga inicial
 }
 
-function refreshKnowledgeTopicOptions() {
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  const select = document.getElementById('knowledge-topic');
-  if (!select) return '';
-  const current = select.value;
-  const topics = getFilteredTopics(materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-  return select.value;
-}
-
-function updateKnowledgeFilters() {
-  const topic = refreshKnowledgeTopicOptions();
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  localStorage.setItem('mm_knowledge_nivel', nivel);
-  localStorage.setItem('mm_knowledge_materia', materia);
-  localStorage.setItem('mm_knowledge_topic', topic);
-  renderKnowledgeGrid();
-}
-
 function renderKnowledgeGrid() {
   const materia = document.getElementById('knowledge-materia')?.value || '';
   const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const topic = document.getElementById('knowledge-topic')?.value || '';
-  const topics = sortTopicsForHierarchy(getFilteredTopics(materia, nivel).filter(t => !topic || t.id === topic), nivel);
+  const topics = getFilteredTopics(materia, nivel);
   const grid = document.getElementById('knowledge-grid');
   if (!grid) return;
   grid.innerHTML = topics.length === 0
@@ -2198,17 +1854,16 @@ async function renderReports(main) {
 // ============================================================
 // CONFIGURACI&Oacute;N
 // ============================================================
-const CONFIG_TABS = ['ia', 'doom', 'db', 'cuenta'];
+const CONFIG_TABS = ['ia', 'doom', 'cuenta'];
 let currentConfigTab = 'ia';
 
 function renderConfig(main) {
   main.innerHTML = `
     <h2>Configuraci&oacute;n</h2>
     <div class="config-tabs">
-      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" data-tab="ia" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
-      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" data-tab="doom" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
-      <button class="config-tab ${currentConfigTab === 'db' ? 'active' : ''}" data-tab="db" onclick="switchConfigTab('db')"><i class="ti ti-database"></i> DB</button>
-      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" data-tab="cuenta" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
+      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
+      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
+      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
     </div>
     <div id="config-content"></div>`;
   switchConfigTab(currentConfigTab);
@@ -2216,13 +1871,12 @@ function renderConfig(main) {
 
 function switchConfigTab(tab) {
   currentConfigTab = tab;
-  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.textContent.includes(tab === 'ia' ? 'IA' : tab === 'doom' ? 'Doom' : 'Cuenta')));
   const container = document.getElementById('config-content');
   if (!container) return;
   
   if (tab === 'ia') renderConfigIA(container);
   else if (tab === 'doom') renderConfigDoom(container);
-  else if (tab === 'db') renderConfigDB(container);
   else if (tab === 'cuenta') renderConfigCuenta(container);
 }
 
@@ -2258,7 +1912,7 @@ function renderConfigIA(container) {
 }
 
 function renderConfigDoom(container) {
-  const doomVideos = _doomVideos;
+  const doomVideos = ( window._doomVideos || {});
   
   // 12 video slots exactly as the user described
   const slots = [
@@ -2336,30 +1990,6 @@ function renderConfigCuenta(container) {
     </div>`;
 }
 
-async function renderConfigDB(container) {
-  container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-text-muted);">Consultando conexi&oacute;n...</p></div>`;
-  try {
-    const r = await fetch(`${API}/api/config/db`, { headers: { Authorization: `Bearer ${state.token}` } });
-    const db = await r.json();
-    container.innerHTML = `
-      <div class="card" style="margin-top:1rem;">
-        <h3><i class="ti ti-database"></i> Database</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem;">
-          <div><strong>Estado:</strong> <span style="color:${db.connected ? 'var(--color-success)' : 'var(--color-error)'};">${db.connected ? 'Conectada' : 'Sin conexi&oacute;n'}</span></div>
-          <div><strong>Origen:</strong> ${db.source || '-'}</div>
-          <div><strong>Host:</strong> ${db.host || '-'}</div>
-          <div><strong>Puerto:</strong> ${db.port || '-'}</div>
-          <div><strong>Base:</strong> ${db.activeDatabase || db.database || '-'}</div>
-          <div><strong>Usuario:</strong> ${db.activeUser || db.user || '-'}</div>
-          <div><strong>SSL:</strong> ${db.sslmode || '-'}</div>
-        </div>
-        ${db.error ? `<p style="color:var(--color-error);font-size:.85rem;margin-top:1rem;">${db.error}</p>` : ''}
-      </div>`;
-  } catch(e) {
-    container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-error);">No se pudo consultar la conexi&oacute;n.</p></div>`;
-  }
-}
-
 function uploadDoomVideo(key, input, isPng) {
   const file = input.files[0];
   if (!file) return;
@@ -2376,15 +2006,17 @@ function uploadDoomVideo(key, input, isPng) {
       });
       const result = await r.json();
       if (result.ok) {
-        _doomVideos[key] = dataUrl;
+        window._doomVideos = window._doomVideos || {};
+        window._doomVideos[key] = result.url;
         if (labelEl) labelEl.textContent = file.name;
       } else {
         if (labelEl) labelEl.textContent = 'Error: ' + (result.error || 'desconocido');
+        console.error('uploadDoomVideo error:', result.error);
       }
     } catch(err) {
       if (labelEl) labelEl.textContent = 'Error al subir';
+      console.error('uploadDoomVideo error:', err);
     }
-    loadDoomVideos();
     switchConfigTab('doom');
   };
   reader.readAsDataURL(file);
@@ -2393,8 +2025,7 @@ function uploadDoomVideo(key, input, isPng) {
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
   fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } }).catch(() => {});
-  delete _doomVideos[key];
-  loadDoomVideos();
+  if (window._doomVideos) delete window._doomVideos[key];
   switchConfigTab('doom');
 }
 
@@ -2513,9 +2144,9 @@ function renderAdmin(main) {
   main.innerHTML = `
     <h2>Banco de Ejercicios</h2>
     <div class="filter-bar">
-      <span class="select-wrap"><select id="admin-nivel" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderNivelOptions('', 'Todos los niveles')}</select></span>
       <span class="select-wrap"><select id="admin-materia" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderMateriaOptions()}</select></span>
-      <span class="select-wrap"><select id="admin-filter" class="select-control" onchange="loadAdminList()">${renderHierarchyTopicOptions(TOPICS, '', 'Todos los temas')}</select></span>
+      <span class="select-wrap"><select id="admin-nivel" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderNivelOptions('', 'Todos los niveles')}</select></span>
+      <span class="select-wrap"><select id="admin-filter" class="select-control" onchange="loadAdminList()">${renderTopicOptions(TOPICS, '', 'Todos los temas')}</select></span>
       <span class="select-wrap"><select id="admin-tipo" class="select-control" onchange="loadAdminList()">
         <option value="">Todo tipo</option>
         <option value="practica">Práctica regular</option>
@@ -2539,7 +2170,7 @@ function refreshAdminTopicOptions() {
   if (!select) return;
   const current = select.value;
   const topics = getFilteredTopics(materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
+  select.innerHTML = renderTopicOptions(topics, current, 'Todos los temas');
   if (current && !topics.some(t => t.id === current)) select.value = '';
 }
 
@@ -2552,18 +2183,6 @@ function adminExerciseTipo(ex) {
 
 function nivelOptions(selected) {
   return NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('');
-}
-
-function sortAdminExercisesForHierarchy(exercises) {
-  return [...exercises].sort((a, b) => {
-    const nivelDiff = getNivelOrder(a.nivel) - getNivelOrder(b.nivel);
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getTopicMateriaId(a.topic_id)) - getMateriaOrder(getTopicMateriaId(b.topic_id));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(a.topic_id) - getTopicOrder(b.topic_id);
-    if (topicDiff) return topicDiff;
-    return (Number(b.id) || 0) - (Number(a.id) || 0);
-  });
 }
 
 function renderAddExerciseForm() {
@@ -2752,15 +2371,13 @@ async function loadAdminList() {
     const list = await r.json();
     if (!r.ok) throw new Error(list.error || 'Error cargando banco');
     if (!Array.isArray(list)) throw new Error('Respuesta inválida del banco');
-    const orderedList = sortAdminExercisesForHierarchy(list);
-    document.getElementById('admin-count').textContent = `${orderedList.length} ejercicio(s)`;
-    document.getElementById('admin-list').innerHTML = orderedList.map(ex => `
+    document.getElementById('admin-count').textContent = `${list.length} ejercicio(s)`;
+    document.getElementById('admin-list').innerHTML = list.map(ex => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:.65rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.35rem;gap:.75rem;">
         <div style="flex:1;font-size:.85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-width:0;">
           <span style="color:var(--color-text-muted);font-size:.7rem;">#${ex.id}</span>
-          ${ex.nivel ? `<span class="badge" style="background:var(--color-surface);font-size:.65rem;">${NIVEL_NAMES[ex.nivel] || ex.nivel}</span>` : ''}
-          <span class="badge" style="background:var(--color-surface);font-size:.65rem;">${MATERIA_SHORT_NAMES[getTopicMateriaId(ex.topic_id)] || 'Matem&aacute;tica'}</span>
           <span class="badge" style="background:var(--color-primary);">${TOPIC_NAMES[ex.topic_id] || ex.topic_id}</span>
+          ${ex.nivel ? `<span class="badge" style="background:var(--color-surface);font-size:.65rem;">${ex.nivel}</span>` : ''}
           <span class="badge" style="background:${adminExerciseTipo(ex)==='Examen'?'rgba(245,158,11,.2)':adminExerciseTipo(ex)==='Generado'?'rgba(59,130,246,.2)':'rgba(16,185,129,.16)'};color:var(--color-text-secondary);font-size:.65rem;">${adminExerciseTipo(ex)}</span>
           ${ex.imagen ? `<span class="badge" style="background:var(--color-success);font-size:.65rem;"><i class="ti ti-photo"></i></span>` : ''}
           <span style="margin-left:.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:180px;max-width:540px;">${(ex.question||'').replace(/<[^>]*>/g,' ').substring(0,90)}${(ex.question||'').length>90?'...':''}</span>
@@ -2874,46 +2491,39 @@ async function updateUI() {
 
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = _doomVideos;
+  const doomVideos = ( window._doomVideos || {});
   
   faceEl.className = 'doom-face';
   if (hp <= 0) faceEl.classList.add('dead');
   
-  // Reset death flag if HP recovered above 0
-  if (hp > 0) _doomDeathPlayed = false;
-
-  // Detect thresholds crossed when HP drops
+  // Check if HP dropped past a threshold → play transition video
   let playedTransition = false;
-  if (hp < _prevHp) {
-    // Collect ALL thresholds crossed in this drop
-    const crossed = [];
+  if (hp > 0 && hp < _prevHp) {
     for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
       const upper = DOOM_HIT_THRESHOLDS[i - 1];
       const lower = DOOM_HIT_THRESHOLDS[i];
-      if (_prevHp > lower && hp <= lower) crossed.push(upper);
-      else if (_prevHp > lower && hp > lower) break;
-    }
-    // Play the HIGHEST (first) threshold crossed
-    if (crossed.length > 0 && crossed[0] > 0) {
-      const hitKey = `hit_${crossed[0]}`;
-      const hitSrc = doomVideos[hitKey];
-      if (hitSrc) {
-        _doomPlayingHit = true;
-        video.style.display = 'block';
-        faceEl.style.backgroundImage = 'none';
-        video.src = hitSrc;
-        video.loop = false;
-        video.load();
-        video.play().catch(() => {});
-        video.onended = () => { _doomPlayingHit = false; updateDoomDisplay(hp); };
-        playedTransition = true;
+      if (_prevHp > lower && hp <= lower) {
+        const hitKey = `hit_${upper}`;
+        const hitSrc = doomVideos[hitKey];
+        if (hitSrc) {
+          _doomPlayingHit = true;
+          video.style.display = 'block';
+          faceEl.style.backgroundImage = 'none';
+          video.src = hitSrc;
+          video.loop = false;
+          video.load();
+          video.play().catch(() => {});
+          video.onended = () => { _doomPlayingHit = false; updateDoomDisplay(hp); };
+          playedTransition = true;
+          break;
+        }
       }
     }
   }
   _prevHp = hp;
   
-  // Death blow — always play, even if already played a hit (multi-threshold drop)
-  if (hp <= 0 && !_doomDeathPlayed) {
+  // Death blow
+  if (!playedTransition && hp <= 0 && !_doomDeathPlayed) {
     _doomDeathPlayed = true;
     const deathSrc = doomVideos['hit_0'];
     if (deathSrc) {
@@ -2937,7 +2547,7 @@ async function updateUI() {
 function updateDoomDisplay(hp) {
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = _doomVideos;
+  const doomVideos = ( window._doomVideos || {});
   
   if (hp <= 0) {
     if (video) video.style.display = 'none';
@@ -3508,24 +3118,6 @@ function initDoomWidget() {
       widget.style.right = 'auto';
     }
   } catch(e) {}
-
-  // Kickstart video autoplay on first user interaction (browsers block autoplay without gesture)
-  let _videoStarted = false;
-  function kickstartVideo() {
-    if (_videoStarted) return;
-    _videoStarted = true;
-    document.removeEventListener('click', kickstartVideo);
-    document.removeEventListener('touchstart', kickstartVideo);
-    const video = document.getElementById('doom-video');
-    if (video && window._doomVideos && window._doomVideos['idle_100']) {
-      video.src = window._doomVideos['idle_100'];
-      video.loop = true;
-      video.load().catch(()=>{});
-      video.play().catch(()=>{});
-    }
-  }
-  document.addEventListener('click', kickstartVideo, { once: true });
-  document.addEventListener('touchstart', kickstartVideo, { once: true });
 }
 
 // ============================================================
@@ -3623,7 +3215,7 @@ function renderFlashcards(main) {
             <span class="fc-field-label">Tema</span>
             <span class="select-wrap">
               <select id="fc-topic-select" class="select-control">
-                ${renderHierarchyTopicOptions(TOPICS, state.currentTopic?.id || TOPICS[0]?.id || '', null)}
+                ${renderTopicOptions(TOPICS, state.currentTopic?.id || TOPICS[0]?.id || '', null)}
               </select>
             </span>
           </label>
@@ -3636,8 +3228,6 @@ function renderFlashcards(main) {
                 <option value="12">12 cards</option>
                 <option value="18">18 cards</option>
                 <option value="25">25 cards</option>
-                <option value="35">35 cards</option>
-                <option value="50">50 cards</option>
               </select>
             </span>
           </label>
@@ -3731,8 +3321,6 @@ function renderFlashcardDeck(main) {
   const total = fcState.cards.length;
   const current = fcState.index;
   const card = fcState.cards[current];
-  const latexFront = cleanLatexValue(card.latex_front);
-  const latexBack = cleanLatexValue(card.latex_back);
   const progressPct = Math.round((current / total) * 100);
 
   main.innerHTML = `
@@ -3785,7 +3373,7 @@ function renderFlashcardDeck(main) {
             <div style="font-size:1.15rem;font-weight:600;line-height:1.6;color:var(--color-text);margin:0 0 1rem;">
               ${card.front}
             </div>
-            ${latexFront ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
+            ${card.latex_front ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
             <div style="margin-top:1.5rem;font-size:.78rem;color:var(--color-text-muted);">
               <i class="ti ti-hand-click"></i> Toca para ver la respuesta
             </div>
@@ -3812,7 +3400,7 @@ function renderFlashcardDeck(main) {
             <div style="font-size:1.05rem;line-height:1.7;color:var(--color-text);margin:0 0 1rem;">
               ${card.back}
             </div>
-            ${latexBack ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
+            ${card.latex_back ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
           </div>
         </div>
       </div>
@@ -3834,16 +3422,16 @@ function renderFlashcardDeck(main) {
     </div>`;
 
   // Renderizar LaTeX si hay
-  if (latexFront) {
+  if (card.latex_front) {
     setTimeout(() => {
       const el = document.getElementById('fc-latex-front');
-      if (el) try { katex.render(latexFront, el, { displayMode: true, throwOnError: false }); } catch(e) {}
+      if (el) try { katex.render(card.latex_front, el, { displayMode: true, throwOnError: false }); } catch(e) {}
     }, 50);
   }
-  if (latexBack) {
+  if (card.latex_back) {
     setTimeout(() => {
       const el = document.getElementById('fc-latex-back');
-      if (el) try { katex.render(latexBack, el, { displayMode: true, throwOnError: false }); } catch(e) {}
+      if (el) try { katex.render(card.latex_back, el, { displayMode: true, throwOnError: false }); } catch(e) {}
     }, 50);
   }
 

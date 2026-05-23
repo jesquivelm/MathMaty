@@ -5,10 +5,9 @@ const state = {
   currentTopic: null, currentDiff: 'basico', currentExercise: null,
   correctCount: 0, view: 'auth',
   token: localStorage.getItem('mathmaty_token'),
-  seenExerciseIds: [],   // IDs ya vistos — se mandan al backend para no repetir
   missionState: null, examTimer: null, activeEvent: null,
   whiteboardColor: '#3b82f6', whiteboardSize: 3, whiteboardMode: 'pen',
-  eraserSize: 20, shopFilter: 'all'
+  eraserSize: 20
 };
 
 // DoomGuy video slots: 12 videos + 1 PNG
@@ -29,19 +28,6 @@ const DOOM_HP_RANGES = [
 
 // HP thresholds for states: each slot covers (next_lower, threshold]
 const DOOM_HIT_THRESHOLDS = [100, 75, 50, 25, 10, 0];
-let _doomVideos = {};
-
-async function loadDoomVideos() {
-  try {
-    const r = await fetch('/api/doom-videos');
-    _doomVideos = await r.json();
-    window._doomVideos = _doomVideos;
-  } catch(e) { _doomVideos = {}; window._doomVideos = {}; }
-}
-
-async function reloadDoomVideos() {
-  await loadDoomVideos();
-}
 
 function getDoomThreshold(hp) {
   for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
@@ -88,160 +74,9 @@ const TOPICS = [
 
 const TOPIC_NAMES = Object.fromEntries(TOPICS.map(t => [t.id, t.name]));
 
-const NIVELES = [
-  { id:'primaria', name:'Primaria (1°-6°)' },
-  { id:'7mo', name:'7° año' },
-  { id:'8vo', name:'8° año' },
-  { id:'9no', name:'9° año' },
-  { id:'10-11', name:'10°-11° Bachillerato' },
-  { id:'tec-paa', name:'Admisión TEC/UNA/UCR' }
-];
-
-const MATERIAS = [
-  { id:'matematica', name:'Matemática MEP' },
-  { id:'admision', name:'Admisión matemática' },
-  { id:'logica', name:'Lógica' },
-  { id:'espanol', name:'Español / Verbal' }
-];
-
-const NIVEL_NAMES = Object.fromEntries(NIVELES.map(n => [n.id, n.name]));
-const MATERIA_NAMES = Object.fromEntries(MATERIAS.map(m => [m.id, m.name]));
-const MATERIA_SHORT_NAMES = { matematica:'Matem&aacute;tica', admision:'Admisi&oacute;n', logica:'L&oacute;gica', espanol:'Verbal' };
-
-const TOPIC_NIVELES = {
-  primaria: ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
-  '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica','razones-proporciones'],
-  '8vo': ['numeros-reales','polinomios','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones','ecuaciones'],
-  '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad','polinomios'],
-  '10-11': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones'],
-  'tec-paa': ['tec-logica','tec-matematica','tec-verbal']
-};
-
-function topicMatchesMateria(topic, materia) {
-  if (!materia) return true;
-  if (materia === 'matematica') return !topic.id.startsWith('tec-') && topic.id !== 'logica';
-  if (materia === 'admision') return topic.id === 'tec-matematica';
-  if (materia === 'logica') return ['logica','tec-logica'].includes(topic.id);
-  if (materia === 'espanol') return topic.id === 'tec-verbal';
-  return true;
-}
-
-function topicMatchesNivel(topic, nivel) {
-  if (!nivel) return true;
-  return (TOPIC_NIVELES[nivel] || []).includes(topic.id);
-}
-
-function getFilteredTopics(materia = '', nivel = '') {
-  return TOPICS.filter(t => topicMatchesMateria(t, materia) && topicMatchesNivel(t, nivel));
-}
-
-function renderMateriaOptions(selected = '') {
-  return `<option value="">Todas las materias</option>${MATERIAS.map(m => `<option value="${m.id}"${m.id===selected?' selected':''}>${m.name}</option>`).join('')}`;
-}
-
-function renderNivelOptions(selected = '', allLabel = 'Todos los niveles') {
-  return `<option value="">${allLabel}</option>${NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('')}`;
-}
-
-function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas') {
-  const used = new Set();
-  const groups = MATERIAS.map(m => {
-    const items = topics.filter(t => !used.has(t.id) && topicMatchesMateria(t, m.id));
-    items.forEach(t => used.add(t.id));
-    return items.length ? `<optgroup label="${m.name}">${items.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : '';
-  }).join('');
-  const remaining = topics.filter(t => !used.has(t.id));
-  const allOption = allLabel === null ? '' : `<option value="">${allLabel}</option>`;
-  return `${allOption}${groups}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
-}
-
-function getNivelOrder(nivelId) {
-  const idx = NIVELES.findIndex(n => n.id === nivelId);
-  return idx === -1 ? NIVELES.length : idx;
-}
-
-function getMateriaOrder(materiaId) {
-  const idx = MATERIAS.findIndex(m => m.id === materiaId);
-  return idx === -1 ? MATERIAS.length : idx;
-}
-
-function getTopicOrder(topicId) {
-  const idx = TOPICS.findIndex(t => t.id === topicId);
-  return idx === -1 ? TOPICS.length : idx;
-}
-
-function sortNivelIds(ids = []) {
-  return [...ids].sort((a, b) => getNivelOrder(a) - getNivelOrder(b));
-}
-
-function getTopicPrimaryNivelId(topicId, preferredNivel = '') {
-  const levels = getTopicLevelIds(topicId);
-  if (preferredNivel && levels.includes(preferredNivel)) return preferredNivel;
-  return levels[0] || '';
-}
-
-function sortTopicsForHierarchy(topics, preferredNivel = '') {
-  return [...topics].sort((a, b) => {
-    const nivelDiff = getNivelOrder(getTopicPrimaryNivelId(a.id, preferredNivel)) - getNivelOrder(getTopicPrimaryNivelId(b.id, preferredNivel));
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getTopicMateriaId(a.id)) - getMateriaOrder(getTopicMateriaId(b.id));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(a.id) - getTopicOrder(b.id);
-    if (topicDiff) return topicDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
-}
-
-function renderHierarchyTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas', preferredNivel = '') {
-  const sorted = sortTopicsForHierarchy(topics, preferredNivel);
-  const used = new Set();
-  const groups = [];
-  NIVELES.forEach(nivel => {
-    MATERIAS.forEach(materia => {
-      const items = sorted.filter(t =>
-        !used.has(t.id) &&
-        getTopicPrimaryNivelId(t.id, preferredNivel) === nivel.id &&
-        getTopicMateriaId(t.id) === materia.id
-      );
-      items.forEach(t => used.add(t.id));
-      if (items.length) {
-        groups.push(`<optgroup label="${nivel.name} / ${materia.name}">${items.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>`);
-      }
-    });
-  });
-  const remaining = sorted.filter(t => !used.has(t.id));
-  const allOption = allLabel === null ? '' : `<option value="">${allLabel}</option>`;
-  return `${allOption}${groups.join('')}${remaining.length ? `<optgroup label="Otros">${remaining.map(t => `<option value="${t.id}"${t.id===selected?' selected':''}>${t.name}</option>`).join('')}</optgroup>` : ''}`;
-}
-
-function getTopicLevelIds(topicId) {
-  return NIVELES.filter(n => (TOPIC_NIVELES[n.id] || []).includes(topicId)).map(n => n.id);
-}
-
-function getTopicMateriaId(topicId) {
-  const topic = TOPICS.find(t => t.id === topicId);
-  if (!topic) return 'matematica';
-  if (topic.id === 'tec-verbal') return 'espanol';
-  if (topic.id === 'tec-logica' || topic.id === 'logica') return 'logica';
-  if (topic.id === 'tec-matematica') return 'admision';
-  return 'matematica';
-}
-
-function renderTopicLevelBadges(topicId) {
-  const levels = getTopicLevelIds(topicId);
-  return levels.slice(0, 3).map(id => `<span class="topic-level-chip">${NIVEL_NAMES[id]}</span>`).join('') +
-    (levels.length > 3 ? `<span class="topic-level-chip">+${levels.length - 3}</span>` : '');
-}
-
-function renderCompactTopicNames(topicIds, limit = 3) {
-  const names = topicIds.map(id => TOPIC_NAMES[id] || id).filter(Boolean);
-  return names.slice(0, limit).join(', ') + (names.length > limit ? ` +${names.length - limit}` : '');
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
   if (state.token) { await fetchProfile(); loadGlossary(); }
   else showAuth();
-  loadDoomVideos();
   initDoomWidget();
   initDraggableWhiteboard();
 });
@@ -292,40 +127,10 @@ async function fetchProfile() {
       document.getElementById('parent-btn')?.classList.remove('hidden');
       document.getElementById('game-catalog-btn')?.classList.remove('hidden');
     }
-    await loadDoomVideosFromServer();
     await checkBadges();
     showView('home');
     updateUI();
   } catch(e) { logout(); }
-}
-
-async function loadDoomVideosFromServer() {
-  try {
-    const r = await fetch(`${API}/api/doom-videos`);
-    if (r.ok) {
-      const raw = await r.json();
-      // Fix Cloudinary URLs for iOS Safari — must end in .mp4
-      window._doomVideos = {};
-      for (const key in raw) {
-        window._doomVideos[key] = fixVideoUrl(raw[key]);
-      }
-    }
-  } catch(e) {
-    console.warn('No se pudieron cargar los doom videos:', e.message);
-    window._doomVideos = {};
-  }
-}
-
-function fixVideoUrl(url) {
-  if (!url) return url;
-  // Cloudinary video URLs need .mp4 for iOS Safari
-  if (url.includes('res.cloudinary.com') && url.includes('/video/upload/')) {
-    if (!url.endsWith('.mp4') && !url.endsWith('.webm') && !url.endsWith('.ogg')) {
-      // Add f_mp4 format transformation and .mp4 extension
-      return url.replace('/video/upload/', '/video/upload/f_mp4,vc_h264/') + '.mp4';
-    }
-  }
-  return url;
 }
 
 function showAuth() {
@@ -399,7 +204,7 @@ async function handleLogin(e) {
   } else { document.getElementById('auth-error').textContent = data.error; }
 }
 
-function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; window.location.reload(); }
+function logout() { localStorage.removeItem('mathmaty_token'); state.token = null; showAuth(); }
 
 // ============================================================
 // NAVEGACI&Oacute;N
@@ -408,11 +213,7 @@ function showView(view) {
   state.view = view;
   document.getElementById('auth-container')?.classList.add('hidden');
   document.getElementById('app-container')?.classList.remove('hidden');
-  const dw = document.getElementById('doom-widget');
-  if (dw) {
-    dw.classList.remove('hidden');
-    dw.style.display = 'flex';
-  }
+  document.getElementById('doom-widget')?.classList.remove('hidden');
   document.getElementById('sidebar')?.classList.remove('mobile-open');
   
   const main = document.getElementById('main-content');
@@ -422,8 +223,7 @@ function showView(view) {
     'parent-dashboard': renderParentDashboard, missions: renderMissions,
     exams: renderExams, admin: renderAdmin, 'mission-run': renderMissionRun,
     events: renderEvents, badges: renderBadges, shop: renderShop,
-    knowledge: renderKnowledge, 'game-catalog': renderGameCatalog,
-    flashcards: renderFlashcards
+    knowledge: renderKnowledge, 'game-catalog': renderGameCatalog
   };
   if (views[view]) views[view](main);
   else renderHome(main);
@@ -521,57 +321,31 @@ async function renderHome(main) {
 // TEMAS / TOPICS
 // ============================================================
 function renderTopics(main) {
-  const materia = localStorage.getItem('mm_topics_materia') || '';
-  const nivel = localStorage.getItem('mm_topics_nivel') || '';
-  const topics = getFilteredTopics(materia, nivel);
   main.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-      <h2>Temas por materia</h2>
+      <h2>Temas de Prec&aacute;lculo</h2>
       <button class="btn btn-outline btn-sm" onclick="openSolver()"><i class="ti ti-robot"></i> Resolver</button>
     </div>
-    <div class="filter-bar topic-filter-bar">
-      <span class="select-wrap"><select id="topics-materia-filter" class="select-control" onchange="updateTopicsFilter()">${renderMateriaOptions(materia)}</select></span>
-      <span class="select-wrap"><select id="topics-nivel-filter" class="select-control" onchange="updateTopicsFilter()">${renderNivelOptions(nivel)}</select></span>
-    </div>
-    <div id="topics-grid" class="topic-grid">
-      ${renderTopicCards(topics)}
-    </div>`;
-}
-
-function renderTopicCards(topics) {
-  if (!topics.length) {
-    return `<div class="card empty-state-card">No hay temas para esa combinaci&oacute;n.</div>`;
-  }
-  return topics.map(t => `
-    <div class="card topic-card">
-      <div class="topic-card-head">
-        <i class="ti ${t.icon} topic-card-icon"></i>
-        <div class="topic-card-title">
-          <h3>${t.name}</h3>
-          <div class="topic-chip-row">
-            <span class="topic-level-chip">${MATERIA_NAMES[getTopicMateriaId(t.id)] || 'Matem&aacute;tica'}</span>
-            ${renderTopicLevelBadges(t.id)}
+    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Selecciona un tema para practicar. Cada tema tiene teor&iacute;a, ejemplos y ejercicios.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;">
+    ${TOPICS.map(t => `
+      <div class="card topic-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
+            <h3>${t.name}</h3>
+            <span class="badge parcial">Parcial ${t.parcial}</span>
           </div>
         </div>
+        <p style="font-size:.85rem;color:var(--color-text-secondary);margin:.75rem 0;line-height:1.6;">${t.teoria}</p>
+        <div class="topic-actions">
+          <button class="btn btn-primary btn-sm" onclick="startExercise('${t.id}')"><i class="ti ti-player-play"></i> Practicar</button>
+          <button class="btn btn-outline btn-sm" onclick="openKnowledgeTopic('${t.id}')"><i class="ti ti-book"></i> Teor&iacute;a</button>
+          <button class="btn btn-outline btn-sm" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i> Examen</button>
+        </div>
       </div>
-      <p class="topic-card-desc">${t.teoria}</p>
-      <div class="topic-actions">
-        <button class="btn btn-primary btn-sm" onclick="startExercise('${t.id}')"><i class="ti ti-player-play"></i> Practicar</button>
-        <button class="btn btn-outline btn-sm" onclick="startFlashcardsForTopic('${t.id}')"><i class="ti ti-cards"></i> Flashcards</button>
-        <button class="btn btn-outline btn-sm" onclick="openKnowledgeTopic('${t.id}')"><i class="ti ti-book"></i> Teor&iacute;a</button>
-        <button class="btn btn-outline btn-sm" onclick="showView('exams')"><i class="ti ti-clipboard-list"></i> Examen</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-function updateTopicsFilter() {
-  const materia = document.getElementById('topics-materia-filter')?.value || '';
-  const nivel = document.getElementById('topics-nivel-filter')?.value || '';
-  localStorage.setItem('mm_topics_materia', materia);
-  localStorage.setItem('mm_topics_nivel', nivel);
-  const grid = document.getElementById('topics-grid');
-  if (grid) grid.innerHTML = renderTopicCards(getFilteredTopics(materia, nivel));
+    `).join('')}
+    </div>`;
 }
 
 // ============================================================
@@ -579,7 +353,6 @@ function updateTopicsFilter() {
 // ============================================================
 function startExercise(topicId) {
   state.currentTopic = TOPICS.find(t => t.id === topicId);
-  state.seenExerciseIds = [];   // ← reiniciar al cambiar de tema
   _doomDeathPlayed = false;
   _prevHp = 100;
   showView('exercise');
@@ -615,7 +388,6 @@ async function renderExercise(main) {
             <div id="ex-image-container" style="display:none;margin-bottom:1.5rem;text-align:center;"></div>
             <div id="ex-graph-container" class="hidden" style="width:100%;height:250px;margin-bottom:1rem;background:var(--color-bg);border-radius:var(--radius-md);overflow:hidden;"></div>
             <div id="choice-area" class="choice-grid"></div>
-            <div id="report-area" style="margin-top:.75rem;text-align:right;"><button class="btn btn-outline btn-xs" id="report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
           </div>
         </div>
         <div id="resolution-area" class="hidden">
@@ -645,119 +417,22 @@ async function renderExercise(main) {
   await generateNewExercise();
 }
 
-function cleanLatexValue(value) {
-  if (typeof value !== 'string') return value || '';
-  return value
-    .replace(/\$\$([\s\S]*?)\$\$/g, '$1')
-    .replace(/\\\$/g, '')
-    .replace(/\$([^$]*)\$/g, '$1')
-    .replace(/\\\(|\\\)|\\\[|\\\]/g, '')
-    .replace(/\$/g, '')
-    .trim();
-}
-
-function cleanMathDelimiters(value) {
-  if (typeof value !== 'string') return value || '';
-  let text = value.replace(/\$\$([\s\S]*?)\$\$/g, '$1');
-  text = text.replace(/\$([^$]*?(?:\\|frac|sqrt|lim|int|sum|prod|cdot|times|circ|infty|alpha|beta|gamma|theta|pi|\^|_|[{}])[^$]*?)\$/g, '$1');
-  const trimmed = text.trim();
-  return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
-}
-
-function parseMaybeJson(value) {
-  if (typeof value !== 'string') return value;
-  try { return JSON.parse(value); } catch(e) { return value; }
-}
-
-function normalizeExerciseOptions(value, correctValue = '') {
-  const parsed = parseMaybeJson(value);
-  let options = [];
-  let correct = correctValue;
-  if (Array.isArray(parsed)) {
-    options = parsed;
-    if (!correct) correct = parsed[0] || '';
-  } else if (parsed && typeof parsed === 'object') {
-    options = Array.isArray(parsed.o) ? parsed.o : (Array.isArray(parsed.options) ? parsed.options : []);
-    const index = Number(parsed.ci);
-    if (!correct) correct = Number.isInteger(index) && index >= 0 && index < options.length
-      ? options[index]
-      : (parsed.correcta || parsed.correct || options[0] || '');
-  }
-  options = options.map(o => cleanMathDelimiters(String(o ?? ''))).filter(Boolean);
-  return { options, correct: cleanMathDelimiters(String(correct || options[0] || '')) };
-}
-
-function normalizeExercisePayload(data) {
-  const normalizedOptions = normalizeExerciseOptions(data?.opciones ?? data?.options, data?.correcta);
-  const pasos = Array.isArray(data?.pasos) ? data.pasos.map(p => ({
-    ...p,
-    math: cleanLatexValue(p?.math || ''),
-    expl: cleanMathDelimiters(p?.expl || '')
-  })) : [];
-  return {
-    ...data,
-    pregunta: cleanMathDelimiters(data?.pregunta || ''),
-    latex: cleanLatexValue(data?.latex || ''),
-    opciones: normalizedOptions.options,
-    correcta: normalizedOptions.correct,
-    pasos
-  };
-}
-
-function randomIndex(max) {
-  if (window.crypto?.getRandomValues) {
-    const value = new Uint32Array(1);
-    window.crypto.getRandomValues(value);
-    return value[0] % max;
-  }
-  return Math.floor(Math.random() * max);
-}
-
-function shuffleArray(items) {
-  const arr = [...items];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = randomIndex(i + 1);
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 function formatExerciseSource(data) {
-  const sourceParts = [];
-  if (data?.archivo_origen) sourceParts.push(data.archivo_origen);
-  if (data?.source) sourceParts.push(data.source);
-  if (data?.exam_year) sourceParts.push(`año ${data.exam_year}`);
-  const meta = [];
-  if (sourceParts.length) meta.push(`Fuente: ${sourceParts.join(' | ')}`);
-  if (Number(data?.id) > 0) meta.push(`ID producto: ${data.id}`);
-  return meta.join(' | ');
+  if (!data?.source && !data?.exam_year) return '';
+  const parts = [];
+  if (data.source) parts.push(data.source);
+  if (data.exam_year) parts.push(`año ${data.exam_year}`);
+  return `Fuente: ${parts.join(' | ')}`;
 }
 
 async function generateNewExercise() {
   try {
-    const nivel = document.getElementById('topics-nivel-filter')?.value || '';
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({
-        topic: state.currentTopic.id,
-        difficulty: state.currentDiff,
-        excludeIds: state.seenExerciseIds,
-        nivel,
-        strictExclude: true
-      })
+      body:JSON.stringify({ topic: state.currentTopic.id, difficulty: state.currentDiff })
     });
-    let data = await r.json();
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
-
-    // Registrar el ID para no repetirlo (máximo 200 para no sobrecargar)
-    if (Number.isInteger(Number(data.id))) {
-      if (!state.seenExerciseIds.includes(data.id)) {
-        state.seenExerciseIds.push(data.id);
-        if (state.seenExerciseIds.length > 200) state.seenExerciseIds.shift();
-      }
-    }
     
     state.currentExercise = data;
     document.getElementById('ex-loading').classList.add('hidden');
@@ -784,7 +459,7 @@ async function generateNewExercise() {
     
     const area = document.getElementById('choice-area');
     area.innerHTML = '';
-    const shuffled = shuffleArray(data.opciones);
+    const shuffled = [...data.opciones].sort(() => Math.random() - 0.5);
     shuffled.forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
@@ -792,13 +467,8 @@ async function generateNewExercise() {
       btn.onclick = () => checkChoice(c, btn);
       area.appendChild(btn);
     });
-    const repBtn = document.getElementById('report-btn');
-    if (repBtn) { repBtn.dataset.id = data.id; repBtn.style.display = ''; }
   } catch(e) {
-    const loading = document.getElementById('ex-loading');
-    document.getElementById('ex-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML =
+    document.getElementById('ex-loading').innerHTML =
       `<div style="text-align:center;padding:1.5rem;">
         <p style="color:var(--color-warning);font-size:1.05rem;">⚠️ No se pudo cargar el ejercicio</p>
         <p style="color:var(--color-text-muted);font-size:.85rem;margin:.5rem 0;">${e.message}</p>
@@ -812,11 +482,10 @@ async function generateNewExercise() {
 }
 
 function checkChoice(choice, btn) {
-  const correctAnswer = state.currentExercise.correcta || state.currentExercise.opciones[0];
-  const isCorrect = choice === correctAnswer;
+  const isCorrect = choice === state.currentExercise.opciones[0];
   document.querySelectorAll('.choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
   });
   
   let xpGanada = 100;
@@ -842,59 +511,8 @@ function checkChoice(choice, btn) {
   saveExerciseToHistory(isCorrect);
   
   if (state.correctCount % 10 === 0 && isCorrect) setTimeout(triggerGame, 1000);
+  // Restore 1 HP per correct answer if dead
   if (state.hp <= 0 && isCorrect) state.hp = 5;
-}
-
-function showReportOption() {
-  const id = state.currentExercise.id;
-  if (!id || id < 0) return;
-  const repBtn = document.getElementById('report-btn');
-  if (repBtn) { repBtn.dataset.id = id; repBtn.style.display = ''; }
-}
-
-function showReportDialog() {
-  const id = document.getElementById('report-btn')?.dataset?.id;
-  if (!id) return;
-  const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);';
-  div.id = 'report-modal';
-  div.onclick = e => { if (e.target === div) div.remove(); };
-  div.innerHTML = `
-    <div class="card" style="max-width:480px;width:90%;padding:1.5rem;" onclick="event.stopPropagation()">
-      <h3 style="margin-bottom:.75rem;">Reportar ejercicio</h3>
-      <p style="font-size:.85rem;color:var(--color-text-secondary);margin-bottom:1rem;">¿Que tiene de incorrecto este ejercicio?</p>
-      <textarea id="report-comment" rows="3" style="width:100%;padding:.5rem;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-bg);color:var(--color-text);font-family:inherit;resize:vertical;" placeholder="Opcional: describe el error..."></textarea>
-      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
-        <button class="btn btn-outline btn-sm" onclick="document.getElementById('report-modal').remove()">Cancelar</button>
-        <button class="btn btn-primary btn-sm" onclick="submitReport(${id})">Enviar reporte</button>
-      </div>
-    </div>`;
-  document.body.appendChild(div);
-}
-
-async function submitReport(exerciseId) {
-  const comentario = document.getElementById('report-comment').value.trim();
-  try {
-    const r = await fetch(`${API}/api/exercises/${exerciseId}/report`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ comentario: comentario || undefined })
-    });
-    const data = await r.json();
-    if (data.ok) {
-      document.getElementById('report-modal')?.remove();
-      const repBtn = document.getElementById('report-btn');
-      if (repBtn) { repBtn.style.display = 'none'; }
-      const mRepBtn = document.getElementById('mission-report-btn');
-      if (mRepBtn) { mRepBtn.style.display = 'none'; }
-      const repArea = document.getElementById('report-area');
-      if (repArea && !repArea.querySelector('.reportado')) repArea.insertAdjacentHTML('beforeend', '<span class="reportado" style="font-size:.78rem;color:var(--color-success);"><i class="ti ti-check"></i> Reportado</span>');
-    } else {
-      alert('Error: ' + (data.error || 'desconocido'));
-    }
-  } catch(e) {
-    alert('Error al enviar reporte');
-  }
 }
 
 function showExerciseResolution() {
@@ -918,7 +536,7 @@ function showExerciseResolution() {
       </div>`;
     }).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
     // Show theory if available
     if (state.currentExercise.theory) {
@@ -995,215 +613,179 @@ async function saveExerciseToHistory(correct) {
 // MISIONES
 // ============================================================
 const MISSIONS = [
-  { id:'doom-horde', name:'DOOM: Horda Infernal', desc:'Factorizaci&oacute;n, polinomios y radicales bajo presi&oacute;n.', topics:['factorizacion','polinomios','radicales'], count:10, hpPenalty:15, xpReward:600, icon:'👹', game:'doom', materia:'matematica', niveles:['9no'] },
-  { id:'fifa-champ', name:'FIFA: Campeonato de Ecuaciones', desc:'Ecuaciones lineales y cuadr&aacute;ticas en racha.', topics:['ecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:10, xpReward:500, icon:'⚽', game:'fifa', materia:'matematica', niveles:['7mo','9no','10-11'] },
-  { id:'pokemon-gym', name:'Pok&eacute;mon: Gimnasio Algebraico', desc:'Factorizaci&oacute;n, fracciones algebraicas e inecuaciones.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones'], count:12, hpPenalty:12, xpReward:800, icon:'🔴', game:'pokemon', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'minecraft-builder', name:'Minecraft: Constructor de Bases', desc:'Recursos, proporciones, porcentajes y geometr&iacute;a por bloques.', topics:['mcm-mcd','porcentajes','razones-proporciones','geometria'], count:12, hpPenalty:10, xpReward:900, icon:'⛏️', game:'minecraft', materia:'matematica', niveles:['primaria','7mo','8vo'] },
-  { id:'cod-ops', name:'Call of Duty: Operaci&oacute;n Matem&aacute;tica', desc:'Ecuaciones, inecuaciones, exponenciales y trigonometr&iacute;a.', topics:['ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:20, xpReward:1200, icon:'🎯', game:'cod', materia:'matematica', niveles:['10-11'] },
-  { id:'nfs-street', name:'Need for Speed: Derrape Num&eacute;rico', desc:'N&uacute;meros reales, radicales y logaritmos a contrarreloj.', topics:['numeros-reales','radicales','exp-log'], count:10, hpPenalty:18, xpReward:700, icon:'🏎️', game:'nfs', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'lastofus', name:'The Last of Us: Supervivencia', desc:'Geometr&iacute;a, plano cartesiano y trigonometr&iacute;a por recursos.', topics:['geometria','trigonometria','plano-cartesiano'], count:10, hpPenalty:25, xpReward:900, icon:'🧟', game:'tlou', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'clash-math', name:'Clash of Clans: Batalla Algebraica', desc:'Aldea algebraica con ecuaciones, inecuaciones y funciones.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:10, xpReward:1200, icon:'🏰', game:'coc', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'horizon-math', name:'Horizon: Aventura Matem&aacute;tica', desc:'Exploraci&oacute;n de geometr&iacute;a, trigonometr&iacute;a y coordenadas.', topics:['trigonometria','geometria','plano-cartesiano'], count:12, hpPenalty:15, xpReward:900, icon:'🤖', game:'horizon', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'bomberman', name:'Bomberman: Explosi&oacute;n Algebraica', desc:'Polinomios, fracciones algebraicas y conjuntos.', topics:['polinomios','fracciones-alg','conjuntos'], count:15, hpPenalty:18, xpReward:1000, icon:'💣', game:'bomberman', materia:'matematica', niveles:['8vo','9no'] },
-  { id:'password-math', name:'Password: La Clave Matem&aacute;tica', desc:'Ecuaciones, sistemas e inecuaciones con pocas vidas.', topics:['ecuaciones','inecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:30, xpReward:700, icon:'🔑', game:'password', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'btd6', name:'Bloons TD6: Defensa Matem&aacute;tica', desc:'Defensa mixta con &aacute;lgebra, funciones y geometr&iacute;a.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica'], count:20, hpPenalty:8, xpReward:2000, icon:'🎈', game:'btd6', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'recruta', name:'El Recruta', desc:'Factorizaci&oacute;n esencial para iniciar.', topics:['factorizacion'], count:5, hpPenalty:20, xpReward:300, icon:'⚔️', materia:'matematica', niveles:['9no'] },
-  { id:'soldado', name:'El Soldado', desc:'Ecuaciones e inecuaciones de entrenamiento.', topics:['ecuaciones','inecuaciones'], count:8, hpPenalty:20, xpReward:500, icon:'🎖️', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'veterano', name:'El Veterano', desc:'Resistencia con &aacute;lgebra, funciones y trigonometr&iacute;a.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria'], count:12, hpPenalty:15, xpReward:800, icon:'🏆', materia:'matematica', niveles:['9no','10-11'] },
-  { id:'maestro', name:'El Gran Maestro', desc:'Ruta avanzada con los temas fuertes de secundaria.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica','estadistica','probabilidad'], count:20, hpPenalty:12, xpReward:2500, icon:'👑', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-ecuaciones-7mo', name:'Ecuaciones I', desc:'Lineales simples: ax + b = c.', topics:['ecuaciones'], count:12, hpPenalty:14, xpReward:700, isExam:true, icon:'📋', materia:'matematica', niveles:['7mo'] },
-  { id:'examen-ecuaciones-9no', name:'Ecuaciones II', desc:'Cuadr&aacute;ticas y problemas aplicados.', topics:['ecuaciones'], count:18, hpPenalty:12, xpReward:1000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-ecuaciones-10', name:'Sistemas e Inecuaciones', desc:'Sistemas 2x2, intervalos e inecuaciones.', topics:['sistemas-ecuaciones','inecuaciones'], count:18, hpPenalty:12, xpReward:1100, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-factorizacion-9no', name:'Factorizaci&oacute;n', desc:'M&eacute;todos principales y combinados.', topics:['factorizacion'], count:18, hpPenalty:12, xpReward:1000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-geo-analitica', name:'Geometr&iacute;a Anal&iacute;tica', desc:'Rectas, distancia, pendientes y posiciones.', topics:['geo-analitica','plano-cartesiano'], count:18, hpPenalty:12, xpReward:1100, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-parcial1', name:'Parcial I', desc:'Conjuntos, n&uacute;meros, radicales, polinomios, factorizaci&oacute;n y ecuaciones.', topics:['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['9no'] },
-  { id:'examen-parcial2', name:'Parcial II', desc:'Inecuaciones, plano cartesiano, funciones, geometr&iacute;a y trigonometr&iacute;a.', topics:['inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-parcial3', name:'Parcial III', desc:'Funciones avanzadas, sucesiones y probabilidad.', topics:['exp-log','sucesiones','estadistica','probabilidad'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-simulacro', name:'Simulacro Global', desc:'Prueba mixta de temas curriculares por nivel alto.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','geo-analitica','estadistica','probabilidad'], count:40, hpPenalty:8, xpReward:5000, isExam:true, icon:'🏅', materia:'matematica', niveles:['10-11'] },
-  { id:'examen-tec-mixto', name:'TEC/PAA Mixto', desc:'L&oacute;gica, matem&aacute;tica y verbal para admisi&oacute;n.', topics:['tec-logica','tec-matematica','tec-verbal'], count:15, hpPenalty:8, xpReward:1800, isExam:true, icon:'🎓', materia:'admision', niveles:['tec-paa'] },
-  { id:'examen-tec-matematica', name:'TEC/PAA Matem&aacute;tica', desc:'Razonamiento matem&aacute;tico y l&oacute;gico.', topics:['tec-matematica','tec-logica'], count:10, hpPenalty:10, xpReward:1400, isExam:true, icon:'🎓', materia:'admision', niveles:['tec-paa'] },
-  { id:'examen-tec-verbal', name:'TEC/PAA Verbal', desc:'Vocabulario, inferencia y coherencia textual.', topics:['tec-verbal'], count:8, hpPenalty:10, xpReward:1000, isExam:true, icon:'🎓', materia:'espanol', niveles:['tec-paa'] },
-  { id:'examen-rapido1', name:'Mini-Test: &Aacute;lgebra', desc:'Polinomios, factorizaci&oacute;n y ecuaciones.', topics:['factorizacion','polinomios','ecuaciones'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡', materia:'matematica', niveles:['8vo','9no'] },
-  { id:'examen-rapido2', name:'Mini-Test: Funciones', desc:'Gr&aacute;ficas, exponenciales y trigonometr&iacute;a.', topics:['plano-cartesiano','exp-log','trigonometria'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡', materia:'matematica', niveles:['10-11'] }
+  // === MISIONES TEM&Aacute;TICAS (basadas en juegos) ===
+  { id:'doom-horde', name:'DOOM: Horda Infernal', desc:'Enfrenta 10 ejercicios de Factorizaci&oacute;n. Pierde HP con cada fallo. &iexcl;Sobrevive!', topics:['factorizacion','polinomios','radicales'], count:10, hpPenalty:15, xpReward:600, icon:'👹', game:'doom' },
+  { id:'fifa-champ', name:'FIFA: Campeonato de Ecuaciones', desc:'Golea 8 ecuaciones lineales y cuadr&aacute;ticas seguidas. Racha = goles.', topics:['ecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:10, xpReward:500, icon:'⚽', game:'fifa' },
+  { id:'pokemon-gym', name:'Pok&eacute;mon: Gimnasio Algebraico', desc:'Atrapa 12 ejercicios de todos los tipos. Cada acierto es una medalla.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones'], count:12, hpPenalty:12, xpReward:800, icon:'🔴', game:'pokemon' },
+  { id:'cod-ops', name:'Call of Duty: Operaci&oacute;n Matem&aacute;tica', desc:'Misi&oacute;n sigilosa: 15 ejercicios de alto nivel. Bajo HP = alerta m&aacute;xima.', topics:['ecuaciones','inecuaciones','exp-log','trigonometria'], count:15, hpPenalty:20, xpReward:1200, icon:'🎯', game:'cod' },
+  { id:'nfs-street', name:'Need for Speed: Derrape Num&eacute;rico', desc:'Carrera contrarreloj: resuelve 10 ejercicios R&Aacute;PIDO. Tiempo = velocidad.', topics:['numeros-reales','radicales','exp-log'], count:10, hpPenalty:18, xpReward:700, icon:'🏎️', game:'nfs' },
+  { id:'lastofus', name:'The Last of Us: Supervivencia', desc:'Sobrevive 10 rondas de geometr&iacute;a y trigonometr&iacute;a. Cada acierto es un recurso.', topics:['geometria','trigonometria','plano-cartesiano'], count:10, hpPenalty:25, xpReward:900, icon:'🧟', game:'tlou' },
+  { id:'clash-math', name:'Clash of Clans: Batalla Algebraica', desc:'Construye tu aldea: 15 ejercicios mezclados. Sin perder m&aacute;s de 50 HP.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','calculo'], count:15, hpPenalty:10, xpReward:1200, icon:'🏰', game:'coc' },
+  { id:'horizon-math', name:'Horizon: Aventura Matem&aacute;tica', desc:'Explora 12 ejercicios de trigonometr&iacute;a y geometr&iacute;a. Precisi&oacute;n = supervivencia.', topics:['trigonometria','geometria','plano-cartesiano'], count:12, hpPenalty:15, xpReward:900, icon:'🤖', game:'horizon' },
+  { id:'bomberman', name:'Bomberman: Explosi&oacute;n Algebraica', desc:'15 ejercicios explosivos de polinomios y fracciones. &iexcl;No te dejes alcanzar!', topics:['polinomios','fracciones-alg','conjuntos'], count:15, hpPenalty:18, xpReward:1000, icon:'💣', game:'bomberman' },
+  { id:'password-math', name:'Password: La Clave Matem&aacute;tica', desc:'Adivina la soluci&oacute;n de 8 ejercicios desafiantes. 3 vidas, &uacute;salas bien.', topics:['ecuaciones','inecuaciones','sistemas-ecuaciones'], count:8, hpPenalty:30, xpReward:700, icon:'🔑', game:'password' },
+  { id:'btd6', name:'Bloons TD6: Defensa Matem&aacute;tica', desc:'Defiende 20 rondas de ejercicios de todos los temas. Sin errores fatales.', topics:['factorizacion','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos'], count:20, hpPenalty:8, xpReward:2000, icon:'🎈', game:'btd6' },
+  // === MISIONES CL&Aacute;SICAS ===
+  { id:'recruta', name:'El Recruta', desc:'Supera 5 ejercicios b&aacute;sicos de Factorizaci&oacute;n', topics:['factorizacion'], count:5, hpPenalty:20, xpReward:300, icon:'⚔️' },
+  { id:'soldado', name:'El Soldado', desc:'8 ejercicios de Ecuaciones e Inecuaciones. Disciplina total.', topics:['ecuaciones','inecuaciones'], count:8, hpPenalty:20, xpReward:500, icon:'🎖️' },
+  { id:'veterano', name:'El Veterano', desc:'12 ejercicios de resistencia. Todos los temas del parcial I y II.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria'], count:12, hpPenalty:15, xpReward:800, icon:'🏆' },
+  { id:'maestro', name:'El Gran Maestro', desc:'20 ejercicios de TODOS los temas. Solo para los m&aacute;s valientes.', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos','numeros-reales','radicales','polinomios','geometria','plano-cartesiano'], count:20, hpPenalty:12, xpReward:2500, icon:'👑' },
+  // === EX&Aacute;MENES ===
+  { id:'examen-parcial1', name:'Parcial I (Completo)', desc:'30 preguntas - Temas: Conjuntos, N&uacute;meros, Radicales, Polinomios, Factorizaci&oacute;n, Ecuaciones, Sistemas', topics:['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-parcial2', name:'Parcial II (Completo)', desc:'30 preguntas - Temas: Inecuaciones, Plano Cartesiano, Exp/Log, Geometr&iacute;a, Trigonometr&iacute;a', topics:['inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-parcial3', name:'Parcial III (Completo)', desc:'30 preguntas - C&aacute;lculo diferencial e integral', topics:['calculo','exp-log','trigonometria'], count:30, hpPenalty:10, xpReward:3000, isExam:true, icon:'📋' },
+  { id:'examen-simulacro', name:'Simulacro Global', desc:'40 preguntas de TODOS los temas. &iexcl;Como el examen real!', topics:['factorizacion','fracciones-alg','ecuaciones','inecuaciones','exp-log','trigonometria','calculo','conjuntos','numeros-reales','radicales','polinomios','geometria','plano-cartesiano'], count:40, hpPenalty:8, xpReward:5000, isExam:true, icon:'🏅' },
+  { id:'examen-tec-mixto', name:'TEC/PAA Mixto', desc:'15 preguntas variables - L&oacute;gica, Matem&aacute;tica y Verbal para admisi&oacute;n', topics:['tec-logica','tec-matematica','tec-verbal'], count:15, hpPenalty:8, xpReward:1800, isExam:true, icon:'🎓' },
+  { id:'examen-tec-matematica', name:'TEC/PAA Matem&aacute;tica', desc:'10 preguntas variables de razonamiento matem&aacute;tico y l&oacute;gico', topics:['tec-matematica','tec-logica'], count:10, hpPenalty:10, xpReward:1400, isExam:true, icon:'🎓' },
+  { id:'examen-tec-verbal', name:'TEC/PAA Verbal', desc:'8 preguntas variables de vocabulario, inferencia y coherencia textual', topics:['tec-verbal'], count:8, hpPenalty:10, xpReward:1000, isExam:true, icon:'🎓' },
+  { id:'examen-rapido1', name:'Mini-Test: &Aacute;lgebra', desc:'10 preguntas r&aacute;pidas de &aacute;lgebra b&aacute;sica', topics:['factorizacion','polinomios','ecuaciones'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡' },
+  { id:'examen-rapido2', name:'Mini-Test: Funciones', desc:'10 preguntas r&aacute;pidas de funciones y gr&aacute;ficas', topics:['plano-cartesiano','exp-log','trigonometria'], count:10, hpPenalty:20, xpReward:500, isExam:true, icon:'⚡' }
 ];
 
 function renderMissions(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const materia = localStorage.getItem('mm_mission_materia') || '';
-  const nivel = localStorage.getItem('mm_mission_nivel') || '';
-  const savedTopic = localStorage.getItem('mm_mission_topic') || '';
-  const topic = getMissionFilterTopics(false, materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
-  main.innerHTML = `
-    <h2>Misiones de Resistencia</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Misiones por nivel, materia y tema. Cada tarjeta adapta los temas que entran en esa ruta.</p>
-    ${renderMissionFilters('mission', materia, nivel, topic)}
-    <div id="mission-list" class="mission-grid">
-      ${renderMissionCards(false, saved, materia, nivel, topic)}
+  const gameMissions = MISSIONS.filter(m => !m.isExam && m.game);
+  const classicMissions = MISSIONS.filter(m => !m.isExam && !m.game);
+  
+  const diffColor = (penalty) => {
+    if (penalty <= 10) return 'var(--color-success)';
+    if (penalty <= 18) return 'var(--color-warning)';
+    return 'var(--color-error)';
+  };
+  const diffLabel = (penalty) => {
+    if (penalty <= 10) return 'Fácil';
+    if (penalty <= 18) return 'Medio';
+    return 'Difícil';
+  };
+
+  const missionCard = (m) => {
+    const done = saved[m.id];
+    const score = done?.score || 0;
+    return `<div class="card mission-card ${done ? 'completed' : ''} ${m.game ? 'game-mission' : ''}">
+      <div class="mission-icon-wrap">${m.icon}</div>
+      <div class="mission-body">
+        <div class="mission-title-row">
+          <h3>${m.name}</h3>
+          <span class="mission-diff-badge" style="background:${diffColor(m.hpPenalty)}22;color:${diffColor(m.hpPenalty)};border:1px solid ${diffColor(m.hpPenalty)}44;">${diffLabel(m.hpPenalty)}</span>
+        </div>
+        <p class="mission-desc">${m.desc}</p>
+        <div class="mission-stats-row">
+          <span><i class="ti ti-sword"></i> ${m.count} ejercicios</span>
+          <span><i class="ti ti-heart"></i> -${m.hpPenalty} HP/fallo</span>
+          <span style="color:var(--color-warning);"><i class="ti ti-star"></i> +${m.xpReward} XP</span>
+        </div>
+        ${done ? `<div class="mission-progress-bar"><div class="mission-progress-fill" style="width:${score}%;"></div></div>
+        <div style="font-size:.75rem;color:var(--color-text-muted);margin-top:2px;">Mejor resultado: ${score}%</div>` : ''}
+      </div>
+      <button class="btn ${done ? 'btn-outline' : 'btn-primary'} mission-btn" onclick="startMission('${m.id}')">
+        ${done ? '<i class="ti ti-refresh"></i> Repetir' : '<i class="ti ti-player-play"></i> Iniciar'}
+      </button>
     </div>`;
+  };
+
+  main.innerHTML = `
+    <div class="missions-page-header">
+      <div>
+        <h2><i class="ti ti-sword"></i> Misiones de Resistencia</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Pierde HP con cada fallo. ¿Aguantarás?</p>
+      </div>
+      <div class="missions-summary">
+        <div class="missions-summary-item">
+          <span class="missions-summary-num">${Object.keys(saved).filter(k => !MISSIONS.find(m=>m.id===k)?.isExam).length}</span>
+          <span>Completadas</span>
+        </div>
+        <div class="missions-summary-item">
+          <span class="missions-summary-num">${MISSIONS.filter(m=>!m.isExam).length}</span>
+          <span>Total</span>
+        </div>
+      </div>
+    </div>
+
+    ${gameMissions.length ? `
+    <h3 style="margin:1.5rem 0 .75rem;color:var(--color-primary);"><i class="ti ti-device-gamepad-2"></i> Misiones Temáticas</h3>
+    <div class="mission-grid">${gameMissions.map(missionCard).join('')}</div>` : ''}
+
+    <h3 style="margin:1.5rem 0 .75rem;color:var(--color-warning);"><i class="ti ti-shield"></i> Misiones Clásicas</h3>
+    <div class="mission-grid">${classicMissions.map(missionCard).join('')}</div>
+  `;
 }
 
 function renderExams(main) {
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const materia = localStorage.getItem('mm_exam_materia') || '';
-  const nivel = localStorage.getItem('mm_exam_nivel') || '';
-  const savedTopic = localStorage.getItem('mm_exam_topic') || '';
-  const topic = getMissionFilterTopics(true, materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
-  main.innerHTML = `
-    <h2>Pruebas y Ex&aacute;menes</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1rem;">Pruebas curriculares por nivel, materia y tema, con ex&aacute;menes de admisi&oacute;n separados.</p>
-    ${renderMissionFilters('exam', materia, nivel, topic)}
-    <div id="exam-list" class="mission-grid">
-      ${renderMissionCards(true, saved, materia, nivel, topic)}
-    </div>`;
-}
+  const exams = MISSIONS.filter(m => m.isExam);
+  const parciales = exams.filter(m => m.id.includes('parcial') || m.id.includes('simulacro'));
+  const tec = exams.filter(m => m.id.includes('tec'));
+  const mini = exams.filter(m => m.id.includes('rapido'));
 
-function renderMissionFilters(kind, materia, nivel, topic) {
-  const isExam = kind === 'exam';
-  return `
-    <div class="filter-bar mission-filter-bar">
-      <span class="select-wrap"><select id="${kind}-nivel-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderNivelOptions(nivel)}</select></span>
-      <span class="select-wrap"><select id="${kind}-materia-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderMateriaOptions(materia)}</select></span>
-      <span class="select-wrap"><select id="${kind}-topic-filter" class="select-control" onchange="updateMissionFilters('${kind}')">${renderMissionTopicOptions(isExam, materia, nivel, topic)}</select></span>
-    </div>`;
-}
-
-function getMissionMateriaId(mission) {
-  return mission.materia || getTopicMateriaId(mission.topics?.[0]);
-}
-
-function getMissionNivelId(mission, preferredNivel = '') {
-  const niveles = sortNivelIds(mission.niveles || []);
-  if (preferredNivel && niveles.includes(preferredNivel)) return preferredNivel;
-  return niveles[0] || '';
-}
-
-function getMissionTopicId(mission, preferredTopic = '') {
-  const topics = (mission.topics || []).map(id => TOPICS.find(t => t.id === id)).filter(Boolean);
-  if (preferredTopic && topics.some(t => t.id === preferredTopic)) return preferredTopic;
-  return sortTopicsForHierarchy(topics, getMissionNivelId(mission))[0]?.id || '';
-}
-
-function getMissionFilterTopics(isExam, materia = '', nivel = '') {
-  const topicIds = new Set();
-  MISSIONS
-    .filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel, ''))
-    .forEach(m => (m.topics || []).forEach(id => {
-      const topic = TOPICS.find(t => t.id === id);
-      if (!topic) return;
-      if (materia && !topicMatchesMateria(topic, materia)) return;
-      if (nivel && !topicMatchesNivel(topic, nivel)) return;
-      topicIds.add(id);
-    }));
-  return sortTopicsForHierarchy([...topicIds].map(id => TOPICS.find(t => t.id === id)).filter(Boolean), nivel);
-}
-
-function renderMissionTopicOptions(isExam, materia = '', nivel = '', selected = '') {
-  return renderHierarchyTopicOptions(getMissionFilterTopics(isExam, materia, nivel), selected, 'Todos los temas', nivel);
-}
-
-function refreshMissionTopicOptions(kind) {
-  const isExam = kind === 'exam';
-  const materia = document.getElementById(`${kind}-materia-filter`)?.value || '';
-  const nivel = document.getElementById(`${kind}-nivel-filter`)?.value || '';
-  const select = document.getElementById(`${kind}-topic-filter`);
-  if (!select) return '';
-  const current = select.value;
-  const topics = getMissionFilterTopics(isExam, materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-  return select.value;
-}
-
-function missionMatchesFilters(mission, materia, nivel, topic) {
-  const missionMateria = getMissionMateriaId(mission);
-  if (materia && missionMateria !== materia) return false;
-  if (nivel && !(mission.niveles || []).includes(nivel)) return false;
-  if (topic && !(mission.topics || []).includes(topic)) return false;
-  return true;
-}
-
-function sortMissionsForHierarchy(missions, preferredNivel = '', preferredTopic = '') {
-  return [...missions].sort((a, b) => {
-    const nivelDiff = getNivelOrder(getMissionNivelId(a, preferredNivel)) - getNivelOrder(getMissionNivelId(b, preferredNivel));
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getMissionMateriaId(a)) - getMateriaOrder(getMissionMateriaId(b));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(getMissionTopicId(a, preferredTopic)) - getTopicOrder(getMissionTopicId(b, preferredTopic));
-    if (topicDiff) return topicDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
-}
-
-function renderMissionCards(isExam, saved, materia, nivel, topic) {
-  const list = sortMissionsForHierarchy(
-    MISSIONS.filter(m => !!m.isExam === isExam && missionMatchesFilters(m, materia, nivel, topic)),
-    nivel,
-    topic
-  );
-  if (!list.length) {
-    return `<div class="card empty-state-card">No hay ${isExam ? 'ex&aacute;menes' : 'misiones'} para esa combinaci&oacute;n.</div>`;
-  }
-  return list.map(m => renderMissionCard(m, saved[m.id], isExam)).join('');
-}
-
-function renderMissionCard(mission, done, isExam) {
-  const levelBadges = sortNivelIds(mission.niveles || []).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
-  const materia = MATERIA_NAMES[getMissionMateriaId(mission)] || 'Matem&aacute;tica';
-  return `<div class="card mission-card ${isExam ? 'exam-card' : 'game-mission'} ${done ? 'completed' : ''}">
-    <div class="mission-icon-wrap">${mission.icon}</div>
-    <div class="mission-body">
-      <div class="mission-title-row">
-        <h3>${mission.name}</h3>
-        ${levelBadges}
+  const examCard = (m) => {
+    const done = saved[m.id];
+    const score = done?.score || 0;
+    return `<div class="card mission-card exam-card ${done ? 'completed' : ''}">
+      <div class="mission-icon-wrap">${m.icon}</div>
+      <div class="mission-body">
+        <div class="mission-title-row">
+          <h3>${m.name}</h3>
+          <span class="mission-diff-badge" style="background:rgba(245,158,11,0.1);color:var(--color-warning);border:1px solid rgba(245,158,11,0.3);">${m.count} preguntas</span>
+        </div>
+        <p class="mission-desc">${m.desc}</p>
+        <div class="mission-stats-row">
+          <span><i class="ti ti-clock"></i> ~${Math.ceil(m.count * 2)} min</span>
+          <span style="color:var(--color-warning);"><i class="ti ti-star"></i> +${m.xpReward} XP</span>
+          ${done ? `<span style="color:var(--color-success);"><i class="ti ti-check"></i> ${score}%</span>` : ''}
+        </div>
+        ${done ? `<div class="mission-progress-bar"><div class="mission-progress-fill" style="width:${score}%;background:${score>=70?'var(--color-success)':'var(--color-warning)'};"></div></div>
+        <div style="font-size:.75rem;color:var(--color-text-muted);margin-top:2px;">Mejor resultado: ${score}% ${score>=70?'✓ Aprobado':'— Sigue practicando'}</div>` : ''}
       </div>
-      <p class="mission-desc">${mission.desc}</p>
-      <div class="mission-stats-row">
-        <span><i class="ti ti-book-2"></i>${materia}</span>
-        <span><i class="ti ti-list-check"></i>${mission.count} ${isExam ? 'preguntas' : 'ejercicios'}</span>
-        <span><i class="ti ti-target-arrow"></i>${renderCompactTopicNames(mission.topics)}</span>
-        <span class="mission-xp"><i class="ti ti-star"></i>+${mission.xpReward} XP</span>
-        ${done ? `<span class="mission-score"><i class="ti ti-check"></i>${done.score}%</span>` : ''}
+      <button class="btn ${done ? 'btn-outline' : 'btn-primary'} mission-btn" onclick="startMission('${m.id}')">
+        ${done ? '<i class="ti ti-refresh"></i> Repetir' : '<i class="ti ti-clipboard-list"></i> Comenzar'}
+      </button>
+    </div>`;
+  };
+
+  main.innerHTML = `
+    <div class="missions-page-header">
+      <div>
+        <h2><i class="ti ti-clipboard-list"></i> Pruebas y Exámenes</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Simulaciones del TEC. Mismo formato que el examen real.</p>
+      </div>
+      <div class="missions-summary">
+        <div class="missions-summary-item">
+          <span class="missions-summary-num">${Object.keys(saved).filter(k => MISSIONS.find(m=>m.id===k)?.isExam).length}</span>
+          <span>Completados</span>
+        </div>
+        <div class="missions-summary-item">
+          <span class="missions-summary-num">${exams.length}</span>
+          <span>Total</span>
+        </div>
       </div>
     </div>
-    <button class="btn ${done ? 'btn-outline' : 'btn-primary'} btn-sm mission-btn" onclick="startMission('${mission.id}')">
-      ${done ? 'Repetir' : (isExam ? 'Comenzar' : 'Iniciar')}
-    </button>
-  </div>`;
-}
 
-function updateMissionFilters(kind) {
-  const materia = document.getElementById(`${kind}-materia-filter`)?.value || '';
-  const nivel = document.getElementById(`${kind}-nivel-filter`)?.value || '';
-  const topic = refreshMissionTopicOptions(kind);
-  localStorage.setItem(`mm_${kind}_materia`, materia);
-  localStorage.setItem(`mm_${kind}_nivel`, nivel);
-  localStorage.setItem(`mm_${kind}_topic`, topic);
-  const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
-  const list = document.getElementById(kind === 'exam' ? 'exam-list' : 'mission-list');
-  if (list) list.innerHTML = renderMissionCards(kind === 'exam', saved, materia, nivel, topic);
+    ${parciales.length ? `
+    <h3 style="margin:1.5rem 0 .75rem;color:var(--color-primary);"><i class="ti ti-school"></i> Parciales TEC</h3>
+    <div class="mission-grid">${parciales.map(examCard).join('')}</div>` : ''}
+
+    ${tec.length ? `
+    <h3 style="margin:1.5rem 0 .75rem;color:var(--color-warning);"><i class="ti ti-certificate"></i> Admisión TEC / PAA</h3>
+    <div class="mission-grid">${tec.map(examCard).join('')}</div>` : ''}
+
+    ${mini.length ? `
+    <h3 style="margin:1.5rem 0 .75rem;color:var(--color-success);"><i class="ti ti-bolt"></i> Mini-Tests</h3>
+    <div class="mission-grid">${mini.map(examCard).join('')}</div>` : ''}
+  `;
 }
 
 function startMission(missionId) {
   const mission = MISSIONS.find(m => m.id === missionId);
   if (!mission) return;
-  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], topicQueue:shuffleArray(mission.topics || []), startTime: Date.now() };
+  state.missionState = { mission, current:0, correct:0, hp:100, exercises:[], startTime: Date.now() };
   _doomDeathPlayed = false;
   _prevHp = 100;
   showView('mission-run');
 }
 
-function getNextMissionTopic() {
-  const mission = state.missionState?.mission;
-  if (!mission) return TOPICS[0]?.id;
-  if (!state.missionState.topicQueue?.length) {
-    state.missionState.topicQueue = shuffleArray(mission.topics || []);
-  }
-  return state.missionState.topicQueue.shift() || mission.topics[0];
-}
-
 async function renderMissionRun(main) {
   const m = state.missionState.mission;
-  const topicId = getNextMissionTopic();
+  const topicId = m.topics[Math.floor(Math.random() * m.topics.length)];
   main.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:1rem;">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
@@ -1230,7 +812,6 @@ async function renderMissionRun(main) {
             <button class="btn btn-outline btn-sm" onclick="showMissionTheory()" id="mission-theory-btn" style="display:none;"><i class="ti ti-info-circle"></i> Teoría</button>
           </div>
           <div id="mission-choices" class="choice-grid"></div>
-          <div id="mission-report-area" style="margin-top:.5rem;text-align:right;"><button class="btn btn-outline btn-xs" id="mission-report-btn" style="display:none;" onclick="showReportDialog()"><i class="ti ti-flag"></i> Reportar error</button></div>
         </div>
       </div>
       <div id="mission-action" class="hidden">
@@ -1261,24 +842,17 @@ function startExamTimer() {
   }, 1000);
 }
 
-async function loadMissionExercise(topicId, attemptedTopics = []) {
+async function loadMissionExercise(topicId) {
   try {
-    const mk = state.missionState.mission.isExam ? 'exam' : 'mission';
-    const nivel = localStorage.getItem(`mm_${mk}_nivel`) || '';
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [], nivel, strictExclude: true })
+      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [] })
     });
-    let data = await r.json();
-    if (r.status === 409 && attemptedTopics.length < (state.missionState.mission.topics || []).length) {
-      return loadMissionExercise(getNextMissionTopic(), [...attemptedTopics, topicId]);
-    }
+    const data = await r.json();
     if (data.error) throw new Error(data.error);
-    data = normalizeExercisePayload(data);
-    if (!data.opciones.length) throw new Error('El ejercicio no trae opciones válidas');
     
     state.currentExercise = data;
-    if (Number.isInteger(Number(data.id)) && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
+    if (data.id && data.id > 0 && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
@@ -1311,29 +885,23 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     
     const area = document.getElementById('mission-choices');
     area.innerHTML = '';
-    shuffleArray(data.opciones).forEach(c => {
+    [...data.opciones].sort(() => Math.random() - 0.5).forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
       btn.textContent = c;
       btn.onclick = () => checkMissionChoice(c, btn);
       area.appendChild(btn);
     });
-    const mRepBtn = document.getElementById('mission-report-btn');
-    if (mRepBtn) { mRepBtn.dataset.id = data.id; mRepBtn.style.display = ''; }
   } catch(e) {
-    const loading = document.getElementById('mission-loading');
-    document.getElementById('mission-content')?.classList.add('hidden');
-    loading.classList.remove('hidden');
-    loading.innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
+    document.getElementById('mission-loading').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
   }
 }
 
 function checkMissionChoice(choice, btn) {
-  const correctAnswer = state.currentExercise.correcta || state.currentExercise.opciones[0];
-  const isCorrect = choice === correctAnswer;
+  const isCorrect = choice === state.currentExercise.opciones[0];
   document.querySelectorAll('#mission-choices .choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if (b.textContent === state.currentExercise.opciones[0]) b.classList.add('correct');
   });
   
   const penalty = state.missionState.mission.hpPenalty;
@@ -1365,7 +933,7 @@ function checkMissionChoice(choice, btn) {
       </div>
     `).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      try { katex.render(p.math, document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
     });
   }
   document.getElementById('mission-action').classList.remove('hidden');
@@ -1375,6 +943,7 @@ function missionNext() {
   state.missionState.current++;
   if (state.missionState.hp <= 0) { endMission('Sin HP'); return; }
   if (state.missionState.current >= state.missionState.mission.count) { endMission('Completada'); return; }
+  const topicId = state.missionState.mission.topics[Math.floor(Math.random() * state.missionState.mission.topics.length)];
   renderMissionRun(document.getElementById('main-content'));
 }
 
@@ -1430,8 +999,64 @@ function endMission(reason) {
 // ============================================================
 async function renderEvents(main) {
   main.innerHTML = `
-    <h2><i class="ti ti-flame" style="color:var(--color-warning);"></i> Eventos y Competiciones</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Participa en eventos en vivo, compite con otros estudiantes y gana recompensas exclusivas.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
+      <div>
+        <h2><i class="ti ti-flame" style="color:var(--color-warning);"></i> Eventos y Competiciones</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Compite con otros estudiantes y gana recompensas.</p>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="toggleCreateEvent()"><i class="ti ti-plus"></i> Crear Evento</button>
+    </div>
+
+    <div id="create-event-form" class="card hidden" style="margin-bottom:1.5rem;">
+      <h3 style="margin-bottom:1rem;"><i class="ti ti-calendar-plus"></i> Nuevo Evento</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+        <div style="grid-column:1/-1;">
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Título</label>
+          <input type="text" id="ev-titulo" placeholder="Nombre del evento" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+        <div style="grid-column:1/-1;">
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Descripción</label>
+          <input type="text" id="ev-desc" placeholder="Descripción del evento" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Tipo</label>
+          <select id="ev-tipo" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+            <option value="competicion">Competición</option>
+            <option value="torneo">Torneo</option>
+            <option value="reto">Reto</option>
+            <option value="especial">Especial</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Tema (opcional)</label>
+          <select id="ev-tema" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+            <option value="">Todos los temas</option>
+            ${TOPICS.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Fecha inicio</label>
+          <input type="datetime-local" id="ev-inicio" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Fecha fin</label>
+          <input type="datetime-local" id="ev-fin" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">XP Recompensa</label>
+          <input type="number" id="ev-xp" value="500" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--color-text-muted);">Nivel mínimo</label>
+          <input type="number" id="ev-nivel" value="1" min="1" style="width:100%;margin-top:.25rem;padding:.5rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);">
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-top:1rem;">
+        <button class="btn btn-primary" onclick="createEvent()"><i class="ti ti-check"></i> Crear</button>
+        <button class="btn btn-outline" onclick="toggleCreateEvent()">Cancelar</button>
+      </div>
+    </div>
+
     <div id="events-container"><p style="color:var(--color-text-muted);">Cargando eventos...</p></div>`;
   
   try {
@@ -1441,47 +1066,76 @@ async function renderEvents(main) {
     if (eventos.length === 0) {
       document.getElementById('events-container').innerHTML = `
         <div class="card" style="text-align:center;padding:3rem;">
-          <span style="font-size:3rem;">📅</span>
-          <h3 style="margin:1rem 0;">No hay eventos activos</h3>
-          <p style="color:var(--color-text-muted);">Vuelve pronto para nuevas competiciones.</p>
+          <span style="font-size:3rem;display:block;margin-bottom:1rem;">📅</span>
+          <h3 style="margin-bottom:.5rem;">No hay eventos activos</h3>
+          <p style="color:var(--color-text-muted);">Crea un evento usando el botón de arriba o vuelve pronto.</p>
         </div>`;
       return;
     }
     
-    document.getElementById('events-container').innerHTML = eventos.map(ev => `
+    document.getElementById('events-container').innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;">` +
+      eventos.map(ev => `
       <div class="card event-detail-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;">
-          <div>
-            <div style="display:flex;align-items:center;gap:.5rem;">
-              <span class="badge ${ev.tipo}">${ev.tipo}</span>
-              <h3>${ev.titulo}</h3>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
+              <span class="badge" style="background:rgba(245,158,11,.15);color:var(--color-warning);border:1px solid rgba(245,158,11,.3);">${ev.tipo}</span>
+              <h3 style="margin:0;">${ev.titulo}</h3>
             </div>
-            <p style="color:var(--color-text-secondary);margin:.5rem 0;">${ev.descripcion}</p>
-            <div style="display:flex;gap:1rem;font-size:.85rem;color:var(--color-text-muted);">
+            <p style="color:var(--color-text-secondary);font-size:.88rem;margin-bottom:.5rem;">${ev.descripcion}</p>
+            <div style="display:flex;gap:1rem;font-size:.8rem;color:var(--color-text-muted);flex-wrap:wrap;">
               <span><i class="ti ti-star"></i> +${ev.xp_recompensa} XP</span>
               <span><i class="ti ti-certificate"></i> Nivel ${ev.requisito_nivel}+</span>
-              ${ev.tema_id ? `<span><i class="ti ti-book"></i> ${TOPIC_NAMES[ev.tema_id] || ev.tema_id}</span>` : ''}
+              ${ev.tema_id ? `<span><i class="ti ti-book"></i> ${TOPIC_NAMES[ev.tema_id]||ev.tema_id}</span>` : ''}
+              ${ev.ya_participa ? `<span style="color:var(--color-success);"><i class="ti ti-check"></i> Participando — ${ev.mi_puntuacion} pts</span>` : ''}
             </div>
           </div>
-          <button class="btn ${ev.ya_participa ? 'btn-outline' : 'btn-primary'}" onclick="joinEvent(${ev.id})">
-            ${ev.ya_participa ? 'Participando' : 'Unirse'}
-          </button>
+          <div style="display:flex;gap:.5rem;flex-shrink:0;">
+            ${ev.ya_participa
+              ? `<button class="btn btn-primary btn-sm" onclick="startEventPractice(${ev.id})"><i class="ti ti-player-play"></i> Competir</button>
+                 <button class="btn btn-outline btn-sm" onclick="showEventLeaderboard(${ev.id})"><i class="ti ti-trophy"></i></button>`
+              : `<button class="btn btn-primary btn-sm" onclick="joinEvent(${ev.id})"><i class="ti ti-plus"></i> Unirse</button>`}
+          </div>
         </div>
-        ${ev.ya_participa ? `
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-border);">
-          <p style="font-size:.85rem;">Tu puntuaci&oacute;n: <strong>${ev.mi_puntuacion}</strong></p>
-          <button class="btn btn-primary btn-sm" onclick="startEventPractice(${ev.id})" style="margin-top:.5rem;">
-            <i class="ti ti-player-play"></i> Empezar a Competir
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="showEventLeaderboard(${ev.id})" style="margin-top:.5rem;margin-left:.5rem;">
-            <i class="ti ti-trophy"></i> Ver Ranking
-          </button>
-        </div>` : ''}
-      </div>
-    `).join('');
+      </div>`).join('') + `</div>`;
   } catch(e) {
     document.getElementById('events-container').innerHTML = `<p style="color:var(--color-error);">Error: ${e.message}</p>`;
   }
+}
+
+function toggleCreateEvent() {
+  const form = document.getElementById('create-event-form');
+  form?.classList.toggle('hidden');
+}
+
+async function createEvent() {
+  const titulo = document.getElementById('ev-titulo').value.trim();
+  const descripcion = document.getElementById('ev-desc').value.trim();
+  const tipo = document.getElementById('ev-tipo').value;
+  const tema_id = document.getElementById('ev-tema').value || null;
+  const fecha_inicio = document.getElementById('ev-inicio').value;
+  const fecha_fin = document.getElementById('ev-fin').value;
+  const xp_recompensa = parseInt(document.getElementById('ev-xp').value) || 500;
+  const requisito_nivel = parseInt(document.getElementById('ev-nivel').value) || 1;
+
+  if (!titulo || !fecha_inicio || !fecha_fin) {
+    alert('Por favor completa título, fecha de inicio y fecha de fin.');
+    return;
+  }
+
+  try {
+    const r = await fetch(`${API}/api/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+      body: JSON.stringify({ titulo, descripcion, tipo, tema_id, fecha_inicio, fecha_fin, xp_recompensa, requisito_nivel })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      renderEvents(document.getElementById('main-content'));
+    } else {
+      alert(data.error || 'Error al crear evento');
+    }
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function joinEvent(eventId) {
@@ -1534,41 +1188,74 @@ function closeEventModal() { document.getElementById('event-modal').classList.ad
 // ============================================================
 async function renderBadges(main) {
   main.innerHTML = `
-    <h2><i class="ti ti-medal"></i> Logros y Badges</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Completa desaf&iacute;os para desbloquear logros y ganar XP extra.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
+      <div>
+        <h2><i class="ti ti-medal"></i> Logros y Badges</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Completa desafíos para desbloquear logros y ganar XP extra.</p>
+      </div>
+      <div id="badges-summary" style="display:flex;gap:.75rem;"></div>
+    </div>
     <div id="badges-container"><p style="color:var(--color-text-muted);">Cargando...</p></div>`;
   
   try {
     const r = await fetch(`${API}/api/badges`, { headers: { Authorization: `Bearer ${state.token}` } });
     const badges = await r.json();
-    
     const obtenidos = badges.filter(b => b.obtenido);
     const pendientes = badges.filter(b => !b.obtenido);
-    
-    document.getElementById('badges-container').innerHTML = `
-      <div style="margin-bottom:1.5rem;">
-        <h3 style="margin-bottom:.75rem;">Obtenidos (${obtenidos.length}/${badges.length})</h3>
-        ${obtenidos.length === 0 ? '<p style="color:var(--color-text-muted);">A&uacute;n no has obtenido badges. &iexcl;Sigue practicando!</p>' :
-          `<div class="badges-grid">${obtenidos.map(b => `
-            <div class="badge-card obtained">
-              <div class="badge-icon">🎖️</div>
-              <strong>${b.nombre}</strong>
-              <p style="font-size:.75rem;color:var(--color-text-muted);">${b.descripcion}</p>
-              ${b.xp_bonus > 0 ? `<span style="font-size:.75rem;color:var(--color-warning);">+${b.xp_bonus} XP</span>` : ''}
-            </div>`).join('')}
-          </div>`
-        }
+    const pct = Math.round((obtenidos.length / badges.length) * 100);
+
+    document.getElementById('badges-summary').innerHTML = `
+      <div class="missions-summary-item">
+        <span class="missions-summary-num" style="color:var(--color-warning);">${obtenidos.length}</span>
+        <span>Obtenidos</span>
       </div>
-      <div>
-        <h3 style="margin-bottom:.75rem;">Por Descubrir</h3>
-        <div class="badges-grid">${pendientes.map(b => `
-          <div class="badge-card locked">
-            <div class="badge-icon">🔒</div>
-            <strong>???</strong>
-            <p style="font-size:.75rem;color:var(--color-text-muted);">${b.descripcion}</p>
-          </div>`).join('')}
-        </div>
+      <div class="missions-summary-item">
+        <span class="missions-summary-num">${badges.length}</span>
+        <span>Total</span>
+      </div>
+      <div class="missions-summary-item">
+        <span class="missions-summary-num" style="color:var(--color-success);">${pct}%</span>
+        <span>Completado</span>
       </div>`;
+
+    const typeIcons = { racha:'ti-flame', precision:'ti-target', volumen:'ti-books', velocidad:'ti-bolt', nivel:'ti-certificate', evento:'ti-trophy' };
+    const typeLabels = { racha:'Rachas', precision:'Precisión', volumen:'Volumen', velocidad:'Velocidad', nivel:'Nivel', evento:'Eventos' };
+    const types = [...new Set(badges.map(b => b.tipo || 'general'))];
+
+    document.getElementById('badges-container').innerHTML = `
+      <div class="mission-progress-bar" style="height:8px;margin-bottom:1.5rem;">
+        <div class="mission-progress-fill" style="width:${pct}%;"></div>
+      </div>
+
+      ${obtenidos.length > 0 ? `
+      <h3 style="margin-bottom:.75rem;color:var(--color-warning);"><i class="ti ti-star"></i> Obtenidos (${obtenidos.length})</h3>
+      <div class="badges-grid" style="margin-bottom:1.5rem;">
+        ${obtenidos.map(b => `
+          <div class="badge-card obtained" title="${b.descripcion}">
+            <div class="badge-icon obtained-icon"><i class="ti ${typeIcons[b.tipo]||'ti-award'}"></i></div>
+            <strong>${b.nombre}</strong>
+            <p>${b.descripcion}</p>
+            ${b.xp_bonus > 0 ? `<span class="badge-xp">+${b.xp_bonus} XP</span>` : ''}
+          </div>`).join('')}
+      </div>` : ''}
+
+      <h3 style="margin-bottom:.75rem;color:var(--color-text-muted);"><i class="ti ti-lock"></i> Por Descubrir (${pendientes.length})</h3>
+      ${types.map(type => {
+        const typeBadges = pendientes.filter(b => (b.tipo||'general') === type);
+        if (!typeBadges.length) return '';
+        return `
+          <p style="font-size:.78rem;color:var(--color-text-muted);margin:.75rem 0 .4rem;text-transform:uppercase;letter-spacing:.05em;">
+            <i class="ti ${typeIcons[type]||'ti-award'}"></i> ${typeLabels[type]||type}
+          </p>
+          <div class="badges-grid" style="margin-bottom:.75rem;">
+            ${typeBadges.map(b => `
+              <div class="badge-card locked" title="${b.descripcion}">
+                <div class="badge-icon locked-icon"><i class="ti ti-lock"></i></div>
+                <strong>???</strong>
+                <p>${b.descripcion}</p>
+              </div>`).join('')}
+          </div>`;
+      }).join('')}`;
   } catch(e) {
     document.getElementById('badges-container').innerHTML = `<p style="color:var(--color-error);">Error: ${e.message}</p>`;
   }
@@ -1586,81 +1273,74 @@ async function checkBadges() {
 // TIENDA
 // ============================================================
 async function renderShop(main) {
-  state.shopFilter = localStorage.getItem('mm_shop_filter') || 'all';
   main.innerHTML = `
-    <h2><i class="ti ti-shopping-bag"></i> Tienda MathMaty</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Gasta tu XP en power-ups, avatares y m&aacute;s.</p>
-    <div style="display:flex;gap:.75rem;margin-bottom:1.5rem;">
-      <button class="btn btn-outline btn-sm" onclick="renderInventory(document.getElementById('main-content'))">
-        <i class="ti ti-backpack"></i> Mi Inventario
-      </button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
+      <div>
+        <h2><i class="ti ti-shopping-bag"></i> Tienda MathMaty</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Gasta tu XP en power-ups y mejoras.</p>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:center;">
+        <div class="card" style="padding:.5rem 1rem;text-align:center;min-width:100px;">
+          <span style="font-size:1.3rem;font-weight:700;color:var(--color-warning);">${state.xp}</span>
+          <p style="font-size:.7rem;color:var(--color-text-muted);">XP disponible</p>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="renderInventory(document.getElementById('main-content'))">
+          <i class="ti ti-backpack"></i> Inventario
+        </button>
+      </div>
     </div>
     <div id="shop-container"><p style="color:var(--color-text-muted);">Cargando tienda...</p></div>`;
   
   try {
     const r = await fetch(`${API}/api/shop`, { headers: { Authorization: `Bearer ${state.token}` } });
     const items = await r.json();
-    state.shopItems = items;
-    
-    document.getElementById('shop-container').innerHTML = `
-      <div class="shop-summary-row">
-        <div class="card shop-xp-card">
-          <span style="font-size:1.5rem;font-weight:700;color:var(--color-warning);">${state.xp}</span>
-          <p style="font-size:0.75rem;color:var(--color-text-muted);">XP Disponible</p>
-        </div>
-        ${state.user?.rol === 'padre' ? '' : `
-        <button class="btn btn-outline shop-inventory-btn" onclick="showView('badges')">
-          <i class="ti ti-medal"></i> Mis Logros
-        </button>`}
-      </div>
-      <div class="shop-toolbar" id="shop-toolbar">${renderShopFilters(items)}</div>
-      <div class="shop-grid shop-items-grid" id="shop-grid">${renderShopItems(items)}</div>`;
+    const tipos = [...new Set(items.map(i => i.tipo))];
+    const tipoNombres = { powerup:'⚡ Power-Ups', avatar:'👤 Avatares', tema:'🎨 Temas', especial:'🎁 Especiales' };
+    const tipoDesc = {
+      powerup: 'Úsalos durante las misiones para recuperar HP o ganar ventajas.',
+      avatar: 'Personaliza tu perfil con nuevos avatares.',
+      tema: 'Cambia la apariencia de la aplicación.',
+      especial: 'Objetos únicos de edición limitada.'
+    };
+
+    let html = '';
+    tipos.forEach(tipo => {
+      const tipoItems = items.filter(i => i.tipo === tipo);
+      html += `
+        <div style="margin-bottom:2rem;">
+          <h3 style="margin-bottom:.25rem;color:var(--color-primary);">${tipoNombres[tipo]||tipo}</h3>
+          <p style="font-size:.8rem;color:var(--color-text-muted);margin-bottom:.75rem;">${tipoDesc[tipo]||''}</p>
+          <div class="shop-grid">
+            ${tipoItems.map(item => {
+              const puedeComprar = state.xp >= item.precio_xp;
+              return `
+                <div class="card shop-item ${!puedeComprar ? 'locked' : ''}">
+                  <div class="shop-icon">${item.icono||'📦'}</div>
+                  <h3>${item.nombre}</h3>
+                  <p>${item.descripcion}</p>
+                  <div class="shop-price"><i class="ti ti-star"></i> ${item.precio_xp} XP</div>
+                  <button class="btn ${puedeComprar?'btn-primary':'btn-outline'} btn-sm"
+                    onclick="buyItem(${item.id})" ${!puedeComprar?'disabled':''}>
+                    ${puedeComprar ? '<i class="ti ti-shopping-cart"></i> Comprar' : 'XP insuficiente'}
+                  </button>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    });
+
+    if (tipos.length === 0) {
+      html = `<div class="card" style="text-align:center;padding:3rem;">
+        <span style="font-size:3rem;display:block;margin-bottom:1rem;">🛒</span>
+        <h3>Tienda vacía</h3>
+        <p style="color:var(--color-text-muted);margin-top:.5rem;">Próximamente habrá artículos disponibles.</p>
+      </div>`;
+    }
+
+    document.getElementById('shop-container').innerHTML = html;
   } catch(e) {
     document.getElementById('shop-container').innerHTML = `<p style="color:var(--color-error);">Error: ${e.message}</p>`;
   }
-}
-
-function renderShopFilters(items) {
-  const labels = { all: 'Todos', powerup: 'Power-Ups', avatar: 'Avatares', tema: 'Temas', especial: 'Especiales' };
-  const tipos = ['all', ...[...new Set(items.map(i => i.tipo))]];
-  return tipos.map(tipo => `
-    <button class="shop-chip ${state.shopFilter === tipo ? 'active' : ''}" onclick="setShopFilter('${tipo}')">
-      ${labels[tipo] || tipo}
-    </button>
-  `).join('');
-}
-
-function renderShopItems(items) {
-  const labels = { powerup: 'Power-Up', avatar: 'Avatar', tema: 'Tema', especial: 'Especial' };
-  const visible = state.shopFilter === 'all' ? items : items.filter(i => i.tipo === state.shopFilter);
-  if (!visible.length) return `<div class="card empty-state-card">No hay art&iacute;culos en esta categor&iacute;a.</div>`;
-  return visible.map(item => {
-    const puedeComprar = state.xp >= item.precio_xp;
-    return `
-      <div class="card shop-item shop-item-premium ${!puedeComprar ? 'locked' : ''}">
-        <div class="shop-item-top">
-          <span class="shop-icon">${item.icono || '📦'}</span>
-          <span class="shop-type">${labels[item.tipo] || item.tipo}</span>
-        </div>
-        <h3>${item.nombre}</h3>
-        <p>${item.descripcion}</p>
-        <div class="shop-card-footer">
-          <span class="shop-price"><i class="ti ti-star"></i> ${item.precio_xp} XP</span>
-          <button class="btn ${puedeComprar ? 'btn-primary' : 'btn-outline'} btn-xs" onclick="buyItem(${item.id})" ${!puedeComprar ? 'disabled' : ''}>
-            ${!puedeComprar ? 'XP insuf.' : 'Comprar'}
-          </button>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-function setShopFilter(tipo) {
-  state.shopFilter = tipo;
-  localStorage.setItem('mm_shop_filter', tipo);
-  const toolbar = document.getElementById('shop-toolbar');
-  const grid = document.getElementById('shop-grid');
-  if (toolbar) toolbar.innerHTML = renderShopFilters(state.shopItems || []);
-  if (grid) grid.innerHTML = renderShopItems(state.shopItems || []);
 }
 
 async function buyItem(itemId) {
@@ -1736,75 +1416,43 @@ async function useItem(itemId) {
 // BIBLIOTECA DE CONOCIMIENTO
 // ============================================================
 async function renderKnowledge(main) {
-  const nivel = localStorage.getItem('mm_knowledge_nivel') || '';
-  const materia = localStorage.getItem('mm_knowledge_materia') || '';
-  const savedTopic = localStorage.getItem('mm_knowledge_topic') || '';
-  const topic = getFilteredTopics(materia, nivel).some(t => t.id === savedTopic) ? savedTopic : '';
-  main.innerHTML = `
-    <h2><i class="ti ti-library"></i> Biblioteca de Conocimiento</h2>
-    <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Explicaciones detalladas, ejemplos y ma&ntilde;as organizadas por nivel, materia y tema.</p>
-    <div class="filter-bar">
-      <span class="select-wrap">
-        <select id="knowledge-nivel" class="select-control" onchange="updateKnowledgeFilters()">${renderNivelOptions(nivel, 'Todos los niveles')}</select>
-      </span>
-      <span class="select-wrap">
-        <select id="knowledge-materia" class="select-control" onchange="updateKnowledgeFilters()">${renderMateriaOptions(materia)}</select>
-      </span>
-      <span class="select-wrap">
-        <select id="knowledge-topic" class="select-control" onchange="updateKnowledgeFilters()">${renderHierarchyTopicOptions(getFilteredTopics(materia, nivel), topic, 'Todos los temas', nivel)}</select>
-      </span>
-    </div>
-    <div id="knowledge-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.25rem;">
-    </div>
-    <div style="margin-top:2rem;">
-      <h3 style="margin-bottom:1rem;">Buscador de T&eacute;rminos</h3>
-      <input type="text" id="glossary-search" class="btn btn-outline" style="width:100%;background:var(--color-bg);text-align:left;margin-bottom:1rem;" placeholder="Buscar en el glosario..." oninput="searchGlossary()">
-      <div id="glossary-results" style="display:flex;flex-direction:column;gap:.5rem;"></div>
-    </div>`;
-  
-  renderKnowledgeGrid();
-  searchGlossary(); // Carga inicial
-}
+  const parciales = [1,2,3];
+  const byParcial = (p) => TOPICS.filter(t => t.parcial === p);
 
-function refreshKnowledgeTopicOptions() {
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  const select = document.getElementById('knowledge-topic');
-  if (!select) return '';
-  const current = select.value;
-  const topics = getFilteredTopics(materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-  return select.value;
-}
-
-function updateKnowledgeFilters() {
-  const topic = refreshKnowledgeTopicOptions();
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  localStorage.setItem('mm_knowledge_nivel', nivel);
-  localStorage.setItem('mm_knowledge_materia', materia);
-  localStorage.setItem('mm_knowledge_topic', topic);
-  renderKnowledgeGrid();
-}
-
-function renderKnowledgeGrid() {
-  const materia = document.getElementById('knowledge-materia')?.value || '';
-  const nivel = document.getElementById('knowledge-nivel')?.value || '';
-  const topic = document.getElementById('knowledge-topic')?.value || '';
-  const topics = sortTopicsForHierarchy(getFilteredTopics(materia, nivel).filter(t => !topic || t.id === topic), nivel);
-  const grid = document.getElementById('knowledge-grid');
-  if (!grid) return;
-  grid.innerHTML = topics.length === 0
-    ? '<p style="color:var(--color-text-muted);">No hay temas para ese filtro.</p>'
-    : topics.map(t => `
-      <div class="card topic-card" onclick="openKnowledgeTopic('${t.id}')" style="cursor:pointer;">
-        <i class="ti ${t.icon}" style="font-size:2rem;color:var(--color-primary);margin-bottom:.5rem;"></i>
+  const topicCard = (t) => `
+    <div class="card kb-topic-card" onclick="openKnowledgeTopic('${t.id}')">
+      <div class="kb-topic-icon"><i class="ti ${t.icon}"></i></div>
+      <div class="kb-topic-body">
         <h3>${t.name}</h3>
-        <p style="font-size:.85rem;color:var(--color-text-secondary);margin:.5rem 0;line-height:1.5;">${t.teoria.substring(0,100)}...</p>
-        <span style="font-size:.75rem;color:var(--color-primary);">Ver gu&iacute;a completa →</span>
+        <p>${t.teoria.substring(0,90)}...</p>
       </div>
-    `).join('');
+      <i class="ti ti-chevron-right kb-topic-arrow"></i>
+    </div>`;
+
+  main.innerHTML = `
+    <div class="kb-header">
+      <div>
+        <h2><i class="ti ti-library"></i> Biblioteca de Conocimiento</h2>
+        <p style="color:var(--color-text-secondary);margin-top:.25rem;">Guías completas, ejemplos y mañas para cada tema.</p>
+      </div>
+      <div class="kb-search-wrap">
+        <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--color-text-muted);pointer-events:none;"></i>
+        <input type="text" id="glossary-search" placeholder="Buscar tema o término..." oninput="searchGlossary()" style="padding-left:2rem;">
+      </div>
+    </div>
+    <div id="glossary-results" style="display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem;"></div>
+
+    ${parciales.map(p => `
+      <div class="kb-parcial-section">
+        <div class="kb-parcial-header">
+          <span class="kb-parcial-badge">Parcial ${p}</span>
+          <span style="font-size:.8rem;color:var(--color-text-muted);">${byParcial(p).length} temas</span>
+        </div>
+        <div class="kb-topics-list">${byParcial(p).map(topicCard).join('')}</div>
+      </div>
+    `).join('')}
+  `;
+  searchGlossary();
 }
 
 function searchGlossary() {
@@ -2198,17 +1846,16 @@ async function renderReports(main) {
 // ============================================================
 // CONFIGURACI&Oacute;N
 // ============================================================
-const CONFIG_TABS = ['ia', 'doom', 'db', 'cuenta'];
+const CONFIG_TABS = ['ia', 'doom', 'cuenta'];
 let currentConfigTab = 'ia';
 
 function renderConfig(main) {
   main.innerHTML = `
     <h2>Configuraci&oacute;n</h2>
     <div class="config-tabs">
-      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" data-tab="ia" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
-      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" data-tab="doom" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
-      <button class="config-tab ${currentConfigTab === 'db' ? 'active' : ''}" data-tab="db" onclick="switchConfigTab('db')"><i class="ti ti-database"></i> DB</button>
-      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" data-tab="cuenta" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
+      <button class="config-tab ${currentConfigTab === 'ia' ? 'active' : ''}" onclick="switchConfigTab('ia')"><i class="ti ti-robot"></i> IA</button>
+      <button class="config-tab ${currentConfigTab === 'doom' ? 'active' : ''}" onclick="switchConfigTab('doom')"><i class="ti ti-video"></i> DoomGuy</button>
+      <button class="config-tab ${currentConfigTab === 'cuenta' ? 'active' : ''}" onclick="switchConfigTab('cuenta')"><i class="ti ti-user"></i> Cuenta</button>
     </div>
     <div id="config-content"></div>`;
   switchConfigTab(currentConfigTab);
@@ -2216,13 +1863,12 @@ function renderConfig(main) {
 
 function switchConfigTab(tab) {
   currentConfigTab = tab;
-  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.textContent.includes(tab === 'ia' ? 'IA' : tab === 'doom' ? 'Doom' : 'Cuenta')));
   const container = document.getElementById('config-content');
   if (!container) return;
   
   if (tab === 'ia') renderConfigIA(container);
   else if (tab === 'doom') renderConfigDoom(container);
-  else if (tab === 'db') renderConfigDB(container);
   else if (tab === 'cuenta') renderConfigCuenta(container);
 }
 
@@ -2258,7 +1904,7 @@ function renderConfigIA(container) {
 }
 
 function renderConfigDoom(container) {
-  const doomVideos = _doomVideos;
+  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
   
   // 12 video slots exactly as the user described
   const slots = [
@@ -2336,55 +1982,30 @@ function renderConfigCuenta(container) {
     </div>`;
 }
 
-async function renderConfigDB(container) {
-  container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-text-muted);">Consultando conexi&oacute;n...</p></div>`;
-  try {
-    const r = await fetch(`${API}/api/config/db`, { headers: { Authorization: `Bearer ${state.token}` } });
-    const db = await r.json();
-    container.innerHTML = `
-      <div class="card" style="margin-top:1rem;">
-        <h3><i class="ti ti-database"></i> Database</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1rem;">
-          <div><strong>Estado:</strong> <span style="color:${db.connected ? 'var(--color-success)' : 'var(--color-error)'};">${db.connected ? 'Conectada' : 'Sin conexi&oacute;n'}</span></div>
-          <div><strong>Origen:</strong> ${db.source || '-'}</div>
-          <div><strong>Host:</strong> ${db.host || '-'}</div>
-          <div><strong>Puerto:</strong> ${db.port || '-'}</div>
-          <div><strong>Base:</strong> ${db.activeDatabase || db.database || '-'}</div>
-          <div><strong>Usuario:</strong> ${db.activeUser || db.user || '-'}</div>
-          <div><strong>SSL:</strong> ${db.sslmode || '-'}</div>
-        </div>
-        ${db.error ? `<p style="color:var(--color-error);font-size:.85rem;margin-top:1rem;">${db.error}</p>` : ''}
-      </div>`;
-  } catch(e) {
-    container.innerHTML = `<div class="card" style="margin-top:1rem;"><h3><i class="ti ti-database"></i> Database</h3><p style="color:var(--color-error);">No se pudo consultar la conexi&oacute;n.</p></div>`;
-  }
-}
-
 function uploadDoomVideo(key, input, isPng) {
   const file = input.files[0];
   if (!file) return;
-  const labelEl = document.getElementById(`doom-label-${key}`);
-  if (labelEl) labelEl.textContent = 'Subiendo...';
   const reader = new FileReader();
   reader.onload = async function(e) {
     const dataUrl = e.target.result;
     try {
-      const r = await fetch('/api/doom-videos', {
+      const r = await fetch('/api/upload/image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-        body: JSON.stringify({ key, image: dataUrl })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl, isVideo: !isPng })
       });
       const result = await r.json();
-      if (result.ok) {
-        _doomVideos[key] = dataUrl;
-        if (labelEl) labelEl.textContent = file.name;
-      } else {
-        if (labelEl) labelEl.textContent = 'Error: ' + (result.error || 'desconocido');
-      }
-    } catch(err) {
-      if (labelEl) labelEl.textContent = 'Error al subir';
+      const url = result.url || dataUrl;
+      const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+      doomVideos[key] = url;
+      localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
+      document.getElementById(`doom-label-${key}`).textContent = file.name;
+    } catch(e) {
+      const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+      doomVideos[key] = dataUrl;
+      localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
+      document.getElementById(`doom-label-${key}`).textContent = file.name;
     }
-    loadDoomVideos();
     switchConfigTab('doom');
   };
   reader.readAsDataURL(file);
@@ -2392,9 +2013,9 @@ function uploadDoomVideo(key, input, isPng) {
 
 function removeDoomVideo(key) {
   if (!confirm('Eliminar este video?')) return;
-  fetch(`/api/doom-videos/${key}`, { method: 'DELETE', headers: { Authorization: `Bearer ${state.token}` } }).catch(() => {});
-  delete _doomVideos[key];
-  loadDoomVideos();
+  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
+  delete doomVideos[key];
+  localStorage.setItem('doom_videos', JSON.stringify(doomVideos));
   switchConfigTab('doom');
 }
 
@@ -2430,18 +2051,54 @@ async function saveAPI(e) {
 // ============================================================
 async function renderParentDashboard(main) {
   main.innerHTML = `
-    <h2>Panel Parental</h2>
-    <h3 style="margin:1rem 0;">Mis Hijos</h3>
-    <div id="children-list" style="margin-bottom:1.5rem;"><p>Cargando...</p></div>
+    <h2><i class="ti ti-users"></i> Panel Parental</h2>
+    <p style="color:var(--color-text-secondary);margin:.25rem 0 1.5rem;">Monitorea el progreso de tus hijos y vincula nuevas cuentas.</p>
+
+    <div id="children-list" style="display:flex;flex-direction:column;gap:.75rem;margin-bottom:1.5rem;">
+      <p style="color:var(--color-text-muted);">Cargando...</p>
+    </div>
+
     <div class="card">
-      <h3>Vincular Nuevo Hijo</h3>
-      <p style="font-size:.85rem;color:var(--color-text-muted);margin:.5rem 0;">Ingresa el username del estudiante.</p>
-      <div style="display:flex;gap:.5rem;">
-        <input type="text" id="child-username" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="username">
-        <button class="btn btn-primary" onclick="linkChild()">Vincular</button>
+      <h3 style="margin-bottom:.75rem;"><i class="ti ti-user-plus"></i> Vincular Estudiante</h3>
+      <p style="font-size:.85rem;color:var(--color-text-muted);margin-bottom:.75rem;">Ingresa el nombre de usuario del estudiante para vincularlo a tu cuenta.</p>
+      <div style="display:flex;gap:.5rem;position:relative;">
+        <div style="flex:1;position:relative;">
+          <input type="text" id="child-username" placeholder="Buscar usuario del estudiante..."
+            style="width:100%;padding:.5rem .75rem;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text-primary);"
+            oninput="searchStudents(this.value)">
+          <div id="student-suggestions" class="student-suggestions hidden"></div>
+        </div>
+        <button class="btn btn-primary" onclick="linkChild()"><i class="ti ti-link"></i> Vincular</button>
       </div>
     </div>`;
   loadChildren();
+}
+
+async function searchStudents(query) {
+  const box = document.getElementById('student-suggestions');
+  if (!query || query.length < 2) { box.classList.add('hidden'); return; }
+  try {
+    const r = await fetch(`${API}/api/auth/search-students?q=${encodeURIComponent(query)}`, {
+      headers: { Authorization: `Bearer ${state.token}` }
+    });
+    if (!r.ok) { box.classList.add('hidden'); return; }
+    const students = await r.json();
+    if (students.length === 0) { box.classList.add('hidden'); return; }
+    box.innerHTML = students.map(s => `
+      <div class="student-suggestion-item" onclick="selectStudent('${s.username}')">
+        <i class="ti ti-user"></i>
+        <div>
+          <strong>${s.nombre}</strong>
+          <span style="font-size:.78rem;color:var(--color-text-muted);">@${s.username}</span>
+        </div>
+      </div>`).join('');
+    box.classList.remove('hidden');
+  } catch(e) { box.classList.add('hidden'); }
+}
+
+function selectStudent(username) {
+  document.getElementById('child-username').value = username;
+  document.getElementById('student-suggestions').classList.add('hidden');
 }
 
 async function loadChildren() {
@@ -2449,26 +2106,31 @@ async function loadChildren() {
     const r = await fetch(`${API}/api/auth/children`, { headers: { Authorization: `Bearer ${state.token}` } });
     const children = await r.json();
     document.getElementById('children-list').innerHTML = children.length === 0
-      ? '<p style="color:var(--color-text-muted);">Sin hijos vinculados</p>'
-      : `
-        <div class="children-picker">
-          <label for="child-select">Hijo</label>
-          <span class="select-wrap">
-            <select id="child-select" class="select-control" onchange="switchToChildView(this.value)">
-              <option value="">Seleccionar hijo</option>
-              ${children.map(c => `<option value="${c.id}">${c.nombre} (@${c.username})</option>`).join('')}
-            </select>
-          </span>
-        </div>
-        ${children.map(c => `
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
-          <div>
+      ? `<div class="card" style="text-align:center;padding:2rem;color:var(--color-text-muted);">
+           <i class="ti ti-users" style="font-size:2.5rem;display:block;margin-bottom:.75rem;"></i>
+           <p>No tienes estudiantes vinculados aún.</p>
+           <p style="font-size:.85rem;margin-top:.25rem;">Usa el formulario de abajo para vincular uno.</p>
+         </div>`
+      : children.map(c => `
+        <div class="card child-card">
+          <div class="child-avatar"><i class="ti ti-user-circle"></i></div>
+          <div class="child-info">
             <strong>${c.nombre}</strong>
-            <p style="font-size:.85rem;color:var(--color-text-muted);">@${c.username} — Lv ${c.nivel||1} — ${c.xp||0} XP</p>
+            <span>@${c.username}</span>
+            <div class="child-stats">
+              <span><i class="ti ti-certificate"></i> Lv ${c.nivel||1}</span>
+              <span><i class="ti ti-star"></i> ${c.xp||0} XP</span>
+              <span><i class="ti ti-heart"></i> ${c.hp||100} HP</span>
+              <span><i class="ti ti-flame"></i> ${c.racha_actual||0} racha</span>
+            </div>
           </div>
-          <button class="btn btn-primary btn-sm" onclick="showChildReport(${c.id})">Ver Reporte</button>
-        </div>`).join('')}`;
-  } catch(e) { document.getElementById('children-list').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`; }
+          <button class="btn btn-primary btn-sm" onclick="showChildReport(${c.id})">
+            <i class="ti ti-chart-bar"></i> Reporte
+          </button>
+        </div>`).join('');
+  } catch(e) {
+    document.getElementById('children-list').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`;
+  }
 }
 
 async function linkChild() {
@@ -2512,58 +2174,17 @@ async function showChildReport(childId) {
 function renderAdmin(main) {
   main.innerHTML = `
     <h2>Banco de Ejercicios</h2>
-    <div class="filter-bar">
-      <span class="select-wrap"><select id="admin-nivel" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderNivelOptions('', 'Todos los niveles')}</select></span>
-      <span class="select-wrap"><select id="admin-materia" class="select-control" onchange="refreshAdminTopicOptions();loadAdminList()">${renderMateriaOptions()}</select></span>
-      <span class="select-wrap"><select id="admin-filter" class="select-control" onchange="loadAdminList()">${renderHierarchyTopicOptions(TOPICS, '', 'Todos los temas')}</select></span>
-      <span class="select-wrap"><select id="admin-tipo" class="select-control" onchange="loadAdminList()">
-        <option value="">Todo tipo</option>
-        <option value="practica">Práctica regular</option>
-        <option value="examen">Exámenes / admisión</option>
-        <option value="generado">Generados</option>
-      </select></span>
-      <input id="admin-search" class="btn btn-outline admin-search" oninput="loadAdminList()" placeholder="Buscar">
+    <div style="display:flex;gap:.75rem;align-items:center;margin:1rem 0;flex-wrap:wrap;">
+      <select id="admin-filter" class="btn btn-outline" onchange="loadAdminList()" style="background:var(--color-bg);">
+        <option value="">Todos</option>
+        ${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}
+      </select>
       <button class="btn btn-primary" onclick="showAddExercise()"><i class="ti ti-plus"></i> Nuevo</button>
       <span id="admin-count" style="color:var(--color-text-muted);font-size:.85rem;"></span>
     </div>
     <div id="admin-list"></div>
-    ${renderAddExerciseForm()}
-    ${renderEditExerciseForm()}`;
+    ${renderAddExerciseForm()}`;
   loadAdminList();
-}
-
-function refreshAdminTopicOptions() {
-  const materia = document.getElementById('admin-materia')?.value || '';
-  const nivel = document.getElementById('admin-nivel')?.value || '';
-  const select = document.getElementById('admin-filter');
-  if (!select) return;
-  const current = select.value;
-  const topics = getFilteredTopics(materia, nivel);
-  select.innerHTML = renderHierarchyTopicOptions(topics, current, 'Todos los temas', nivel);
-  if (current && !topics.some(t => t.id === current)) select.value = '';
-}
-
-function adminExerciseTipo(ex) {
-  const origin = `${ex.archivo_origen || ''} ${ex.source || ''}`.toLowerCase();
-  if (ex.nivel === 'tec-paa' || (ex.topic_id || '').startsWith('tec-') || /tec|paa|una|ucr|matem|admisi/.test(origin)) return 'Examen';
-  if ((ex.archivo_origen || '') === 'generacion-programatica' || /^gen-prog/.test(ex.source || '')) return 'Generado';
-  return 'Práctica';
-}
-
-function nivelOptions(selected) {
-  return NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('');
-}
-
-function sortAdminExercisesForHierarchy(exercises) {
-  return [...exercises].sort((a, b) => {
-    const nivelDiff = getNivelOrder(a.nivel) - getNivelOrder(b.nivel);
-    if (nivelDiff) return nivelDiff;
-    const materiaDiff = getMateriaOrder(getTopicMateriaId(a.topic_id)) - getMateriaOrder(getTopicMateriaId(b.topic_id));
-    if (materiaDiff) return materiaDiff;
-    const topicDiff = getTopicOrder(a.topic_id) - getTopicOrder(b.topic_id);
-    if (topicDiff) return topicDiff;
-    return (Number(b.id) || 0) - (Number(a.id) || 0);
-  });
 }
 
 function renderAddExerciseForm() {
@@ -2575,10 +2196,7 @@ function renderAddExerciseForm() {
         <button class="btn btn-outline btn-sm" onclick="hideAddExercise()">✕</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:.6rem;">
-        <div style="display:flex;gap:.5rem;">
-          <select id="new-topic" class="select-control" style="flex:1;">${renderTopicOptions(TOPICS, TOPICS[0]?.id || '', null)}</select>
-          <select id="new-nivel" class="select-control">${nivelOptions('tec-paa')}</select>
-        </div>
+        <select id="new-topic" class="btn btn-outline" style="background:var(--color-bg);">${TOPICS.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>
         
         <div style="display:flex;gap:.35rem;align-items:center;">
           <textarea id="new-question" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Enunciado del ejercicio"></textarea>
@@ -2596,10 +2214,11 @@ function renderAddExerciseForm() {
         <input id="new-d2" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 2">
         <input id="new-d3" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 3">
         
+        <!-- Image upload -->
         <div style="display:flex;gap:.5rem;align-items:center;padding:.5rem;background:var(--color-surface-hover);border-radius:var(--radius-md);">
           <i class="ti ti-photo" style="color:var(--color-primary);"></i>
           <input type="text" id="new-image" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="URL de imagen (opcional)">
-          <input type="file" id="new-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event,'new')">
+          <input type="file" id="new-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
           <button class="btn btn-outline btn-sm" onclick="document.getElementById('new-image-file').click()"><i class="ti ti-upload"></i></button>
         </div>
         <div id="new-image-preview" style="display:none;margin-top:.25rem;text-align:center;">
@@ -2617,57 +2236,6 @@ function renderAddExerciseForm() {
   </div>`;
 }
 
-function renderEditExerciseForm() {
-  return `
-  <div id="edit-exercise-overlay" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;">
-    <div class="card" style="max-width:550px;width:92%;max-height:90vh;overflow-y:auto;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-        <h3><i class="ti ti-edit"></i> Editar Ejercicio #<span id="edit-id-display"></span></h3>
-        <button class="btn btn-outline btn-sm" onclick="hideEditExercise()">✕</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:.6rem;">
-        <div style="display:flex;gap:.5rem;">
-          <select id="edit-topic" class="select-control" style="flex:1;">${renderTopicOptions(TOPICS, TOPICS[0]?.id || '', null)}</select>
-          <select id="edit-nivel" class="select-control">${nivelOptions()}</select>
-        </div>
-        
-        <div style="display:flex;gap:.35rem;align-items:center;">
-          <textarea id="edit-question" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Enunciado del ejercicio"></textarea>
-        </div>
-        
-        <div style="display:flex;gap:.35rem;align-items:center;">
-          <input id="edit-latex" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="F&oacute;rmula / expresi&oacute;n matem&aacute;tica" onclick="toggleMathKeyboard('edit-latex')">
-          <button class="btn btn-outline btn-sm" onclick="toggleMathKeyboard('edit-latex')" title="Teclado"><i class="ti ti-keyboard"></i></button>
-
-          <input id="edit-correct" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="✅ Respuesta CORRECTA" onclick="toggleMathKeyboard('edit-correct')">
-          <button class="btn btn-outline btn-sm" onclick="toggleMathKeyboard('edit-correct')"><i class="ti ti-keyboard"></i></button>
-        </div>
-
-        <input id="edit-d1" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 1">
-        <input id="edit-d2" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 2">
-        <input id="edit-d3" class="btn btn-outline" style="background:var(--color-bg);text-align:left;" placeholder="❌ Distractor 3">
-        
-        <div style="display:flex;gap:.5rem;align-items:center;padding:.5rem;background:var(--color-surface-hover);border-radius:var(--radius-md);">
-          <i class="ti ti-photo" style="color:var(--color-primary);"></i>
-          <input type="text" id="edit-image" class="btn btn-outline" style="flex:1;background:var(--color-bg);text-align:left;" placeholder="URL de imagen (base64 o URL)">
-          <input type="file" id="edit-image-file" accept="image/*" style="display:none" onchange="handleImageUpload(event,'edit')">
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('edit-image-file').click()"><i class="ti ti-upload"></i></button>
-        </div>
-        <div id="edit-image-preview" style="margin-top:.25rem;text-align:center;">
-          <img id="edit-image-preview-img" style="max-width:100%;max-height:150px;border-radius:var(--radius-md);">
-        </div>
-        
-        <textarea id="edit-theory" class="btn btn-outline" style="background:var(--color-bg);text-align:left;height:60px;resize:vertical;" placeholder="Teor&iacute;a de respaldo (opcional)"></textarea>
-        
-        <div style="display:flex;gap:.5rem;">
-          <button class="btn btn-primary" style="flex:1;" onclick="submitEditExercise()"><i class="ti ti-device-floppy"></i> Guardar Cambios</button>
-          <button class="btn btn-outline" onclick="hideEditExercise()">Cancelar</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
-}
-
 function showAddExercise() {
   document.getElementById('add-exercise-overlay')?.classList.remove('hidden');
 }
@@ -2676,100 +2244,46 @@ function hideAddExercise() {
   document.getElementById('add-exercise-overlay')?.classList.add('hidden');
 }
 
-let editingExerciseId = null;
-
-async function showEditExercise(id) {
-  editingExerciseId = id;
-  const r = await fetch(`${API}/api/admin/exercises/${id}`, { headers: { Authorization: `Bearer ${state.token}` } });
-  const ex = await r.json();
-  document.getElementById('edit-id-display').textContent = id;
-  document.getElementById('edit-topic').value = ex.topic_id || '';
-  document.getElementById('edit-nivel').value = ex.nivel || '';
-  document.getElementById('edit-question').value = ex.question || '';
-  document.getElementById('edit-latex').value = ex.latex_content || '';
-  const opts = ex.options || ['','','',''];
-  document.getElementById('edit-correct').value = opts[0] || '';
-  document.getElementById('edit-d1').value = opts[1] || '';
-  document.getElementById('edit-d2').value = opts[2] || '';
-  document.getElementById('edit-d3').value = opts[3] || '';
-  document.getElementById('edit-image').value = ex.imagen || '';
-  if (ex.imagen) {
-    document.getElementById('edit-image-preview-img').src = ex.imagen;
-    document.getElementById('edit-image-preview').style.display = 'block';
-  } else {
-    document.getElementById('edit-image-preview-img').src = '';
-    document.getElementById('edit-image-preview').style.display = 'none';
-  }
-  document.getElementById('edit-theory').value = ex.theory || '';
-  document.getElementById('edit-exercise-overlay')?.classList.remove('hidden');
-}
-
-function hideEditExercise() {
-  document.getElementById('edit-exercise-overlay')?.classList.add('hidden');
-  editingExerciseId = null;
-}
-
-async function handleImageUpload(event, prefix) {
+async function handleImageUpload(event) {
   const file = event.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     const dataUrl = e.target.result;
-    const preview = document.getElementById(prefix + '-image-preview');
-    const img = document.getElementById(prefix + '-image-preview-img');
-    const input = document.getElementById(prefix + '-image');
-    preview.style.display = 'block';
-    img.src = dataUrl;
-    input.value = dataUrl;
+    document.getElementById('new-image-preview').style.display = 'block';
+    document.getElementById('new-image-preview-img').src = dataUrl;
+    try {
+      const r = await fetch('/api/upload/image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl })
+      });
+      const result = await r.json();
+      if (result.url) {
+        document.getElementById('new-image').value = result.url;
+        document.getElementById('new-image-preview-img').src = result.url;
+      }
+    } catch(e) {
+      document.getElementById('new-image').value = dataUrl;
+    }
   };
   reader.readAsDataURL(file);
 }
 
 async function loadAdminList() {
   const topic = document.getElementById('admin-filter')?.value || '';
-  const materia = document.getElementById('admin-materia')?.value || '';
-  const nivel = document.getElementById('admin-nivel')?.value || '';
-  const tipo = document.getElementById('admin-tipo')?.value || '';
-  const q = document.getElementById('admin-search')?.value.trim() || '';
-  const params = new URLSearchParams();
-  if (topic) {
-    params.set('topic', topic);
-  } else if (materia) {
-    const scopedTopics = getFilteredTopics(materia, nivel);
-    if (scopedTopics.length === 0) {
-      document.getElementById('admin-count').textContent = '0 ejercicio(s)';
-      document.getElementById('admin-list').innerHTML = '<p style="color:var(--color-text-muted);margin-top:1rem;">Vac&iacute;o</p>';
-      return;
-    }
-    params.set('topics', scopedTopics.map(t => t.id).join(','));
-  }
-  if (nivel) params.set('nivel', nivel);
-  if (tipo) params.set('tipo', tipo);
-  if (q) params.set('q', q);
-  const url = `${API}/api/admin/exercises${params.toString() ? '?' + params.toString() : ''}`;
+  const url = topic ? `${API}/api/admin/exercises?topic=${topic}` : `${API}/api/admin/exercises`;
   try {
     const r = await fetch(url, { headers: { Authorization: `Bearer ${state.token}` } });
     const list = await r.json();
-    if (!r.ok) throw new Error(list.error || 'Error cargando banco');
-    if (!Array.isArray(list)) throw new Error('Respuesta inválida del banco');
-    const orderedList = sortAdminExercisesForHierarchy(list);
-    document.getElementById('admin-count').textContent = `${orderedList.length} ejercicio(s)`;
-    document.getElementById('admin-list').innerHTML = orderedList.map(ex => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:.65rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.35rem;gap:.75rem;">
-        <div style="flex:1;font-size:.85rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-width:0;">
-          <span style="color:var(--color-text-muted);font-size:.7rem;">#${ex.id}</span>
-          ${ex.nivel ? `<span class="badge" style="background:var(--color-surface);font-size:.65rem;">${NIVEL_NAMES[ex.nivel] || ex.nivel}</span>` : ''}
-          <span class="badge" style="background:var(--color-surface);font-size:.65rem;">${MATERIA_SHORT_NAMES[getTopicMateriaId(ex.topic_id)] || 'Matem&aacute;tica'}</span>
-          <span class="badge" style="background:var(--color-primary);">${TOPIC_NAMES[ex.topic_id] || ex.topic_id}</span>
-          <span class="badge" style="background:${adminExerciseTipo(ex)==='Examen'?'rgba(245,158,11,.2)':adminExerciseTipo(ex)==='Generado'?'rgba(59,130,246,.2)':'rgba(16,185,129,.16)'};color:var(--color-text-secondary);font-size:.65rem;">${adminExerciseTipo(ex)}</span>
-          ${ex.imagen ? `<span class="badge" style="background:var(--color-success);font-size:.65rem;"><i class="ti ti-photo"></i></span>` : ''}
-          <span style="margin-left:.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:180px;max-width:540px;">${(ex.question||'').replace(/<[^>]*>/g,' ').substring(0,90)}${(ex.question||'').length>90?'...':''}</span>
-          ${ex.archivo_origen ? `<span style="color:var(--color-text-muted);font-size:.7rem;white-space:nowrap;">${ex.archivo_origen}</span>` : ''}
+    document.getElementById('admin-count').textContent = `${list.length} ejercicio(s)`;
+    document.getElementById('admin-list').innerHTML = list.map(ex => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem .75rem;background:var(--color-surface-hover);border-radius:var(--radius-md);margin-bottom:.25rem;">
+        <div style="flex:1;font-size:.85rem;">
+          <span class="badge" style="background:var(--color-primary);">${ex.topic_id}</span>
+          <span style="margin-left:.5rem;">${ex.question?.substring(0,70)}${ex.question?.length>70?'...':''}</span>
         </div>
-        <div style="display:flex;gap:.25rem;">
-          <button class="btn btn-outline btn-sm" onclick="showEditExercise(${ex.id})"><i class="ti ti-edit"></i></button>
-          <button class="btn btn-outline btn-sm" style="color:var(--color-error);" onclick="deleteExercise(${ex.id})"><i class="ti ti-trash"></i></button>
-        </div>
+        <button class="btn btn-outline btn-sm" style="color:var(--color-error);" onclick="deleteExercise(${ex.id})"><i class="ti ti-trash"></i></button>
       </div>`).join('') || '<p style="color:var(--color-text-muted);margin-top:1rem;">Vac&iacute;o</p>';
   } catch(e) { document.getElementById('admin-list').innerHTML = `<p style="color:var(--color-error);">${e.message}</p>`; }
 }
@@ -2777,41 +2291,18 @@ async function loadAdminList() {
 async function submitNewExercise() {
   const correctAns = document.getElementById('new-correct').value;
   const latexExpr = document.getElementById('new-latex').value;
-  const imageData = document.getElementById('new-image').value;
+  const imageUrl = document.getElementById('new-image').value;
   
   const body = {
     topic_id: document.getElementById('new-topic').value,
-    question: document.getElementById('new-question').value,
+    question: document.getElementById('new-question').value + (imageUrl ? `\n<img src="${imageUrl}" alt="Gr&aacute;fico del ejercicio" style="max-width:100%;margin:1rem 0;border-radius:8px;">` : ''),
     latex: latexExpr,
     options: [correctAns, document.getElementById('new-d1').value, document.getElementById('new-d2').value, document.getElementById('new-d3').value],
     steps: [{math: latexExpr, expl: 'Resultado correcto: ' + correctAns}],
-    theory: document.getElementById('new-theory').value,
-    imagen: imageData || null,
-    nivel: document.getElementById('new-nivel').value
+    theory: document.getElementById('new-theory').value
   };
   await fetch(`${API}/api/admin/exercises`, { method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`}, body:JSON.stringify(body) });
   hideAddExercise();
-  loadAdminList();
-}
-
-async function submitEditExercise() {
-  if (!editingExerciseId) return;
-  const correctAns = document.getElementById('edit-correct').value;
-  const latexExpr = document.getElementById('edit-latex').value;
-  const imageData = document.getElementById('edit-image').value;
-  
-  const body = {
-    topic_id: document.getElementById('edit-topic').value,
-    question: document.getElementById('edit-question').value,
-    latex: latexExpr,
-    options: [correctAns, document.getElementById('edit-d1').value, document.getElementById('edit-d2').value, document.getElementById('edit-d3').value],
-    steps: [{math: latexExpr, expl: 'Resultado correcto: ' + correctAns}],
-    theory: document.getElementById('edit-theory').value,
-    imagen: imageData || null,
-    nivel: document.getElementById('edit-nivel').value
-  };
-  await fetch(`${API}/api/admin/exercises/${editingExerciseId}`, { method:'PUT', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`}, body:JSON.stringify(body) });
-  hideEditExercise();
   loadAdminList();
 }
 
@@ -2874,46 +2365,39 @@ async function updateUI() {
 
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = _doomVideos;
+  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
   
   faceEl.className = 'doom-face';
   if (hp <= 0) faceEl.classList.add('dead');
   
-  // Reset death flag if HP recovered above 0
-  if (hp > 0) _doomDeathPlayed = false;
-
-  // Detect thresholds crossed when HP drops
+  // Check if HP dropped past a threshold → play transition video
   let playedTransition = false;
-  if (hp < _prevHp) {
-    // Collect ALL thresholds crossed in this drop
-    const crossed = [];
+  if (hp > 0 && hp < _prevHp) {
     for (let i = 1; i < DOOM_HIT_THRESHOLDS.length; i++) {
       const upper = DOOM_HIT_THRESHOLDS[i - 1];
       const lower = DOOM_HIT_THRESHOLDS[i];
-      if (_prevHp > lower && hp <= lower) crossed.push(upper);
-      else if (_prevHp > lower && hp > lower) break;
-    }
-    // Play the HIGHEST (first) threshold crossed
-    if (crossed.length > 0 && crossed[0] > 0) {
-      const hitKey = `hit_${crossed[0]}`;
-      const hitSrc = doomVideos[hitKey];
-      if (hitSrc) {
-        _doomPlayingHit = true;
-        video.style.display = 'block';
-        faceEl.style.backgroundImage = 'none';
-        video.src = hitSrc;
-        video.loop = false;
-        video.load();
-        video.play().catch(() => {});
-        video.onended = () => { _doomPlayingHit = false; updateDoomDisplay(hp); };
-        playedTransition = true;
+      if (_prevHp > lower && hp <= lower) {
+        const hitKey = `hit_${upper}`;
+        const hitSrc = doomVideos[hitKey];
+        if (hitSrc) {
+          _doomPlayingHit = true;
+          video.style.display = 'block';
+          faceEl.style.backgroundImage = 'none';
+          video.src = hitSrc;
+          video.loop = false;
+          video.load();
+          video.play().catch(() => {});
+          video.onended = () => { _doomPlayingHit = false; updateDoomDisplay(hp); };
+          playedTransition = true;
+          break;
+        }
       }
     }
   }
   _prevHp = hp;
   
-  // Death blow — always play, even if already played a hit (multi-threshold drop)
-  if (hp <= 0 && !_doomDeathPlayed) {
+  // Death blow
+  if (!playedTransition && hp <= 0 && !_doomDeathPlayed) {
     _doomDeathPlayed = true;
     const deathSrc = doomVideos['hit_0'];
     if (deathSrc) {
@@ -2937,7 +2421,7 @@ async function updateUI() {
 function updateDoomDisplay(hp) {
   const faceEl = document.getElementById('doom-face');
   const video = document.getElementById('doom-video');
-  const doomVideos = _doomVideos;
+  const doomVideos = JSON.parse(localStorage.getItem('doom_videos') || '{}');
   
   if (hp <= 0) {
     if (video) video.style.display = 'none';
@@ -3373,71 +2857,24 @@ function launchGame(gameId) {
   window._currentGameId = gameId;
   window._gameScore = 0;
   document.getElementById('game-modal').classList.remove('hidden');
-
-  var gameInfo = MathGames.games[gameId];
-  if (!gameInfo) return;
-
+  
   var titleEl = document.getElementById('game-modal-title');
-  var descEl  = document.getElementById('game-modal-desc');
+  var descEl = document.getElementById('game-modal-desc');
   var scoreEl = document.getElementById('game-score-display');
-  if (titleEl) titleEl.textContent = (gameInfo.icon || '🎮') + ' ' + gameInfo.name;
-  if (descEl)  descEl.textContent  = gameInfo.desc || '';
-  if (scoreEl) scoreEl.textContent = 'XP: 0';
-
-  // Show start screen with instructions
-  var container = document.getElementById('game-container');
-  container.innerHTML = '';
-  var startScreen = document.createElement('div');
-  startScreen.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:1.25rem;padding:2rem;text-align:center;background:#000;border-radius:var(--radius-md);';
-  startScreen.innerHTML =
-    '<div style="font-size:3.5rem;">' + (gameInfo.icon || '🎮') + '</div>' +
-    '<h2 style="color:#fff;margin:0;">' + gameInfo.name + '</h2>' +
-    '<p style="color:#aaa;font-size:.9rem;max-width:320px;line-height:1.5;">' + (gameInfo.desc || '') + '</p>' +
-    '<div style="background:#111;border:1px solid #333;border-radius:8px;padding:.75rem 1.25rem;">' +
-      '<p style="color:#f59e0b;font-size:.8rem;font-weight:600;margin-bottom:.25rem;">🕹️ CONTROLES</p>' +
-      '<p style="color:#ccc;font-size:.85rem;">' + (gameInfo.config.controls || 'Clic para jugar') + '</p>' +
-    '</div>' +
-    '<button id="game-start-btn" style="background:var(--color-primary);color:#fff;border:none;padding:.75rem 2.5rem;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;letter-spacing:.03em;">▶ JUGAR</button>';
-  container.appendChild(startScreen);
-
-  document.getElementById('game-start-btn').onclick = function() {
-    container.innerHTML = '';
+  var gameInfo = MathGames.games[gameId];
+  if (gameInfo) {
+    if (titleEl) titleEl.textContent = (gameInfo.icon || '🎮') + ' ' + gameInfo.name;
+    if (descEl) descEl.textContent = gameInfo.desc || '';
     if (scoreEl) scoreEl.textContent = 'XP: 0';
-    MathGames.launch(gameId, 'game-container', function(score) {
-      window._gameScore = score || 0;
-      var xp = Math.min(200, Math.floor((score || 0) / 10) * 5 + 10);
-      state.xp += xp;
-      updateUI();
-      // Show game over screen
-      setTimeout(function() { showGameOver(gameId, score, xp); }, 200);
-    });
-  };
-}
-
-function showGameOver(gameId, score, xp) {
-  var container = document.getElementById('game-container');
-  if (!container) return;
-  container.innerHTML = '';
-  var gameInfo = MathGames.games[gameId] || {};
-  var scoreEl = document.getElementById('game-score-display');
-  if (scoreEl) scoreEl.textContent = 'XP: ' + (xp || 0);
-
-  var screen = document.createElement('div');
-  screen.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:1rem;padding:2rem;text-align:center;background:#000;border-radius:var(--radius-md);';
-  screen.innerHTML =
-    '<div style="font-size:2.5rem;">💀</div>' +
-    '<h2 style="color:#ef4444;margin:0;font-size:1.8rem;letter-spacing:.05em;">GAME OVER</h2>' +
-    '<div style="background:#111;border:1px solid #333;border-radius:8px;padding:1rem 2rem;">' +
-      '<p style="color:#aaa;font-size:.8rem;margin-bottom:.25rem;">PUNTUACIÓN FINAL</p>' +
-      '<p style="color:#f59e0b;font-size:2rem;font-weight:700;margin:0;">' + (score || 0) + '</p>' +
-      '<p style="color:#10b981;font-size:.85rem;margin-top:.25rem;">+' + (xp || 0) + ' XP ganado</p>' +
-    '</div>' +
-    '<div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center;">' +
-      '<button onclick="launchGame(\'' + gameId + '\')" style="background:var(--color-primary);color:#fff;border:none;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;">🔄 Reintentar</button>' +
-      '<button onclick="launchRandomGame()" style="background:#333;color:#fff;border:none;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;cursor:pointer;">🎲 Otro juego</button>' +
-      '<button onclick="closeGame()" style="background:#222;color:#aaa;border:1px solid #444;padding:.6rem 1.5rem;border-radius:8px;font-size:.9rem;cursor:pointer;">✕ Salir</button>' +
-    '</div>';
-  container.appendChild(screen);
+  }
+  
+  MathGames.launch(gameId, 'game-container', function(score) {
+    window._gameScore = score || 0;
+    var xp = Math.min(200, Math.floor((score || 0) / 10) * 5 + 10);
+    if (scoreEl) scoreEl.textContent = 'XP: ' + xp;
+    state.xp += xp;
+    updateUI();
+  });
 }
 
 // ============================================================
@@ -3508,24 +2945,6 @@ function initDoomWidget() {
       widget.style.right = 'auto';
     }
   } catch(e) {}
-
-  // Kickstart video autoplay on first user interaction (browsers block autoplay without gesture)
-  let _videoStarted = false;
-  function kickstartVideo() {
-    if (_videoStarted) return;
-    _videoStarted = true;
-    document.removeEventListener('click', kickstartVideo);
-    document.removeEventListener('touchstart', kickstartVideo);
-    const video = document.getElementById('doom-video');
-    if (video && window._doomVideos && window._doomVideos['idle_100']) {
-      video.src = window._doomVideos['idle_100'];
-      video.loop = true;
-      video.load().catch(()=>{});
-      video.play().catch(()=>{});
-    }
-  }
-  document.addEventListener('click', kickstartVideo, { once: true });
-  document.addEventListener('touchstart', kickstartVideo, { once: true });
 }
 
 // ============================================================
@@ -3588,439 +3007,3 @@ function initWhiteboardCanvas() {
   const observer = new ResizeObserver(resizeCanvas);
   observer.observe(wbBody);
 }
-// ============================================================
-// FLASHCARDS — MathMaty v2.0
-// Agregar este bloque al final de app.js
-// También registrar 'flashcards': renderFlashcards en showView()
-// Y agregar botón en el sidebar/home con: onclick="showView('flashcards')"
-// ============================================================
-
-// ---------- Estado de la sesión de flashcards ----------
-const fcState = {
-  cards: [],          // [{front, back, latex_front, latex_back}]
-  index: 0,
-  flipped: false,
-  known: 0,
-  unknown: 0,
-  topic: null,
-  loading: false,
-  seenIds: []
-};
-
-// ---------- Entrada: selector de tema ----------
-function renderFlashcards(main) {
-  main.innerHTML = `
-    <div style="max-width:680px;margin:0 auto;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:.5rem;">
-        <h2><i class="ti ti-cards" style="color:var(--color-primary);"></i> Flashcards</h2>
-        <span style="font-size:.8rem;color:var(--color-text-muted);">Repaso r&aacute;pido con tarjetas</span>
-      </div>
-
-      <div class="card" style="margin-bottom:1.5rem;">
-        <h3 style="margin-bottom:1rem;">Selecciona un tema</h3>
-        <div class="fc-setup-grid">
-          <label class="fc-field">
-            <span class="fc-field-label">Tema</span>
-            <span class="select-wrap">
-              <select id="fc-topic-select" class="select-control">
-                ${renderHierarchyTopicOptions(TOPICS, state.currentTopic?.id || TOPICS[0]?.id || '', null)}
-              </select>
-            </span>
-          </label>
-          <label class="fc-field">
-            <span class="fc-field-label">Cantidad</span>
-            <span class="select-wrap">
-              <select id="fc-count-select" class="select-control fc-count-select">
-                <option value="5">5 cards</option>
-                <option value="8" selected>8 cards</option>
-                <option value="12">12 cards</option>
-                <option value="18">18 cards</option>
-                <option value="25">25 cards</option>
-                <option value="35">35 cards</option>
-                <option value="50">50 cards</option>
-              </select>
-            </span>
-          </label>
-        </div>
-        <button class="btn btn-primary" style="width:100%;margin-top:1rem;" onclick="startFlashcardSession()">
-          <i class="ti ti-player-play"></i> Iniciar sesi&oacute;n
-        </button>
-      </div>
-
-      <!-- Tips -->
-      <div class="card" style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);">
-        <h4 style="color:var(--color-primary);margin-bottom:.5rem;"><i class="ti ti-bulb"></i> &iquest;C&oacute;mo funciona?</h4>
-        <ul style="font-size:.85rem;color:var(--color-text-secondary);line-height:1.8;padding-left:1.2rem;">
-          <li>El banco genera tarjetas con ejercicios del tema elegido.</li>
-          <li>Toca la tarjeta para voltearla y ver la respuesta.</li>
-          <li>Marca si lo sab&iacute;as o no — el sistema te muestra tu progreso.</li>
-          <li>Ganas <strong style="color:var(--color-warning);">+20 XP</strong> por cada tarjeta correcta.</li>
-        </ul>
-      </div>
-    </div>`;
-}
-
-// ---------- Generar tarjetas via IA ----------
-async function startFlashcardSession() {
-  const topicId = document.getElementById('fc-topic-select').value;
-  const count = parseInt(document.getElementById('fc-count-select').value);
-  const topic = TOPICS.find(t => t.id === topicId);
-
-  const main = document.getElementById('main-content');
-  main.innerHTML = `
-    <div style="max-width:680px;margin:0 auto;text-align:center;padding:3rem 1rem;">
-      <div style="font-size:3rem;margin-bottom:1rem;">🃏</div>
-      <h3 style="color:var(--color-primary);">Preparando flashcards...</h3>
-      <p style="color:var(--color-text-muted);margin-top:.5rem;">Buscando ${count} tarjetas de <strong>${topic.name}</strong> en el banco</p>
-      <div class="progress-bar" style="margin-top:1.5rem;height:6px;">
-        <div class="progress-fill fc-loading-bar" style="animation:fc-load 2.5s ease-in-out infinite;"></div>
-      </div>
-    </div>
-    <style>
-      @keyframes fc-load {
-        0%   { width: 5%; }
-        50%  { width: 80%; }
-        100% { width: 95%; }
-      }
-    </style>`;
-
-  try {
-    const r = await fetch(`${API}/api/ai/generate-flashcards`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ topic: topicId, count, excludeIds: fcState.seenIds })
-    });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || 'No se pudieron generar tarjetas');
-    const cards = Array.isArray(data.cards) ? data.cards : (Array.isArray(data) ? data : []);
-
-    if (!cards || cards.length === 0) throw new Error('No se pudieron generar tarjetas');
-
-    fcState.cards = cards;
-    fcState.index = 0;
-    fcState.flipped = false;
-    fcState.known = 0;
-    fcState.unknown = 0;
-    fcState.topic = topic;
-    cards.forEach(card => {
-      if (card.id && !fcState.seenIds.includes(card.id)) fcState.seenIds.push(card.id);
-    });
-    if (fcState.seenIds.length > 300) fcState.seenIds = fcState.seenIds.slice(-300);
-
-    renderFlashcardDeck(main);
-
-  } catch (e) {
-    main.innerHTML = `
-      <div style="max-width:680px;margin:0 auto;text-align:center;padding:3rem 1rem;">
-        <div style="font-size:3rem;margin-bottom:1rem;">⚠️</div>
-        <h3 style="color:var(--color-warning);">No se pudieron generar las tarjetas</h3>
-        <p style="color:var(--color-text-muted);margin:.5rem 0 1.5rem;">${e.message}</p>
-        <button class="btn btn-primary" onclick="showView('flashcards')">Volver</button>
-      </div>`;
-  }
-}
-
-// ---------- Fallback local deshabilitado: la consulta vive en el backend ----------
-async function generateFlashcardsFromExercises(topicId, count, topic) {
-  throw new Error('El servicio de flashcards no está disponible');
-}
-
-// ---------- Renderizar el mazo de tarjetas ----------
-function renderFlashcardDeck(main) {
-  const total = fcState.cards.length;
-  const current = fcState.index;
-  const card = fcState.cards[current];
-  const latexFront = cleanLatexValue(card.latex_front);
-  const latexBack = cleanLatexValue(card.latex_back);
-  const progressPct = Math.round((current / total) * 100);
-
-  main.innerHTML = `
-    <div style="max-width:680px;margin:0 auto;">
-      <!-- Header -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-        <div>
-          <h2 style="margin:0;font-size:1.1rem;">${fcState.topic.name}</h2>
-          <span style="font-size:.8rem;color:var(--color-text-muted);">Tarjeta ${current + 1} de ${total}</span>
-        </div>
-        <div style="display:flex;gap:.5rem;align-items:center;">
-          <span style="font-size:.85rem;color:var(--color-success);font-weight:600;">✓ ${fcState.known}</span>
-          <span style="font-size:.85rem;color:var(--color-error);font-weight:600;">✗ ${fcState.unknown}</span>
-          <button class="btn btn-outline btn-sm" onclick="showView('flashcards')" title="Salir">✕</button>
-        </div>
-      </div>
-
-      <!-- Barra de progreso -->
-      <div class="progress-bar" style="margin-bottom:1.5rem;height:8px;border-radius:4px;">
-        <div class="progress-fill" style="width:${progressPct}%;transition:width .4s ease;border-radius:4px;"></div>
-      </div>
-
-      <!-- La tarjeta -->
-      <div id="fc-card-scene" style="perspective:1000px;cursor:pointer;margin-bottom:1.5rem;" onclick="flipFlashcard()">
-        <div id="fc-card-inner" style="
-          position:relative;
-          width:100%;
-          min-height:260px;
-          transition:transform .55s cubic-bezier(.4,0,.2,1);
-          transform-style:preserve-3d;
-          border-radius:var(--radius-lg);
-        ">
-          <!-- Cara frontal -->
-          <div id="fc-front" style="
-            position:absolute;inset:0;
-            backface-visibility:hidden;
-            -webkit-backface-visibility:hidden;
-            background:var(--color-surface);
-            border:2px solid var(--color-border);
-            border-radius:var(--radius-lg);
-            display:flex;flex-direction:column;
-            align-items:center;justify-content:center;
-            padding:2rem 1.5rem;text-align:center;
-            box-shadow:0 4px 24px rgba(0,0,0,0.18);
-            overflow:auto;
-          ">
-            <div style="font-size:.7rem;letter-spacing:.12em;color:var(--color-primary);font-weight:700;margin-bottom:1.25rem;text-transform:uppercase;">
-              <i class="ti ti-question-mark"></i> PREGUNTA
-            </div>
-            <div style="font-size:1.15rem;font-weight:600;line-height:1.6;color:var(--color-text);margin:0 0 1rem;">
-              ${card.front}
-            </div>
-            ${latexFront ? `<div id="fc-latex-front" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
-            <div style="margin-top:1.5rem;font-size:.78rem;color:var(--color-text-muted);">
-              <i class="ti ti-hand-click"></i> Toca para ver la respuesta
-            </div>
-          </div>
-
-          <!-- Cara trasera -->
-          <div id="fc-back" style="
-            position:absolute;inset:0;
-            backface-visibility:hidden;
-            -webkit-backface-visibility:hidden;
-            transform:rotateY(180deg);
-            background:var(--color-surface);
-            border:2px solid var(--color-primary);
-            border-radius:var(--radius-lg);
-            display:flex;flex-direction:column;
-            align-items:center;justify-content:center;
-            padding:2rem 1.5rem;text-align:center;
-            box-shadow:0 4px 24px rgba(59,130,246,0.2);
-            overflow:auto;
-          ">
-            <div style="font-size:.7rem;letter-spacing:.12em;color:var(--color-success);font-weight:700;margin-bottom:1.25rem;text-transform:uppercase;">
-              <i class="ti ti-check"></i> RESPUESTA
-            </div>
-            <div style="font-size:1.05rem;line-height:1.7;color:var(--color-text);margin:0 0 1rem;">
-              ${card.back}
-            </div>
-            ${latexBack ? `<div id="fc-latex-back" style="margin-top:.5rem;background:#000;padding:1rem 1.5rem;border-radius:var(--radius-md);min-width:80%;"></div>` : ''}
-          </div>
-        </div>
-      </div>
-
-      <!-- Botones de evaluación (ocultos hasta voltear) -->
-      <div id="fc-eval-btns" style="display:none;gap:.75rem;justify-content:center;margin-bottom:1.5rem;">
-        <button class="btn btn-outline" style="flex:1;border-color:var(--color-error);color:var(--color-error);padding:.85rem;" onclick="fcAnswer(false)">
-          <i class="ti ti-x"></i> No lo sab&iacute;a
-        </button>
-        <button class="btn btn-primary" style="flex:1;padding:.85rem;" onclick="fcAnswer(true)">
-          <i class="ti ti-check"></i> Lo sab&iacute;a
-        </button>
-      </div>
-
-      <!-- Instrucción -->
-      <p id="fc-hint" style="text-align:center;font-size:.8rem;color:var(--color-text-muted);">
-        <i class="ti ti-info-circle"></i> Toca la tarjeta para voltearla, luego eval&uacute;a tu respuesta
-      </p>
-    </div>`;
-
-  // Renderizar LaTeX si hay
-  if (latexFront) {
-    setTimeout(() => {
-      const el = document.getElementById('fc-latex-front');
-      if (el) try { katex.render(latexFront, el, { displayMode: true, throwOnError: false }); } catch(e) {}
-    }, 50);
-  }
-  if (latexBack) {
-    setTimeout(() => {
-      const el = document.getElementById('fc-latex-back');
-      if (el) try { katex.render(latexBack, el, { displayMode: true, throwOnError: false }); } catch(e) {}
-    }, 50);
-  }
-
-  fcState.flipped = false;
-}
-
-// ---------- Voltear tarjeta ----------
-function flipFlashcard() {
-  const inner = document.getElementById('fc-card-inner');
-  const evalBtns = document.getElementById('fc-eval-btns');
-  const hint = document.getElementById('fc-hint');
-  if (!inner) return;
-
-  if (!fcState.flipped) {
-    inner.style.transform = 'rotateY(180deg)';
-    fcState.flipped = true;
-    if (evalBtns) evalBtns.style.display = 'flex';
-    if (hint) hint.style.display = 'none';
-  } else {
-    inner.style.transform = 'rotateY(0deg)';
-    fcState.flipped = false;
-    if (evalBtns) evalBtns.style.display = 'none';
-    if (hint) hint.style.display = 'block';
-  }
-}
-
-// ---------- Registrar respuesta y avanzar ----------
-async function fcAnswer(knew) {
-  if (knew) {
-    fcState.known++;
-    state.xp += 20;
-    // Guardar XP en backend
-    try {
-      await fetch(`${API}/api/leaderboard/actualizar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-        body: JSON.stringify({ xp_ganada: 20, correcto: true })
-      });
-    } catch(e) {}
-  } else {
-    fcState.unknown++;
-  }
-
-  fcState.index++;
-  const main = document.getElementById('main-content');
-
-  if (fcState.index >= fcState.cards.length) {
-    renderFlashcardResults(main);
-  } else {
-    // Mini animación de transición antes de siguiente tarjeta
-    const scene = document.getElementById('fc-card-scene');
-    if (scene) {
-      scene.style.transition = 'opacity .2s';
-      scene.style.opacity = '0';
-      setTimeout(() => {
-        renderFlashcardDeck(main);
-      }, 200);
-    } else {
-      renderFlashcardDeck(main);
-    }
-    updateUI();
-  }
-}
-
-// ---------- Pantalla de resultados ----------
-function renderFlashcardResults(main) {
-  const total = fcState.cards.length;
-  const pct = Math.round((fcState.known / total) * 100);
-  const emoji = pct >= 80 ? '🏆' : pct >= 50 ? '💪' : '📚';
-  const msg = pct >= 80
-    ? '¡Excelente dominio del tema!'
-    : pct >= 50
-    ? '¡Buen avance! Repite las que fallaste.'
-    : 'Necesitas más práctica. ¡No te rindas!';
-
-  const xpTotal = fcState.known * 20;
-
-  main.innerHTML = `
-    <div style="max-width:520px;margin:0 auto;text-align:center;padding:1rem;">
-      <div style="font-size:4rem;margin-bottom:.5rem;">${emoji}</div>
-      <h2 style="margin-bottom:.25rem;">Sesi&oacute;n completada</h2>
-      <p style="color:var(--color-text-muted);margin-bottom:2rem;">${msg}</p>
-
-      <!-- Resultado visual -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:2rem;">
-        <div class="card" style="text-align:center;padding:1.25rem .75rem;">
-          <div style="font-size:2rem;font-weight:700;color:var(--color-success);">${fcState.known}</div>
-          <div style="font-size:.75rem;color:var(--color-text-muted);">Sabidas</div>
-        </div>
-        <div class="card" style="text-align:center;padding:1.25rem .75rem;">
-          <div style="font-size:2rem;font-weight:700;color:var(--color-error);">${fcState.unknown}</div>
-          <div style="font-size:.75rem;color:var(--color-text-muted);">A repasar</div>
-        </div>
-        <div class="card" style="text-align:center;padding:1.25rem .75rem;">
-          <div style="font-size:2rem;font-weight:700;color:var(--color-warning);">+${xpTotal}</div>
-          <div style="font-size:.75rem;color:var(--color-text-muted);">XP ganada</div>
-        </div>
-      </div>
-
-      <!-- Barra de dominio -->
-      <div class="card" style="margin-bottom:1.5rem;text-align:left;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:.5rem;">
-          <span style="font-size:.85rem;">Dominio del tema</span>
-          <span style="font-size:.85rem;font-weight:700;color:${pct>=70?'var(--color-success)':pct>=40?'var(--color-warning)':'var(--color-error)'};">${pct}%</span>
-        </div>
-        <div class="progress-bar" style="height:10px;">
-          <div class="progress-fill" style="width:${pct}%;background:${pct>=70?'var(--color-success)':pct>=40?'var(--color-warning)':'var(--color-error)'};transition:width 1s ease;border-radius:5px;"></div>
-        </div>
-      </div>
-
-      <!-- Botones -->
-      <div style="display:flex;flex-direction:column;gap:.75rem;">
-        <button class="btn btn-primary" onclick="retryFlashcards()" style="padding:.9rem;">
-          <i class="ti ti-reload"></i> Repetir las que fall&eacute;
-        </button>
-        <button class="btn btn-outline" onclick="showView('flashcards')" style="padding:.9rem;">
-          <i class="ti ti-cards"></i> Nueva sesi&oacute;n
-        </button>
-        <button class="btn btn-outline" onclick="startExercise('${fcState.topic.id}')" style="padding:.9rem;">
-          <i class="ti ti-player-play"></i> Practicar ejercicios del tema
-        </button>
-      </div>
-    </div>`;
-
-  updateUI();
-}
-
-// ---------- Repetir solo las tarjetas falladas ----------
-function retryFlashcards() {
-  if (fcState.unknown === 0) {
-    showView('flashcards');
-    return;
-  }
-  // Reconstruir deck solo con las tarjetas que no supo
-  // (simplificado: repetir todas, en versión futura se puede trackear cuáles falló)
-  const allCards = fcState.cards;
-  fcState.cards = allCards;
-  fcState.index = 0;
-  fcState.flipped = false;
-  fcState.known = 0;
-  fcState.unknown = 0;
-  const main = document.getElementById('main-content');
-  renderFlashcardDeck(main);
-}
-
-// ============================================================
-// INSTRUCCIONES DE INTEGRACIÓN
-// ============================================================
-//
-// 1. AGREGAR LA VISTA AL ROUTER showView() en app.js:
-//    Dentro del objeto `views`, añadir:
-//      flashcards: renderFlashcards,
-//
-// 2. AGREGAR BOTÓN EN EL SIDEBAR (en tu HTML):
-//    <a class="nav-item" onclick="showView('flashcards')">
-//      <i class="ti ti-cards"></i> <span>Flashcards</span>
-//    </a>
-//
-// 3. AGREGAR BOTÓN EN HOME (en renderHome, dentro de hero-actions):
-//    <button class="btn btn-outline" onclick="showView('flashcards')">
-//      <i class="ti ti-cards"></i> Flashcards
-//    </button>
-//
-// 4. AGREGAR BOTÓN EN CADA TOPIC CARD (en renderTopics):
-//    <button class="btn btn-outline btn-sm" onclick="startFlashcardsForTopic('${t.id}')">
-//      <i class="ti ti-cards"></i> Flashcards
-//    </button>
-//
-// 5. FUNCIÓN HELPER para abrir flashcards de un tema directamente:
-function startFlashcardsForTopic(topicId) {
-  state.currentTopic = TOPICS.find(t => t.id === topicId);
-  showView('flashcards');
-  // Pre-seleccionar el tema después de que renderice
-  setTimeout(() => {
-    const sel = document.getElementById('fc-topic-select');
-    if (sel) sel.value = topicId;
-  }, 100);
-}
-//
-// ============================================================

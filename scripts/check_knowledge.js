@@ -1,0 +1,10 @@
+process.env.NODE_TLS_REJECT_UNAUTHORIZED='0';
+const{Pool}=require('pg');
+const p=new Pool({connectionString:process.env.DATABASE_URL||'postgresql://neondb_owner:npg_x5NnjheXrb4H@ep-broad-wildflower-aq3he37e-pooler.c-8.us-east.1.aws.neon.tech/mathmaty?sslmode=require',ssl:{rejectUnauthorized:false}});
+(async()=>{
+  const r=await p.query('SELECT COUNT(1) FROM knowledge_library');
+  console.log('knowledge_library rows:',r.rows[0].count);
+  const r2=await p.query('SELECT topic_id, COUNT(1) FROM knowledge_library GROUP BY topic_id ORDER BY topic_id');
+  r2.rows.forEach(x=>console.log(x.topic_id.padEnd(20),x.count));
+  await p.end();
+})();

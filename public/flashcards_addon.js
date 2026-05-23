@@ -83,7 +83,7 @@ async function startFlashcardSession() {
     const r = await fetch(`${API}/api/ai/generate-flashcards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-      body: JSON.stringify({ topic: topicId, count })
+      body: JSON.stringify({ topic: topicId, count, nivel: document.getElementById('topics-nivel-filter')?.value || '' })
     });
 
     let cards = [];
