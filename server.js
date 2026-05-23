@@ -84,6 +84,28 @@ app.post('/api/upload/image', (req, res) => {
 // SERVIR KATEX LOCALMENTE DESDE NODE_MODULES (Evita bloqueos de CDN / Tracking Prevention)
 app.use('/katex', express.static(path.join(__dirname, 'node_modules/katex/dist')));
 
+const NIVEL_OPTIONS = [
+  { id: 'primaria-1-3', label: 'Primaria (1° - 3°)', order: 1 },
+  { id: 'primaria-4-6', label: 'Primaria (4° - 6°)', order: 2 },
+  { id: 'secundaria-7-9', label: 'Secundaria (7° - 9°)', order: 3 },
+  { id: 'secundaria-10-11', label: 'Secundaria (10° - 11°)', order: 4 },
+  { id: 'universitario', label: 'Universitario (Inicio)', order: 5 },
+  { id: 'calculo', label: 'Cálculo Avanzado', order: 6 }
+];
+
+const TOPIC_NIVEL_MAP = {
+  'primaria-1-3':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica'],
+  'primaria-4-6':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica','estadistica','geometria','plano-cartesiano'],
+  'secundaria-7-9':    ['conjuntos','numeros-reales','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','ecuaciones','plano-cartesiano','geometria','inecuaciones'],
+  'secundaria-10-11':  ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
+  'universitario':     ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','calculo','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','matrices','vectores','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
+  'calculo':           ['calculo','exp-log','trigonometria','matrices','vectores','sucesiones','geo-analitica','inecuaciones','polinomios','factorizacion']
+};
+
+function getTopicsForNivel(nivelId) {
+  return TOPIC_NIVEL_MAP[nivelId] || TOPIC_NIVEL_MAP['secundaria-10-11'];
+}
+
 // Middleware de autenticaci&oacute;n
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -107,7 +129,7 @@ const authenticateToken = (req, res, next) => {
 // Registro de usuario
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { username, password, nombre, email, rol } = req.body;
+    const { username, password, nombre, email, rol, nivel_educativo } = req.body;
     
     if (!username || !password || !nombre || !rol) {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
@@ -116,6 +138,10 @@ app.post('/api/auth/register', async (req, res) => {
     if (!['estudiante', 'padre'].includes(rol)) {
       return res.status(400).json({ error: 'Rol inv&aacute;lido' });
     }
+    
+    const nivelValido = NIVEL_OPTIONS.find(n => n.id === nivel_educativo);
+    const nivelFinal = nivelValido ? nivel_educativo : 'secundaria-10-11';
+    const defaultTopics = getTopicsForNivel(nivelFinal);
     
     // Verificar si el usuario ya existe
     const existingUser = await pool.query(
@@ -132,8 +158,8 @@ app.post('/api/auth/register', async (req, res) => {
     
     // Insertar nuevo usuario
     const result = await pool.query(
-      'INSERT INTO users (username, password_hash, nombre, email, rol, xp, nivel) VALUES ($1, $2, $3, $4, $5, 0, 1) RETURNING id, username, nombre, email, rol, xp, nivel',
-      [username, passwordHash, nombre, email, rol]
+      'INSERT INTO users (username, password_hash, nombre, email, rol, xp, nivel, nivel_educativo, selected_topics) VALUES ($1, $2, $3, $4, $5, 0, 1, $6, $7) RETURNING id, username, nombre, email, rol, xp, nivel, nivel_educativo, selected_topics',
+      [username, passwordHash, nombre, email, rol, nivelFinal, JSON.stringify(defaultTopics)]
     );
     
     // Crear entrada en leaderboard
@@ -210,7 +236,9 @@ app.post('/api/auth/login', async (req, res) => {
         xp: user.xp,
         nivel: user.nivel,
         hp: user.hp,
-        racha_actual: user.racha_actual
+        racha_actual: user.racha_actual,
+        nivel_educativo: user.nivel_educativo,
+        selected_topics: user.selected_topics
       }
     });
   } catch (err) {
@@ -223,7 +251,7 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, username, nombre, email, rol, xp, nivel, hp, racha_actual, racha_maxima, tiempo_practica FROM users WHERE id = $1',
+      'SELECT id, username, nombre, email, rol, xp, nivel, hp, racha_actual, racha_maxima, tiempo_practica, nivel_educativo, selected_topics FROM users WHERE id = $1',
       [req.user.id]
     );
     
@@ -235,6 +263,54 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Error obteniendo perfil:', err);
     res.status(500).json({ error: 'Error al obtener perfil' });
+  }
+});
+
+app.patch('/api/auth/preferences', authenticateToken, async (req, res) => {
+  try {
+    const { nivel_educativo, selected_topics } = req.body;
+    const updates = [];
+    const params = [];
+    let idx = 1;
+
+    if (nivel_educativo) {
+      const nivelValido = NIVEL_OPTIONS.find(n => n.id === nivel_educativo);
+      if (!nivelValido) {
+        return res.status(400).json({ error: 'Nivel educativo inválido' });
+      }
+      updates.push(`nivel_educativo = $${idx++}`);
+      params.push(nivel_educativo);
+      if (!selected_topics) {
+        const defaultTopics = getTopicsForNivel(nivel_educativo);
+        updates.push(`selected_topics = $${idx++}::jsonb`);
+        params.push(JSON.stringify(defaultTopics));
+      }
+    }
+
+    if (selected_topics) {
+      if (!Array.isArray(selected_topics)) {
+        return res.status(400).json({ error: 'selected_topics debe ser un array' });
+      }
+      if (!nivel_educativo) {
+        updates.push(`selected_topics = $${idx++}::jsonb`);
+        params.push(JSON.stringify(selected_topics));
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    params.push(req.user.id);
+    const result = await pool.query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${idx} RETURNING id, username, nombre, email, rol, xp, nivel, hp, nivel_educativo, selected_topics`,
+      params
+    );
+
+    res.json({ message: 'Preferencias actualizadas', user: result.rows[0] });
+  } catch (err) {
+    console.error('Error actualizando preferencias:', err);
+    res.status(500).json({ error: 'Error al actualizar preferencias' });
   }
 });
 
@@ -2026,11 +2102,17 @@ async function initDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(exercise_id, user_id)
       )`,
     ];
-    let count = 0;
+    let count = 0, alterCount = 0;
     for (const sql of tables) {
       try { await pool.query(sql); count++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
     }
-    console.log('✅  ' + count + '/' + tables.length + ' tablas creadas/verificadas');
+    for (const col of [
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS nivel_educativo VARCHAR(30)",
+      "ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_topics JSONB DEFAULT '[]'::jsonb"
+    ]) {
+      try { await pool.query(col); alterCount++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
+    }
+    console.log('✅  ' + count + '/' + tables.length + ' tablas, ' + alterCount + ' alteraciones');
   } catch (err) {
     console.error('⚠️  Error de base de datos:', err.message);
   }

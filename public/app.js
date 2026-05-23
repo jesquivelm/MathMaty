@@ -7,7 +7,8 @@ const state = {
   token: localStorage.getItem('mathmaty_token'),
   missionState: null, examTimer: null, activeEvent: null,
   whiteboardColor: '#3b82f6', whiteboardSize: 3, whiteboardMode: 'pen',
-  eraserSize: 20
+  eraserSize: 20,
+  nivel_educativo: null, selected_topics: null
 };
 
 // DoomGuy video slots: 12 videos + 1 PNG
@@ -137,6 +138,8 @@ async function fetchProfile() {
     state.xp = state.user.xp || 0;
     state.streak = state.user.racha_actual || 0;
     state.nivel = state.user.nivel || 1;
+    state.nivel_educativo = state.user.nivel_educativo || null;
+    state.selected_topics = state.user.selected_topics || null;
     if (state.user.rol === 'padre') {
       document.getElementById('parent-btn')?.classList.remove('hidden');
       document.getElementById('game-catalog-btn')?.classList.remove('hidden');
@@ -180,6 +183,14 @@ function showRegister() {
           <option value="estudiante">Estudiante</option>
           <option value="padre">Padre</option>
         </select>
+        <select id="reg-nivel" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;">
+          <option value="primaria-1-3">Primaria (1° - 3°)</option>
+          <option value="primaria-4-6">Primaria (4° - 6°)</option>
+          <option value="secundaria-7-9">Secundaria (7° - 9°)</option>
+          <option value="secundaria-10-11" selected>Secundaria (10° - 11°)</option>
+          <option value="universitario">Universitario (Inicio)</option>
+          <option value="calculo">Cálculo Avanzado</option>
+        </select>
         <input type="password" id="reg-password" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:1.5rem;" placeholder="Contrase&ntilde;a" required>
         <button type="submit" class="btn btn-primary" style="width:100%;">Registrarse</button>
       </form>
@@ -195,7 +206,8 @@ async function handleRegister(e) {
     username: document.getElementById('reg-username').value,
     nombre: document.getElementById('reg-nombre').value,
     rol: document.getElementById('reg-rol').value,
-    password: document.getElementById('reg-password').value
+    password: document.getElementById('reg-password').value,
+    nivel_educativo: document.getElementById('reg-nivel').value
   };
   const r = await fetch(`${API}/api/auth/register`, {
     method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
@@ -288,6 +300,9 @@ async function renderHome(main) {
             <button class="btn btn-outline" onclick="showView('knowledge')">
               <i class="ti ti-library"></i> Biblioteca
             </button>
+            <button class="btn btn-outline" onclick="showProfilePanel()">
+              <i class="ti ti-user"></i> Perfil
+            </button>
           </div>
         </div>
       </div>
@@ -339,14 +354,21 @@ async function renderHome(main) {
 // TEMAS / TOPICS
 // ============================================================
 function renderTopics(main) {
+  const activeTopics = Array.isArray(state.selected_topics) && state.selected_topics.length > 0 ? state.selected_topics : TOPICS.map(t => t.id);
+  const filtered = TOPICS.filter(t => activeTopics.includes(t.id));
+  const hiddenCount = TOPICS.length - filtered.length;
   main.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
-      <h2>Temas de Prec&aacute;lculo</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:.5rem;">
+      <div>
+        <h2>Temas de Prec&aacute;lculo</h2>
+        ${hiddenCount > 0 ? `<p style="font-size:.8rem;color:var(--color-text-muted);">${hiddenCount} temas ocultos seg&uacute;n tu nivel — <a href="#" onclick="showProfilePanel();return false;" style="color:var(--color-primary);">ajustar</a></p>` : ''}
+      </div>
       <button class="btn btn-outline btn-sm" onclick="openSolver()"><i class="ti ti-robot"></i> Resolver</button>
     </div>
     <p style="color:var(--color-text-secondary);margin-bottom:1.5rem;">Selecciona un tema para practicar. Cada tema tiene teor&iacute;a, ejemplos y ejercicios.</p>
+    ${filtered.length === 0 ? '<div class="card" style="text-align:center;padding:2rem;"><p style="color:var(--color-text-muted);">No hay temas activos. <a href="#" onclick="showProfilePanel();return false;" style="color:var(--color-primary);">Configura tus temas en el perfil</a></p></div>' : `
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;">
-    ${TOPICS.map(t => `
+    ${filtered.map(t => `
       <div class="card topic-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;">
           <div>
@@ -363,7 +385,8 @@ function renderTopics(main) {
         </div>
       </div>
     `).join('')}
-    </div>`;
+    </div>`}
+`;
 }
 
 // ============================================================
@@ -1827,6 +1850,128 @@ function renderConfigCuenta(container) {
         <div><strong>Racha Máxima:</strong> ${state.user?.racha_maxima || 0}</div>
       </div>
     </div>`;
+}
+
+// ============================================================
+// PERFIL — Nivel educativo + selecci&oacute;n de temas
+// ============================================================
+let _profileNivelEducativo = null;
+let _profileSelectedTopics = null;
+
+function showProfilePanel() {
+  _profileNivelEducativo = state.nivel_educativo || 'secundaria-10-11';
+  _profileSelectedTopics = Array.isArray(state.selected_topics) ? [...state.selected_topics] : [];
+  if (_profileSelectedTopics.length === 0) {
+    _profileSelectedTopics = [...getTopicsForNivelLocal(_profileNivelEducativo)];
+  }
+  renderProfilePanel();
+  document.getElementById('profile-modal')?.classList.remove('hidden');
+}
+
+function hideProfilePanel() {
+  document.getElementById('profile-modal')?.classList.add('hidden');
+}
+
+function getTopicsForNivelLocal(nivelId) {
+  const MAP = {
+    'primaria-1-3':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica'],
+    'primaria-4-6':      ['mcm-mcd','porcentajes','razones-proporciones','numeros-reales','logica','estadistica','geometria','plano-cartesiano'],
+    'secundaria-7-9':    ['conjuntos','numeros-reales','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','ecuaciones','plano-cartesiano','geometria','inecuaciones'],
+    'secundaria-10-11':  ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
+    'universitario':     ['conjuntos','numeros-reales','radicales','polinomios','factorizacion','fracciones-alg','ecuaciones','sistemas-ecuaciones','inecuaciones','plano-cartesiano','exp-log','geometria','trigonometria','calculo','mcm-mcd','porcentajes','razones-proporciones','estadistica','probabilidad','logica','matrices','vectores','sucesiones','geo-analitica','tec-logica','tec-matematica','tec-verbal'],
+    'calculo':           ['calculo','exp-log','trigonometria','matrices','vectores','sucesiones','geo-analitica','inecuaciones','polinomios','factorizacion']
+  };
+  return MAP[nivelId] || MAP['secundaria-10-11'];
+}
+
+function renderProfilePanel() {
+  const modal = document.getElementById('profile-modal');
+  if (!modal) return;
+  const nivel = _profileNivelEducativo;
+  const availableTopics = getTopicsForNivelLocal(nivel);
+  const selected = _profileSelectedTopics;
+
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="hideProfilePanel()">
+      <div class="card" style="max-width:560px;max-height:90vh;overflow-y:auto;" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+          <h2><i class="ti ti-user"></i> Mi Perfil</h2>
+          <button class="btn btn-outline btn-sm" onclick="hideProfilePanel()"><i class="ti ti-x"></i></button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1.5rem;padding:.75rem;background:var(--color-bg);border-radius:var(--radius-md);">
+          <div><strong>Usuario:</strong> ${state.user?.username||'-'}</div>
+          <div><strong>Rol:</strong> ${state.user?.rol||'-'}</div>
+          <div><strong>Nombre:</strong> ${state.user?.nombre||'-'}</div>
+          <div><strong>Email:</strong> ${state.user?.email||'-'}</div>
+        </div>
+
+        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:.5rem;">Nivel Educativo</label>
+        <select id="profile-nivel" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:1.25rem;" onchange="onProfileNivelChange(this.value)">
+          <option value="primaria-1-3" ${nivel==='primaria-1-3'?'selected':''}>Primaria (1° - 3°)</option>
+          <option value="primaria-4-6" ${nivel==='primaria-4-6'?'selected':''}>Primaria (4° - 6°)</option>
+          <option value="secundaria-7-9" ${nivel==='secundaria-7-9'?'selected':''}>Secundaria (7° - 9°)</option>
+          <option value="secundaria-10-11" ${nivel==='secundaria-10-11'?'selected':''}>Secundaria (10° - 11°)</option>
+          <option value="universitario" ${nivel==='universitario'?'selected':''}>Universitario (Inicio)</option>
+          <option value="calculo" ${nivel==='calculo'?'selected':''}>Cálculo Avanzado</option>
+        </select>
+
+        <label style="font-weight:600;font-size:.9rem;display:block;margin-bottom:.5rem;">Temas disponibles</label>
+        <p style="font-size:.8rem;color:var(--color-text-muted);margin-bottom:.75rem;">Marca los temas que quieres practicar. Solo estos aparecer&aacute;n en la lista de temas.</p>
+        <div style="display:flex;flex-direction:column;gap:.35rem;" id="profile-topics-list">
+          ${TOPICS.map(t => {
+            const disabled = !availableTopics.includes(t.id);
+            const checked = selected.includes(t.id);
+            return `<label class="profile-topic-row" style="display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;border-radius:var(--radius-sm);background:${disabled?'var(--color-bg)':'transparent'};opacity:${disabled?0.5:1};cursor:${disabled?'not-allowed':'pointer'};">
+              <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''} onchange="onProfileTopicToggle('${t.id}', this.checked)" style="accent-color:var(--color-primary);">
+              <i class="ti ${t.icon}" style="font-size:1.1rem;color:var(--color-primary);"></i>
+              <span>${t.name}</span>
+              ${disabled?'<span style="font-size:.7rem;color:var(--color-text-muted);margin-left:auto;">No disponible en este nivel</span>':''}
+            </label>`;
+          }).join('')}
+        </div>
+
+        <div style="display:flex;gap:.5rem;margin-top:1.5rem;">
+          <button class="btn btn-primary" style="flex:1;" onclick="saveProfilePreferences()"><i class="ti ti-device-floppy"></i> Guardar</button>
+          <button class="btn btn-outline" onclick="hideProfilePanel()">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function onProfileNivelChange(newNivel) {
+  _profileNivelEducativo = newNivel;
+  // Resetear temas a los disponibles por defecto
+  _profileSelectedTopics = [...getTopicsForNivelLocal(newNivel)];
+  renderProfilePanel();
+}
+
+function onProfileTopicToggle(topicId, checked) {
+  if (checked) {
+    if (!_profileSelectedTopics.includes(topicId)) _profileSelectedTopics.push(topicId);
+  } else {
+    _profileSelectedTopics = _profileSelectedTopics.filter(t => t !== topicId);
+  }
+}
+
+async function saveProfilePreferences() {
+  try {
+    const r = await fetch(`${API}/api/auth/preferences`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
+      body: JSON.stringify({
+        nivel_educativo: _profileNivelEducativo,
+        selected_topics: _profileSelectedTopics
+      })
+    });
+    if (!r.ok) { const d = await r.json(); alert(d.error || 'Error al guardar'); return; }
+    const data = await r.json();
+    state.nivel_educativo = data.user.nivel_educativo;
+    state.selected_topics = data.user.selected_topics;
+    state.user.nivel_educativo = data.user.nivel_educativo;
+    state.user.selected_topics = data.user.selected_topics;
+    hideProfilePanel();
+  } catch(e) { alert('Error de conexi&oacute;n'); }
 }
 
 function uploadDoomVideo(key, input, isPng) {
