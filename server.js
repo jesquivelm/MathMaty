@@ -1008,6 +1008,41 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
   }
 });
 
+app.post('/api/exercises/:id/report', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { comentario } = req.body;
+    await pool.query(
+      `INSERT INTO exercise_reports (exercise_id, user_id, comentario)
+       VALUES ($1, $2, $3) ON CONFLICT (exercise_id, user_id) DO NOTHING`,
+      [id, req.user.id, comentario || null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Error al reportar ejercicio:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/exercises/reported', authenticateToken, async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT er.id, er.exercise_id, er.comentario, er.revisado, er.created_at,
+             u.username AS reportado_por,
+             e.topic_id, e.question, e.options, e.difficulty, e.source, e.exam_year
+      FROM exercise_reports er
+      JOIN users u ON u.id = er.user_id
+      JOIN exercises e ON e.id = er.exercise_id
+      WHERE er.revisado = FALSE
+      ORDER BY er.created_at DESC
+    `);
+    res.json(r.rows);
+  } catch (err) {
+    console.error('Error al obtener reportes:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/ai/chat', authenticateToken, async (req, res) => {
   try {
     const { message, context } = req.body;
@@ -1976,6 +2011,12 @@ async function initDatabase() {
         inicio TIMESTAMP DEFAULT CURRENT_TIMESTAMP, fin TIMESTAMP,
         ejercicios_completados INTEGER DEFAULT 0, ejercicios_correctos INTEGER DEFAULT 0,
         xp_ganada INTEGER DEFAULT 0, juego_descanso BOOLEAN DEFAULT FALSE
+      )`,
+      `CREATE TABLE IF NOT EXISTS exercise_reports (
+        id SERIAL PRIMARY KEY, exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        comentario TEXT, revisado BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(exercise_id, user_id)
       )`,
     ];
     let count = 0;
