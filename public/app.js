@@ -825,15 +825,19 @@ function startExamTimer() {
 
 async function loadMissionExercise(topicId) {
   try {
+    const seenKey = 'mm_seen_' + state.missionState.mission.id;
+    const seen = JSON.parse(localStorage.getItem(seenKey) || '[]');
+    const excludeAll = [...new Set([...(state.missionState.exercises || []), ...seen])];
     const r = await fetch(`${API}/api/ai/generate-exercise`, {
       method:'POST', headers:{'Content-Type':'application/json', Authorization:`Bearer ${state.token}`},
-      body:JSON.stringify({ topic: topicId, difficulty: 'basico', excludeIds: state.missionState.exercises || [] })
+      body:JSON.stringify({ topic: topicId, difficulty: 'any', excludeIds: excludeAll })
     });
     const data = await r.json();
     if (data.error) throw new Error(data.error);
     
     state.currentExercise = data;
     if (data.id && data.id > 0 && !state.missionState.exercises.includes(data.id)) state.missionState.exercises.push(data.id);
+    if (data.id > 0 && !seen.includes(data.id)) { seen.push(data.id); localStorage.setItem(seenKey, JSON.stringify(seen)); }
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
     document.getElementById('mission-text').innerHTML = data.pregunta;
@@ -952,6 +956,7 @@ function endMission(reason) {
   // Revive after mission
   if (state.hp <= 0) state.hp = 30;
   
+  localStorage.removeItem('mm_seen_' + m.id);
   const saved = JSON.parse(localStorage.getItem('mm_missions') || '{}');
   saved[m.id] = { score, xpEarned, date: new Date().toISOString() };
   localStorage.setItem('mm_missions', JSON.stringify(saved));

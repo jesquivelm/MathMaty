@@ -918,11 +918,18 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
     const excluded = Array.isArray(excludeIds)
       ? excludeIds.map(Number).filter(Number.isInteger)
       : [];
-    const params = [topic, difficulty || 'basico'];
-    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1 AND (difficulty = $2 OR difficulty IS NULL)';
+    const params = [topic];
+    let dbQuery = 'SELECT * FROM exercises WHERE topic_id = $1';
+    let paramIdx = 2;
+    if (difficulty && difficulty !== 'any') {
+      params.push(difficulty);
+      dbQuery += ' AND (difficulty = $' + paramIdx + ' OR difficulty IS NULL)';
+      paramIdx++;
+    }
     if (excluded.length > 0) {
       params.push(excluded);
-      dbQuery += ' AND NOT (id = ANY($3::int[]))';
+      dbQuery += ' AND NOT (id = ANY($' + paramIdx + '::int[]))';
+      paramIdx++;
     }
     dbQuery += ' ORDER BY RANDOM() LIMIT 1';
     const dbRes = await pool.query(dbQuery, params);
