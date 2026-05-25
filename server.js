@@ -20,14 +20,32 @@ const app = express();
 const port = process.env.PORT || 3030;
 
 const JWT_SECRET = process.env.JWT_SECRET || 'mathmaty_secret_key_2026';
-const DEFAULT_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/mathmaty';
+const DEFAULT_DATABASE_URL = 'postgres://avnadmin:AVNS_2b9i9pIKoYis3qHUDWn@mathmaty-server-mathmaty-app.e.aivencloud.com:27369/mathmaty?sslmode=require';
 
-const VALID_STUDY_LEVELS = ['primer-ciclo', 'segundo-ciclo', '7mo', '8vo', '9no', '10-11', 'universitario', 'calculo', 'tec-paa'];
+const GRADE_STUDY_LEVELS = ['1','2','3','4','5','6','7','8','9','10','11'];
+const LEGACY_STUDY_LEVELS = ['primer-ciclo', 'segundo-ciclo', '7mo', '8vo', '9no', '10-11'];
+const VALID_STUDY_LEVELS = [...GRADE_STUDY_LEVELS, ...LEGACY_STUDY_LEVELS, 'universitario', 'calculo', 'tec-paa'];
 const LEVEL_DB_ALIASES = {
-  'primer-ciclo': ['primaria', 'primer-ciclo'],
-  'segundo-ciclo': ['primaria', 'segundo-ciclo'],
-  universitario: ['universitario'],
-  calculo: ['calculo', 'universitario', '10-11']
+  '1': ['1'],
+  '2': ['2'],
+  '3': ['3'],
+  '4': ['4'],
+  '5': ['5'],
+  '6': ['6'],
+  '7': ['7'],
+  '8': ['8'],
+  '9': ['9'],
+  '10': ['10'],
+  '11': ['11'],
+  'primer-ciclo': ['1', '2', '3', 'primaria', 'primer-ciclo'],
+  'segundo-ciclo': ['4', '5', '6', 'primaria', 'segundo-ciclo'],
+  '7mo': ['7'],
+  '8vo': ['8'],
+  '9no': ['9'],
+  '10-11': ['10', '11'],
+  universitario: ['universitario', '10', '11'],
+  calculo: ['calculo', 'universitario', '10', '11'],
+  'tec-paa': ['tec-paa', '10', '11']
 };
 
 function stringArray(value) {
@@ -36,7 +54,7 @@ function stringArray(value) {
 }
 
 function sanitizeStudyLevel(value) {
-  return VALID_STUDY_LEVELS.includes(value) ? value : '7mo';
+  return VALID_STUDY_LEVELS.includes(value) ? value : '7';
 }
 
 function sanitizeLevelList(value) {
@@ -64,7 +82,7 @@ function normalizeDatabaseUrl(rawUrl) {
 }
 
 const DATABASE_CONNECTION_STRING = normalizeDatabaseUrl(process.env.DATABASE_URL || DEFAULT_DATABASE_URL);
-const DATABASE_SSL = /sslmode=|aivencloud\.com|neon\.tech/i.test(DATABASE_CONNECTION_STRING)
+const DATABASE_SSL = /sslmode=|aivencloud\.com/i.test(DATABASE_CONNECTION_STRING)
   ? { rejectUnauthorized: false }
   : false;
 
@@ -74,7 +92,7 @@ const pool = new Pool({
 });
 
 function getDatabaseInfo() {
-  const source = process.env.DATABASE_URL ? 'DATABASE_URL' : 'fallback local';
+  const source = process.env.DATABASE_URL ? 'DATABASE_URL' : 'default AivenCloud';
   const rawUrl = DATABASE_CONNECTION_STRING;
   try {
     const parsed = new URL(rawUrl);
@@ -92,11 +110,8 @@ function getDatabaseInfo() {
 }
 
 // Log database connection mode
-console.log('[DB] Mode:', process.env.DATABASE_URL ? 'Remote (DATABASE_URL set)' : 'Local fallback');
-console.log('[DB] DATABASE_URL exists:', !!process.env.DATABASE_URL);
-if (process.env.DATABASE_URL) {
-  console.log('[DB] URL prefix:', process.env.DATABASE_URL.substring(0, 30) + '...');
-}
+console.log('[DB] Mode:', process.env.DATABASE_URL ? 'DATABASE_URL env' : 'Default AivenCloud');
+console.log('[DB] Host:', getDatabaseInfo().host);
 
 // Test connection immediately
 pool.query('SELECT 1 as test').then(r => {
@@ -1252,6 +1267,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         exam_year: ex.exam_year,
         nivel: ex.nivel,
         archivo_origen: ex.archivo_origen,
+        metadata: ex.metadata,
         image: imageUrl
       });
     }
@@ -1476,7 +1492,7 @@ app.get('/api/admin/exercises', authenticateToken, async (req, res) => {
     if (tipo === 'practica') where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
     if (tipo === 'generado') where.push(`(archivo_origen = 'generacion-programatica' OR COALESCE(source,'') ILIKE 'gen-prog%')`);
     const query = `
-      SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel,archivo_origen
+      SELECT id,topic_id,question,difficulty,category,source,exam_year,imagen,nivel,archivo_origen,metadata
       FROM exercises
       ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY nivel NULLS LAST, topic_id, id DESC`;
@@ -1495,16 +1511,17 @@ app.get('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
 
 app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel, metadata } = req.body;
     await pool.query(
-      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,imagen,nivel)
-       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      `INSERT INTO exercises(topic_id,question,latex_content,options,solution_steps,theory,difficulty,category,exam_year,source,imagen,nivel,metadata)
+       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         topic_id, question, latex,
         JSON.stringify(options), JSON.stringify(steps),
         theory || null, difficulty || 'basico',
         category || 'ejercicio', exam_year || null,
-        source || null, imagen || null, nivel || null
+        source || null, imagen || null, nivel || null,
+        JSON.stringify(metadata || {})
       ]
     );
     res.json({ ok: true });
@@ -1513,15 +1530,16 @@ app.post('/api/admin/exercises', authenticateToken, async (req, res) => {
 
 app.put('/api/admin/exercises/:id', authenticateToken, async (req, res) => {
   try {
-    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel } = req.body;
+    const { topic_id, question, latex, options, steps, theory, difficulty, category, exam_year, source, imagen, nivel, metadata } = req.body;
     await pool.query(
-      `UPDATE exercises SET topic_id=$1,question=$2,latex_content=$3,options=$4,solution_steps=$5,theory=$6,difficulty=$7,category=$8,exam_year=$9,source=$10,imagen=$11,nivel=$12 WHERE id=$13`,
+      `UPDATE exercises SET topic_id=$1,question=$2,latex_content=$3,options=$4,solution_steps=$5,theory=$6,difficulty=$7,category=$8,exam_year=$9,source=$10,imagen=$11,nivel=$12,metadata=$13 WHERE id=$14`,
       [
         topic_id, question, latex,
         JSON.stringify(options), JSON.stringify(steps),
         theory || null, difficulty || 'basico',
         category || 'ejercicio', exam_year || null,
         source || null, imagen || null, nivel || null,
+        JSON.stringify(metadata || {}),
         req.params.id
       ]
     );
@@ -2562,7 +2580,8 @@ async function initDatabase() {
       "ALTER TABLE users ADD COLUMN IF NOT EXISTS preferencias_inicializadas BOOLEAN DEFAULT FALSE",
       "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS imagen TEXT",
       "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)",
-      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT"
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb"
     ]) {
       try { await pool.query(col); alterCount++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
     }

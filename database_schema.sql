@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS exercises (
     source TEXT,
     imagen TEXT,
     nivel VARCHAR(20),
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

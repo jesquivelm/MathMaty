@@ -92,12 +92,17 @@ const TOPICS = [
 const TOPIC_NAMES = Object.fromEntries(TOPICS.map(t => [t.id, t.name]));
 
 const NIVELES = [
-  { id:'primer-ciclo', name:'1°-3° Escuela' },
-  { id:'segundo-ciclo', name:'4°-6° Escuela' },
-  { id:'7mo', name:'7° año' },
-  { id:'8vo', name:'8° año' },
-  { id:'9no', name:'9° año' },
-  { id:'10-11', name:'10°-11° Bachillerato' },
+  { id:'1', name:'1° año' },
+  { id:'2', name:'2° año' },
+  { id:'3', name:'3° año' },
+  { id:'4', name:'4° año' },
+  { id:'5', name:'5° año' },
+  { id:'6', name:'6° año' },
+  { id:'7', name:'7° año' },
+  { id:'8', name:'8° año' },
+  { id:'9', name:'9° año' },
+  { id:'10', name:'10° año' },
+  { id:'11', name:'11° año' },
   { id:'universitario', name:'Universitario' },
   { id:'calculo', name:'C&aacute;lculo' },
   { id:'tec-paa', name:'Admisión TEC/UNA/UCR' }
@@ -115,19 +120,51 @@ const MATERIA_NAMES = Object.fromEntries(MATERIAS.map(m => [m.id, m.name]));
 const MATERIA_SHORT_NAMES = { matematica:'Matem&aacute;tica', admision:'Admisi&oacute;n', logica:'L&oacute;gica', espanol:'Verbal' };
 
 const TOPIC_NIVELES = {
-  'primer-ciclo': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad'],
-  'segundo-ciclo': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales'],
-  '7mo': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica','razones-proporciones'],
-  '8vo': ['numeros-reales','polinomios','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones','ecuaciones'],
-  '9no': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad','polinomios'],
-  '10-11': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones'],
+  '1': ['mcm-mcd','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales','logica'],
+  '2': ['mcm-mcd','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales','logica'],
+  '3': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales','logica'],
+  '4': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales'],
+  '5': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales'],
+  '6': ['mcm-mcd','porcentajes','razones-proporciones','geometria','estadistica','probabilidad','numeros-reales'],
+  '7': ['numeros-reales','ecuaciones','plano-cartesiano','geometria','estadistica','logica','razones-proporciones'],
+  '8': ['numeros-reales','polinomios','plano-cartesiano','geometria','estadistica','probabilidad','razones-proporciones','ecuaciones'],
+  '9': ['numeros-reales','radicales','factorizacion','fracciones-alg','ecuaciones','plano-cartesiano','geometria','trigonometria','estadistica','probabilidad','polinomios'],
+  '10': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones','trigonometria'],
+  '11': ['geo-analitica','plano-cartesiano','exp-log','sistemas-ecuaciones','inecuaciones','geometria','estadistica','probabilidad','sucesiones','calculo'],
   universitario: ['calculo','matrices','vectores','sucesiones','geo-analitica'],
   calculo: ['calculo'],
   'tec-paa': ['tec-logica','tec-matematica','tec-verbal']
 };
 
+const NIVEL_ALIASES = {
+  'primer-ciclo': ['1','2','3'],
+  'segundo-ciclo': ['4','5','6'],
+  primaria: ['1','2','3','4','5','6'],
+  '7mo': ['7'],
+  '8vo': ['8'],
+  '9no': ['9'],
+  '10-11': ['10','11'],
+  'secundaria-7-9': ['7','8','9'],
+  'secundaria-10-11': ['10','11'],
+  universitario: ['universitario'],
+  calculo: ['calculo'],
+  'tec-paa': ['tec-paa']
+};
+
 function allNivelIds() { return NIVELES.map(n => n.id); }
 function allTopicIds() { return TOPICS.map(t => t.id); }
+
+function expandNivelIds(ids = []) {
+  return [...new Set((Array.isArray(ids) ? ids : [ids]).flatMap(id => {
+    const value = String(id || '').trim();
+    return NIVEL_ALIASES[value] || [value];
+  }).filter(id => NIVEL_NAMES[id]))];
+}
+
+function defaultNivelPrefsFromAcademic(id) {
+  const expanded = expandNivelIds(id || state.user?.nivel_academico || '7');
+  return expanded.length ? expanded : ['7'];
+}
 
 function arrayFromPreference(value, fallback) {
   const arr = Array.isArray(value) ? value.map(v => String(v || '').trim()).filter(Boolean) : [];
@@ -135,7 +172,9 @@ function arrayFromPreference(value, fallback) {
 }
 
 function getUserNivelPrefs() {
-  return arrayFromPreference(state.user?.preferencias_niveles, allNivelIds()).filter(id => NIVEL_NAMES[id]);
+  const fallback = defaultNivelPrefsFromAcademic();
+  const raw = arrayFromPreference(state.user?.preferencias_niveles, fallback);
+  return expandNivelIds(raw);
 }
 
 function getUserTopicPrefs() {
@@ -163,7 +202,8 @@ function topicMatchesMateria(topic, materia) {
 
 function topicMatchesNivel(topic, nivel) {
   if (!nivel) return true;
-  return (TOPIC_NIVELES[nivel] || []).includes(topic.id);
+  const levels = expandNivelIds(nivel);
+  return levels.some(level => (TOPIC_NIVELES[level] || []).includes(topic.id));
 }
 
 function getFilteredTopics(materia = '', nivel = '') {
@@ -175,15 +215,29 @@ function renderMateriaOptions(selected = '') {
 }
 
 function renderNivelOptions(selected = '', allLabel = 'Todos los niveles') {
-  return `<option value="">${allLabel}</option>${NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('')}`;
+  const normalized = expandNivelIds(selected)[0] || '';
+  return `<option value="">${allLabel}</option>${NIVELES.map(n => `<option value="${n.id}"${n.id===normalized?' selected':''}>${n.name}</option>`).join('')}`;
 }
 
-function renderAcademicLevelOptions(selected = '7mo') {
-  return NIVELES.map(n => `<option value="${n.id}"${n.id===selected?' selected':''}>${n.name}</option>`).join('');
+function renderAcademicLevelOptions(selected = '7') {
+  const normalized = defaultNivelPrefsFromAcademic(selected)[0] || '7';
+  return NIVELES.map(n => `<option value="${n.id}"${n.id===normalized?' selected':''}>${n.name}</option>`).join('');
 }
 
 function legacyNivelFromAcademic(id) {
+  const numeric = defaultNivelPrefsFromAcademic(id)[0] || '7';
   const map = {
+    '1': 'primaria-1-3',
+    '2': 'primaria-1-3',
+    '3': 'primaria-1-3',
+    '4': 'primaria-4-6',
+    '5': 'primaria-4-6',
+    '6': 'primaria-4-6',
+    '7': 'secundaria-7-9',
+    '8': 'secundaria-7-9',
+    '9': 'secundaria-7-9',
+    '10': 'secundaria-10-11',
+    '11': 'secundaria-10-11',
     'primer-ciclo': 'primaria-1-3',
     'segundo-ciclo': 'primaria-4-6',
     '7mo': 'secundaria-7-9',
@@ -194,7 +248,7 @@ function legacyNivelFromAcademic(id) {
     calculo: 'calculo',
     'tec-paa': 'secundaria-10-11'
   };
-  return map[id] || 'secundaria-10-11';
+  return map[id] || map[numeric] || 'secundaria-7-9';
 }
 
 function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos los temas') {
@@ -210,7 +264,8 @@ function renderTopicOptions(topics = TOPICS, selected = '', allLabel = 'Todos lo
 }
 
 function getNivelOrder(nivelId) {
-  const idx = NIVELES.findIndex(n => n.id === nivelId);
+  const normalized = expandNivelIds(nivelId)[0] || nivelId;
+  const idx = NIVELES.findIndex(n => n.id === normalized);
   return idx === -1 ? NIVELES.length : idx;
 }
 
@@ -225,7 +280,7 @@ function getTopicOrder(topicId) {
 }
 
 function sortNivelIds(ids = []) {
-  return [...ids].sort((a, b) => getNivelOrder(a) - getNivelOrder(b));
+  return expandNivelIds(ids).sort((a, b) => getNivelOrder(a) - getNivelOrder(b));
 }
 
 function getTopicPrimaryNivelId(topicId, preferredNivel = '') {
@@ -420,7 +475,7 @@ function showRegister() {
         </select>
         <div id="reg-study-fields">
           <select id="reg-nivel-academico" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:.75rem;">
-            ${renderAcademicLevelOptions('7mo')}
+            ${renderAcademicLevelOptions('7')}
           </select>
         </div>
         <input type="password" id="reg-password" class="btn btn-outline" style="width:100%;text-align:left;background:var(--color-bg);margin-bottom:1.5rem;" placeholder="Contrase&ntilde;a" required>
@@ -446,9 +501,9 @@ async function handleRegister(e) {
     nombre: document.getElementById('reg-nombre').value,
     rol: role,
     password: document.getElementById('reg-password').value,
-    nivel_academico: document.getElementById('reg-nivel-academico')?.value || '7mo',
-    nivel_educativo: legacyNivelFromAcademic(document.getElementById('reg-nivel-academico')?.value || '7mo'),
-    preferencias_niveles: role === 'estudiante' ? allNivelIds() : [],
+    nivel_academico: document.getElementById('reg-nivel-academico')?.value || '7',
+    nivel_educativo: legacyNivelFromAcademic(document.getElementById('reg-nivel-academico')?.value || '7'),
+    preferencias_niveles: role === 'estudiante' ? defaultNivelPrefsFromAcademic(document.getElementById('reg-nivel-academico')?.value || '7') : [],
     preferencias_temas: role === 'estudiante' ? allTopicIds() : []
   };
   const r = await fetch(`${API}/api/auth/register`, {
@@ -598,7 +653,7 @@ async function renderHome(main) {
 // PERFIL DE ESTUDIO
 // ============================================================
 function renderProfile(main) {
-  const nivelAcademico = state.user?.nivel_academico || '7mo';
+  const nivelAcademico = defaultNivelPrefsFromAcademic(state.user?.nivel_academico || '7')[0] || '7';
   const nivelPrefs = new Set(getUserNivelPrefs());
   const topicPrefs = new Set(getUserTopicPrefs());
   main.innerHTML = `
@@ -608,7 +663,7 @@ function renderProfile(main) {
         <h3><i class="ti ti-user-cog"></i> Cuenta</h3>
         <div class="profile-form-row">
           <label>Nivel</label>
-          <select id="profile-nivel-academico" class="select-control">${renderAcademicLevelOptions(nivelAcademico)}</select>
+          <select id="profile-nivel-academico" class="select-control" onchange="syncAcademicLevelCheck(this.value)">${renderAcademicLevelOptions(nivelAcademico)}</select>
         </div>
         <div class="profile-info-grid">
           <div><strong>Usuario:</strong> ${state.user?.username || '-'}</div>
@@ -652,8 +707,15 @@ function setProfileChecks(group, checked) {
   document.querySelectorAll(`input[data-profile-group="${group}"]`).forEach(input => { input.checked = checked; });
 }
 
+function syncAcademicLevelCheck(levelId) {
+  defaultNivelPrefsFromAcademic(levelId).forEach(id => {
+    const input = document.querySelector(`input[data-profile-group="nivel"][value="${id}"]`);
+    if (input) input.checked = true;
+  });
+}
+
 async function saveStudyProfile() {
-  const nivelAcademico = document.getElementById('profile-nivel-academico')?.value || '7mo';
+  const nivelAcademico = document.getElementById('profile-nivel-academico')?.value || '7';
   const preferenciasNiveles = [...document.querySelectorAll('input[data-profile-group="nivel"]:checked')].map(i => i.value);
   const preferenciasTemas = [...document.querySelectorAll('input[data-profile-group="tema"]:checked')].map(i => i.value);
   const body = {
@@ -878,7 +940,7 @@ function mergedIds(...lists) {
 }
 
 function practiceNivelScope(selectedNivel = '') {
-  if (selectedNivel) return [selectedNivel];
+  if (selectedNivel) return expandNivelIds(selectedNivel);
   const prefs = getUserNivelPrefs();
   return hasAllNivelPrefs(prefs) ? [] : prefs;
 }
@@ -1225,8 +1287,9 @@ function getMissionMateriaId(mission) {
 }
 
 function getMissionNivelId(mission, preferredNivel = '') {
-  const niveles = sortNivelIds(mission.niveles || []);
-  if (preferredNivel && niveles.includes(preferredNivel)) return preferredNivel;
+  const niveles = sortNivelIds(expandNivelIds(mission.niveles || []));
+  const preferred = expandNivelIds(preferredNivel)[0] || '';
+  if (preferred && niveles.includes(preferred)) return preferred;
   return niveles[0] || '';
 }
 
@@ -1270,7 +1333,11 @@ function refreshMissionTopicOptions(kind) {
 function missionMatchesFilters(mission, materia, nivel, topic) {
   const missionMateria = getMissionMateriaId(mission);
   if (materia && missionMateria !== materia) return false;
-  if (nivel && !(mission.niveles || []).includes(nivel)) return false;
+  if (nivel) {
+    const selectedLevels = expandNivelIds(nivel);
+    const missionLevels = expandNivelIds(mission.niveles || []);
+    if (!selectedLevels.some(id => missionLevels.includes(id))) return false;
+  }
   if (topic && !(mission.topics || []).includes(topic)) return false;
   return true;
 }
@@ -1300,7 +1367,7 @@ function renderMissionCards(isExam, saved, materia, nivel, topic) {
 }
 
 function renderMissionCard(mission, done, isExam) {
-  const levelBadges = sortNivelIds(mission.niveles || []).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
+  const levelBadges = sortNivelIds(expandNivelIds(mission.niveles || [])).map(id => `<span class="mission-level-chip">${NIVEL_NAMES[id] || id}</span>`).join('');
   const materia = MATERIA_NAMES[getMissionMateriaId(mission)] || 'Matem&aacute;tica';
   return `<div class="card mission-card ${isExam ? 'exam-card' : 'game-mission'} ${done ? 'completed' : ''}">
     <div class="mission-icon-wrap">${mission.icon}</div>
@@ -1338,8 +1405,8 @@ function updateMissionFilters(kind) {
 
 function missionNivelScope(mission, kind) {
   const selected = localStorage.getItem(`mm_${kind}_nivel`) || '';
-  if (selected) return [selected];
-  const missionLevels = mission.niveles || [];
+  if (selected) return expandNivelIds(selected);
+  const missionLevels = expandNivelIds(mission.niveles || []);
   const prefs = getUserNivelPrefs();
   if (hasAllNivelPrefs(prefs)) return missionLevels;
   const scoped = missionLevels.filter(id => prefs.includes(id));
