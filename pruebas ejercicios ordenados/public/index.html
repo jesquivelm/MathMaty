@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathMaty — Visor Fase 3</title>
+<link rel="stylesheet" href="/katex/katex.min.css">
+<style>
+  :root {
+    --bg: #0d0d14;
+    --surface: #16161f;
+    --surface2: #1e1e2a;
+    --surface3: #2a2a3e;
+    --border: #2e2e44;
+    --border2: #3d3d5c;
+    --text: #e8e8f0;
+    --text2: #8888aa;
+    --text3: #606080;
+    --accent: #7c6af0;
+    --accent-hover: #6a58e0;
+    --accent2: #5a4ac8;
+    --green: #4ade80;
+    --green-bg: #1a3a2a;
+    --red: #f87171;
+    --red-bg: #3a1a1a;
+    --orange: #fb923c;
+    --orange-bg: #3a2d1a;
+    --blue: #60a5fa;
+    --blue-bg: #1a2a3a;
+    --yellow: #facc15;
+    --yellow-bg: #3a3a0a;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; }
+
+  /* HEADER */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; }
+  .header .logo { font-size: 1.05rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .header .logo span { color: var(--text); font-weight: 300; }
+  .header .info { font-size: .75rem; color: var(--text3); margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .header .info .flags-count { color: var(--yellow); font-size: .7rem; background: var(--yellow-bg); padding: 2px 8px; border-radius: 4px; }
+
+  /* TABS */
+  .tabs { display: flex; gap: 1px; background: var(--surface); padding: 0 16px; overflow-x: auto; border-bottom: 1px solid var(--border); }
+  .tabs::-webkit-scrollbar { height: 3px; }
+  .tab { padding: 9px 16px; font-size: .78rem; cursor: pointer; border: none; background: transparent; color: var(--text2); border-bottom: 2px solid transparent; white-space: nowrap; transition: all .12s; font-family: var(--font); }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; background: var(--surface2); }
+  .tab .count { font-size: .65rem; color: var(--text3); margin-left: 5px; }
+
+  /* MAIN LAYOUT */
+  .main { display: flex; height: calc(100vh - 86px); }
+
+  /* LIST */
+  .list { width: 320px; min-width: 260px; overflow-y: auto; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .list input { width: 100%; padding: 10px 14px; background: var(--surface2); border: none; color: var(--text); font-size: .8rem; border-bottom: 1px solid var(--border); outline: none; font-family: var(--font); }
+  .list input::placeholder { color: var(--text3); }
+  .list-inner { flex: 1; overflow-y: auto; }
+  .list-item { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background .08s; border-left: 3px solid transparent; }
+  .list-item:hover { background: var(--surface2); }
+  .list-item.active { background: var(--accent2); border-left-color: var(--accent); }
+  .list-item.flagged { border-left-color: var(--yellow) !important; }
+  .list-item .li-id { font-size: .65rem; color: var(--text3); display: flex; gap: 6px; align-items: center; }
+  .list-item .li-id .flag-icon { color: var(--yellow); font-size: .7rem; }
+  .list-item .li-preview { font-size: .8rem; margin-top: 4px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--text); line-height: 1.3; }
+  .list-item .li-meta { font-size: .68rem; color: var(--text3); margin-top: 4px; display: flex; gap: 8px; }
+
+  /* DETAIL */
+  .detail { flex: 1; overflow-y: auto; padding: 20px 28px; background: var(--bg); }
+
+  /* NAV BAR */
+  .nav-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding: 10px 16px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+  .nav-bar .pos { font-size: .82rem; color: var(--text2); }
+  .nav-bar button { padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; font-size: .78rem; transition: all .12s; font-family: var(--font); }
+  .nav-bar button:hover:not(:disabled) { background: var(--accent2); border-color: var(--accent); }
+  .nav-bar button:disabled { opacity: .25; cursor: default; }
+  .nav-bar .save-btn { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+  .nav-bar .save-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .nav-bar .save-btn.saved { background: var(--green); border-color: var(--green); color: #000; }
+  .nav-sep { flex: 1; }
+
+  /* EXERCISE CARD */
+  .ex-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; transition: border-color .15s; }
+  .ex-card.flagged { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow); }
+  .ex-enunciado { font-size: .95rem; line-height: 1.5; margin-bottom: 16px; padding: 14px 16px; background: var(--surface2); border-radius: var(--radius-sm); border-left: 3px solid var(--blue); color: var(--text2); white-space: pre-wrap; overflow-wrap: break-word; }
+  .toolbar { display: flex; gap: 4px; margin-bottom: 6px; }
+  .toolbar button { width: 32px; height: 28px; display: flex; align-items: center; justify-content: center; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; font-size: .82rem; font-weight: 700; transition: all .1s; user-select: none; }
+  .toolbar button:hover { background: var(--surface3); border-color: var(--accent); }
+  .ex-answer .value { font-size: .95rem; white-space: pre-wrap; }
+  .ex-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .ex-header .ex-id { font-size: .7rem; color: var(--text2); background: var(--surface2); padding: 2px 10px; border-radius: 4px; font-family: var(--font-mono); }
+  .ex-header .meta-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 4px; font-size: .72rem; font-weight: 600; }
+  .ex-header .meta-tag.tema { background: var(--surface3); color: var(--accent); }
+  .ex-header .meta-tag.nivel { background: var(--surface3); color: var(--blue); }
+  .ex-header .meta-tag.dificil { background: var(--red-bg); color: var(--red); }
+  .ex-header .meta-tag.media { background: var(--orange-bg); color: var(--orange); }
+  .ex-header .meta-tag.facil { background: var(--blue-bg); color: var(--blue); }
+  .ex-header .meta-tag.basico { background: var(--green-bg); color: var(--green); }
+  .ex-body { padding: 20px; }
+  .ex-question { font-size: 1.05rem; line-height: 1.6; margin-bottom: 20px; padding: 16px; background: var(--surface2); border-radius: var(--radius-sm); border-left: 3px solid var(--accent); white-space: pre-wrap; }
+  .ex-question .katex { font-size: 1.1em; }
+  .ex-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+  .ex-option { padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: .92rem; transition: all .1s; }
+  .ex-option.correct { border-color: var(--green); background: var(--green-bg); box-shadow: 0 0 0 1px var(--green); }
+  .ex-option .katex { font-size: 1.05em; }
+  .ex-label { font-size: .7rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+
+  /* STEPS - two column layout */
+  .ex-steps { margin-bottom: 20px; }
+  .ex-step { background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; }
+  .ex-step .step-header { display: flex; align-items: center; padding: 8px 14px; background: var(--surface3); border-bottom: 1px solid var(--border); gap: 8px; }
+  .ex-step .step-num { font-size: .7rem; color: var(--text3); font-weight: 600; }
+  .ex-step .step-controls { margin-left: auto; display: flex; gap: 2px; }
+  .ex-step .step-controls button { padding: 2px 6px; border: none; background: transparent; color: var(--text3); cursor: pointer; font-size: .72rem; border-radius: 3px; }
+  .ex-step .step-controls button:hover { background: var(--surface); color: var(--text); }
+  .ex-step .step-controls button.del:hover { color: var(--red); background: var(--red-bg); }
+  .ex-step .step-row { display: flex; min-height: 60px; }
+  .ex-step .step-math { width: 50%; min-width: 300px; padding: 12px 14px; border-right: 1px solid var(--border); display: flex; align-items: center; font-size: .92rem; line-height: 1.5; overflow-x: auto; }
+  .ex-step .step-math .katex { font-size: 1.05em; }
+  .ex-step .step-expl { width: 50%; min-width: 300px; padding: 12px 14px; font-size: .85rem; color: var(--text2); line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; }
+  .ex-step .step-expl-input { width: 100%; min-height: 70px; padding: 10px 12px; background: var(--surface); border: none; color: var(--text); font-size: .85rem; font-family: var(--font); resize: vertical; outline: none; line-height: 1.5; white-space: pre-wrap; }
+  .ex-step .step-expl-input:focus { box-shadow: inset 0 0 0 1px var(--accent); }
+  .add-step-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 10px; margin-top: 4px; background: var(--surface2); border: 1px dashed var(--border2); border-radius: var(--radius-sm); color: var(--text3); cursor: pointer; font-size: .8rem; font-family: var(--font); transition: all .12s; }
+  .add-step-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--surface3); }
+  .ex-answer { padding: 12px 16px; background: var(--green-bg); border: 1px solid var(--green); border-radius: var(--radius-sm); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .ex-answer .label { font-size: .75rem; color: var(--green); font-weight: 600; }
+  .ex-answer .value { font-size: .95rem; }
+  .ex-answer .value .katex { font-size: 1.05em; }
+
+  /* FLAGS SECTION */
+  .flags-section { margin-top: 16px; padding: 16px 20px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); }
+  .flags-section .fs-title { font-size: .72rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .graph-container { width: 100%; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface2); min-height: 300px; }
+  .graph-container svg { display: block; }
+
+  /* FN-LINK: clickable function in text */
+  .fn-link { color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: pointer; transition: all .12s; position: relative; }
+  .fn-link:hover { background: var(--accent2); border-bottom-style: solid; }
+  .fn-popover { display: none; position: fixed; z-index: 500; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 40px rgba(0,0,0,.6); padding: 12px; }
+  .fn-popover.show { display: block; }
+  .fn-popover .pop-close { position: absolute; top: 6px; right: 8px; background: none; border: none; color: var(--text3); cursor: pointer; font-size: 1rem; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+  .fn-popover .pop-close:hover { background: var(--surface3); color: var(--text); }
+  .flags-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .flags-row:last-child { border-bottom: none; }
+  .flag-toggle { padding: 4px 12px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; font-size: .78rem; font-family: var(--font); transition: all .12s; white-space: nowrap; }
+  .flag-toggle:hover { border-color: var(--yellow); color: var(--yellow); }
+  .flag-toggle.active { background: var(--yellow-bg); border-color: var(--yellow); color: var(--yellow); font-weight: 600; }
+  .flag-type-select { padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-size: .76rem; font-family: var(--font); cursor: pointer; outline: none; }
+  .flag-type-select:focus { border-color: var(--accent); }
+  .flag-clear { padding: 2px 8px; border: none; background: transparent; color: var(--text3); cursor: pointer; font-size: .75rem; font-family: var(--font); }
+  .flag-clear:hover { color: var(--red); }
+  .flag-saving { font-size: .7rem; color: var(--text3); }
+
+  /* RAW SOURCE */
+  .latex-badge { font-size: .6rem; font-weight: 600; padding: 1px 7px; border-radius: 3px; text-transform: uppercase; letter-spacing: .3px; }
+  .latex-badge.yes { background: #1a3a2a; color: var(--green); border: 1px solid var(--green); }
+  .latex-badge.no { background: var(--surface3); color: var(--text3); border: 1px solid var(--border2); }
+  .latex-badge.warn { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange); cursor: help; }
+  .fmt-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; border-radius: 4px; font-size: .65rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; border: 1px solid; }
+  .fmt-badge.katex { background: var(--green-bg); color: var(--green); border-color: var(--green); }
+  .fmt-badge.text { background: var(--surface3); color: var(--text3); border-color: var(--border2); }
+  .fmt-check { display: inline-flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--text2); cursor: pointer; margin-left: 8px; user-select: none; }
+  .fmt-check input { accent-color: var(--accent); cursor: pointer; }
+  .fmt-select { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text2); font-size: .7rem; padding: 1px 4px; cursor: pointer; font-family: var(--font); outline: none; }
+  .fmt-select:hover { border-color: var(--accent); }
+  .raw-block { margin-top: 8px; padding: 8px 12px; background: var(--surface3); border: 1px dashed var(--border2); border-radius: 4px; font-family: var(--font-mono); font-size: .78rem; color: var(--text2); white-space: pre-wrap; word-break: break-all; line-height: 1.4; }
+  .raw-block .raw-label { display: block; font-size: .6rem; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; }
+
+  /* SOURCE TOOLTIP */
+  .src-trigger { cursor: help; border-bottom: 1px dashed var(--border2); position: relative; }
+  .src-popover { display: none; position: absolute; bottom: calc(100% + 8px); left: 0; background: var(--surface3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; font-family: var(--font-mono); font-size: .75rem; color: var(--text2); white-space: pre-wrap; word-break: break-all; min-width: 280px; max-width: 500px; max-height: none; z-index: 200; box-shadow: 0 4px 20px rgba(0,0,0,.5); line-height: 1.4; }
+  .src-trigger:hover .src-popover { display: block; }
+
+  /* EDIT MODE */
+  .ex-editable { cursor: text; transition: border-color .15s; position: relative; }
+  .ex-editable:hover { border-color: var(--accent2) !important; }
+  .ex-editable:focus { outline: none; border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent); }
+  .ex-editable.editing { border-color: var(--accent) !important; }
+
+  /* MISC */
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: .65rem; font-weight: 600; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: var(--surface); }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+  .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text3); font-size: .9rem; text-align: center; padding: 40px; }
+  @media (max-width: 900px) {
+    .ex-options { grid-template-columns: 1fr; }
+    .list { width: 240px; min-width: 180px; }
+    .flags-row { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">MathMaty <span>|</span> Visor Fase 3</div>
+  <div class="info">
+    <span id="headerInfo">Cargando...</span>
+    <span class="flags-count" id="flagsCount">0 flags</span>
+  </div>
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="main">
+  <div class="list">
+    <select id="filterSelect" style="width:100%;padding:8px 12px;background:var(--surface2);border:none;color:var(--text2);font-size:.78rem;outline:none;font-family:var(--font);border-bottom:1px solid var(--border);cursor:pointer;" onchange="setFilter(this.value)">
+      <option value="">📋 Todos</option>
+    </select>
+    <input type="text" id="search" placeholder="Buscar por ID, pregunta o tema...">
+    <div class="list-inner" id="listItems"></div>
+  </div>
+  <div class="detail" id="detail">
+    <div class="nav-bar" id="navBar">
+      <button id="prevBtn" disabled>◀ Anterior</button>
+      <span class="pos" id="posLabel">—</span>
+      <button id="nextBtn" disabled>Siguiente ▶</button>
+      <span class="nav-sep"></span>
+      <button id="rawToggleBtn">🔍 Código fuente</button>
+      <button id="editToggleBtn">✏️ Editar</button>
+      <button class="save-btn" id="saveBtn" disabled>💾 Guardar</button>
+    </div>
+    <div id="detailContent">
+      <div class="empty-state">Selecciona un ejercicio de la lista para verlo aquí con renderizado LaTeX.</div>
+    </div>
+  </div>
+</div>
+
+<script defer src="/katex/katex.min.js"></script>
+<script defer src="/function-plot/function-plot.js"></script>
+<script>
+const state = {
+  sheets: [],
+  currentSheet: null,
+  data: [],
+  currentIdx: -1,
+  editMode: false,
+  showRaw: false,
+  flags: {},
+  classification: [],
+  filterKey: '',
+};
+
+// === UTILITY ===
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function flagsForSheet(sheet) { return state.flags[sheet] || {}; }
+function flagsForExercise(sheet, id) { return flagsForSheet(sheet)[id] || {}; }
+function hasAnyFlag(sheet, id) { return Object.keys(flagsForExercise(sheet, id)).length > 0; }
+
+// === API ===
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// === FLAGS ===
+async function loadFlags() {
+  try { state.flags = await api('/api/flags'); }
+  catch(e) { console.error('Flags load error:', e); state.flags = {}; }
+  updateFlagsCount();
+}
+
+async function toggleFlag(category, type, active) {
+  const r = state.data[state.currentIdx];
+  if (!r) return;
+  await api(`/api/flags/${encodeURIComponent(state.currentSheet)}/${r.ID}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, type, active })
+  });
+  await loadFlags();
+  renderDetail();
+  renderList();
+}
+
+function updateFlagsCount() {
+  let total = 0;
+  for (const sheetName of Object.keys(state.flags)) {
+    for (const id of Object.keys(state.flags[sheetName])) {
+      total += Object.keys(state.flags[sheetName][id]).length;
+    }
+  }
+  document.getElementById('flagsCount').textContent = `${total} flags`;
+}
+
+// === LATEX RENDER ===
+const LATEX_CMDS = ['sqrt','frac','sum','int','lim','log','ln','sin','cos','tan',
+  'csc','sec','cot','cdot','times','div','alpha','beta','gamma','theta','pi',
+  'infty','cup','cap','subset','supset','subseteq','supseteq','ge','le','ne',
+  'approx','equiv','rightarrow','leftarrow','Rightarrow','Leftarrow','partial',
+  'nabla','forall','exists','emptyset','mathbb','ldots','lor','land','neg','text'];
+const SUPERSCRIPT_MAP = {'⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'-','⁽':'(','⁾':')','ⁿ':'n'};
+const SUBSCRIPT_MAP = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9','₊':'+','₋':'-','₍':'(','₎':')'};
+
+function autoFixLaTeX(text) {
+  let r = text;
+  for (const cmd of LATEX_CMDS) {
+    r = r.replace(new RegExp('(?<!\\\\)' + cmd + '(?=\\s*\\{)', 'g'), '\\' + cmd);
+  }
+  return r;
+}
+
+function normalizeScriptChars(text, chars, map, marker) {
+  const pattern = new RegExp('([A-Za-z0-9)\\]])([' + chars + ']+)', 'g');
+  return text.replace(pattern, (m, base, seq) => base + marker + '{' + [...seq].map(ch => map[ch] || ch).join('') + '}');
+}
+
+function normalizeMathText(text) {
+  let r = String(text);
+  r = normalizeScriptChars(r, '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿ', SUPERSCRIPT_MAP, '^');
+  r = normalizeScriptChars(r, '₀₁₂₃₄₅₆₇₈₉₊₋₍₎', SUBSCRIPT_MAP, '_');
+  r = r.replace(/√\s*\(([^)]+)\)/g, '\\sqrt{$1}');
+  r = r.replace(/√\s*([A-Za-z0-9]+)/g, '\\sqrt{$1}');
+  r = r.replace(/≤/g, '\\le ').replace(/≥/g, '\\ge ').replace(/≠/g, '\\ne ');
+  r = r.replace(/×/g, '\\times ').replace(/÷/g, '\\div ');
+  r = r.replace(/→/g, '\\rightarrow ').replace(/⇒/g, '\\Rightarrow ');
+  r = r.replace(/∞/g, '\\infty ').replace(/π/g, '\\pi ');
+  return autoFixLaTeX(r);
+}
+
+function hasMathSyntax(text) {
+  return /\\[a-zA-Z]|[\^_{}=+\-*/<>≤≥≠×÷√∞π→⇒⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]/.test(String(text));
+}
+
+function looksMathOnly(text) {
+  const s = String(text).trim();
+  if (!hasMathSyntax(s)) return false;
+  if (/\\text\s*\{/.test(s) || /\\[a-zA-Z]/.test(s)) return true;
+  return !/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(s) && !/[A-Za-z]{4,}\s+[A-Za-z]{4,}/.test(s);
+}
+
+function appendRenderedMath(frag, expr, displayMode = false) {
+  const span = document.createElement('span');
+  try {
+    katex.render(normalizeMathText(expr).trim(), span, { displayMode, throwOnError: true });
+    frag.appendChild(span);
+  } catch {
+    frag.appendChild(document.createTextNode(expr));
+  }
+}
+
+function appendInlineMathCandidates(frag, text) {
+  const re = /((?:\d+|[A-Za-z])\s*\/\s*\([^,.;:!?]*[⁰¹²³⁴⁵⁶⁷⁸⁹^_+\-*/=][^,.;:!?]*\)|[A-Za-z0-9)\]][⁰¹²³⁴⁵⁶⁷⁸⁹]+|[A-Za-z0-9)\]]\s*[\^_]\s*\{?[A-Za-z0-9]+\}?)/g;
+  let last = 0;
+  let match;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) frag.appendChild(document.createTextNode(text.slice(last, match.index)));
+    appendRenderedMath(frag, match[0]);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+}
+
+function renderTextNodeMath(node) {
+  const text = node.textContent;
+  if (!text.trim()) return;
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]+?\$)/);
+  const frag = document.createDocumentFragment();
+  for (const part of parts) {
+    if (!part) continue;
+    if (part.startsWith('$$') && part.endsWith('$$')) appendRenderedMath(frag, part.slice(2, -2), true);
+    else if (part.startsWith('$') && part.endsWith('$')) appendRenderedMath(frag, part.slice(1, -1));
+    else if (looksMathOnly(part)) appendRenderedMath(frag, part);
+    else appendInlineMathCandidates(frag, part);
+  }
+  node.parentNode.replaceChild(frag, node);
+}
+
+function renderLatex(container, text) {
+  if (!text && text !== 0) { container.textContent = ''; return; }
+  const raw = String(text).trim();
+  if (!raw) { container.textContent = ''; return; }
+
+  // 1) Has $ delimiters? Process each segment with KaTeX
+  if (raw.includes('$')) {
+    let html = raw;
+    html = html.replace(/\$\$([\s\S]*?)\$\$/g, (m, expr) => {
+      try { return katex.renderToString(normalizeMathText(expr).trim(), { displayMode: true, throwOnError: true }); }
+      catch(e) { return esc(expr); }
+    });
+    html = html.replace(/\$([^$]+?)\$/g, (m, expr) => {
+      try { return katex.renderToString(normalizeMathText(expr).trim(), { throwOnError: true }); }
+      catch(e) { return esc(expr); }
+    });
+    container.innerHTML = html;
+    return;
+  }
+
+  // 2) Has backslash commands? Try direct KaTeX (pure math). If mixed with text, KaTeX errors → fall through.
+  const fixed = normalizeMathText(raw);
+  if (looksMathOnly(fixed)) {
+    try { katex.render(fixed, container, { displayMode: false, throwOnError: true }); return; }
+    catch(e) { /* mixed content — fall through */ }
+  }
+
+  container.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  appendInlineMathCandidates(frag, raw);
+  container.appendChild(frag);
+}
+
+function renderRich(container, content) {
+  if (!content) { container.innerHTML = ''; return; }
+  const raw = String(content).trim();
+  if (!raw) { container.innerHTML = ''; return; }
+  // Inject as HTML (preserves <b>, <i> tags)
+  container.innerHTML = raw;
+  // Walk text nodes and render $...$ math and auto-detect LaTeX
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    renderTextNodeMath(nodes[i]);
+  }
+}
+
+function parseOptions(str) {
+  if (!str) return [];
+  try { return JSON.parse(str); } catch { return []; }
+}
+
+function hasLatexContent(text) {
+  if (!text) return false;
+  const s = String(text);
+  return s.includes('$') || hasMathSyntax(s);
+}
+
+// Detecta texto plano con pinta de LaTeX (le falta backslash o delimitadores)
+function hasSuspiciousLatex(text) {
+  if (!text || hasLatexContent(text)) return false;
+  const s = String(text);
+  // Palabras que en LaTeX son comandos: sqrt, frac, sum, int, lim, log, sin, cos, tan, cdot, times, alpha, beta, gamma, theta, pi, infty, cup, cap, subset, supset, ge, le, ne, approx, equiv, rightarrow, leftarrow
+  const latexWords = /\b(sqrt|frac|sum|int|lim|log|ln|sin|cos|tan|csc|sec|cot|cdot|times|div|alpha|beta|gamma|theta|pi|infty|cup|cap|subset|supset|subseteq|supseteq|ge|le|ne|approx|equiv|rightarrow|leftarrow|Rightarrow|Leftarrow|partial|nabla|forall|exists|emptyset|mathbb)\b/i;
+  // Llaves con aspecto matemático (algo{algo})
+  const mathBraces = /[a-zA-Z]\s*\{[^}]+}/;
+  // Exponente o subíndice sin backslash (ej: x^2, a_1)
+  const hatOrSub = /[a-zA-Z0-9]\)?[\^_][a-zA-Z0-9{]/;
+  return latexWords.test(s) || mathBraces.test(s) || hatOrSub.test(s);
+}
+
+function latexBadge(text) {
+  if (hasLatexContent(text))
+    return '<span class="latex-badge yes">LaTeX ✓</span>';
+  if (hasSuspiciousLatex(text))
+    return '<span class="latex-badge warn" title="Parece que falta \\ o $...$ — esto debería ser LaTeX">⚠️ ¿LaTeX?</span>';
+  return '<span class="latex-badge no">Solo texto</span>';
+}
+
+function rawBlock(text, label) {
+  if (!state.showRaw || !text) return '';
+  const s = String(text);
+  return `<div class="raw-block"><span class="raw-label">${esc(label)}</span>${esc(s.substring(0, 2000))}${s.length > 2000 ? '…' : ''}</div>`;
+}
+
+function srcSpan(text) {
+  if (!text) return '';
+  return `<span class="src-trigger">ℹ️<span class="src-popover">${esc(String(text).substring(0, 1000))}</span></span>`;
+}
+
+// === FORMATO (per-field KaTeX toggle) ===
+// _formato is a JSON column: {"p":true,"e":false,"r":null,"s":[true,false]}
+// p=Pregunta, e=Enunciado, r=Respuesta correcta, s=steps array
+// true=force KaTeX, false=force text, null/undefined=auto
+function getFormato(r) {
+  if (!r || !r._formato) return null;
+  try { return JSON.parse(r._formato); } catch { return null; }
+}
+function fmtVal(fmt, key, stepIdx) {
+  if (!fmt) return null;
+  if (stepIdx !== undefined && fmt.s && Array.isArray(fmt.s)) return fmt.s[stepIdx] ?? null;
+  return fmt[key] ?? null;
+}
+function fmtBadge(val) {
+  if (val === true) return '<span class="fmt-badge katex" title="Renderizado forzado como KaTeX">KaTeX</span>';
+  if (val === false) return '<span class="fmt-badge text" title="Forzado como texto plano">Texto</span>';
+  return '';
+}
+function latexOrFmtBadge(text, fmtVal) {
+  if (fmtVal === true) return '<span class="fmt-badge katex">KaTeX</span>';
+  if (fmtVal === false) return '<span class="fmt-badge text">Texto</span>';
+  return latexBadge(text);
+}
+
+// Toggle format for a field (called from edit mode selects)
+function toggleFmt(sel, key, stepIdx) {
+  const r = state.data[state.currentIdx];
+  if (!r) return;
+  const val = sel.value === '' ? null : sel.value === '1';
+  markDirty();
+}
+
+// === FUNCTION LINKS (inline graph popovers) ===
+let fnPopover = null;
+function initFnPopover() {
+  if (fnPopover) return;
+  fnPopover = document.createElement('div');
+  fnPopover.className = 'fn-popover';
+  fnPopover.innerHTML = '<button class="pop-close" onclick="closeFnPopover()">✕</button><div class="pop-content" style="min-width:400px;min-height:280px;"></div>';
+  document.body.appendChild(fnPopover);
+  document.addEventListener('click', e => {
+    if (fnPopover && fnPopover.classList.contains('show') && !fnPopover.contains(e.target) && !e.target.closest('.fn-link')) closeFnPopover();
+  });
+}
+
+function closeFnPopover() {
+  if (fnPopover) { fnPopover.classList.remove('show'); fnPopover.querySelector('.pop-content').innerHTML = ''; }
+}
+
+function showFnGraph(expr, label, linkEl) {
+  initFnPopover();
+  const rect = linkEl.getBoundingClientRect();
+  const content = fnPopover.querySelector('.pop-content');
+  content.innerHTML = '<div style="color:var(--text3);padding:10px;text-align:center;">Renderizando...</div>';
+  let popW = Math.min(Math.max(window.innerWidth * 0.5, 420), 700);
+  let popH = Math.min(Math.max(window.innerHeight * 0.45, 280), 500);
+  // Position below/above the link
+  let top = rect.bottom + 8;
+  let left = Math.max(8, Math.min(rect.left + rect.width/2 - popW/2, window.innerWidth - popW - 8));
+  if (top + popH > window.innerHeight - 16) top = rect.top - popH - 8;
+  fnPopover.style.width = popW + 'px';
+  fnPopover.style.left = left + 'px';
+  fnPopover.style.top = top + 'px';
+  fnPopover.classList.add('show');
+  setTimeout(() => {
+    try {
+      const c = content;
+      c.innerHTML = '';
+      functionPlot({
+        target: c,
+        width: popW - 24,
+        height: popH - 24,
+        grid: true,
+        xAxis: { domain: [-10, 10], label: 'x' },
+        yAxis: { domain: [-10, 10], label: 'y' },
+        disableZoom: false,
+        tip: { xLine: true, yLine: true },
+        data: [{ fn: expr, color: '#7c6af0', graphType: 'polyline' }]
+      });
+    } catch (e) {
+      content.innerHTML = `<div style="color:var(--red);padding:20px;text-align:center;">Error: ${esc(e.message)}</div>`;
+    }
+  }, 50);
+}
+
+function makeFunctionsClickable(container) {
+  if (!container) return;
+  const re = /([a-zA-Z])\s*\(\s*x\s*\)\s*=\s*(.+?)(?:[,;.\n)]|$)/g;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const node = nodes[i];
+    const text = node.textContent;
+    if (!text) continue;
+    const parts = [];
+    let last = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) parts.push(document.createTextNode(text.slice(last, m.index)));
+      const name = m[1], expr = m[2].trim().replace(/\.$/, '');
+      const span = document.createElement('span');
+      span.className = 'fn-link';
+      span.textContent = m[0];
+      span.title = `Click para graficar ${name}(x) = ${expr}`;
+      span.dataset.fn = expr;
+      span.addEventListener('click', e => { e.stopPropagation(); showFnGraph(expr, name + '(x)', span); });
+      parts.push(span);
+      last = m.index + m[0].length;
+    }
+    if (last > 0) {
+      if (last < text.length) parts.push(document.createTextNode(text.slice(last)));
+      const frag = document.createDocumentFragment();
+      parts.forEach(p => frag.appendChild(p));
+      node.parentNode.replaceChild(frag, node);
+    }
+  }
+}
+
+// === TABS ===
+async function loadTabs() {
+  state.sheets = await api('/api/sheets');
+  const container = document.getElementById('tabs');
+  container.innerHTML = '';
+  const mainSheets = state.sheets.filter(s => !['Registro de Cambios', 'Próximos Pasos'].includes(s.name));
+  for (const s of [...mainSheets, ...state.sheets.filter(s => ['Registro de Cambios', 'Próximos Pasos'].includes(s.name))]) {
+    const btn = document.createElement('button');
+    btn.className = 'tab' + (s.name === state.currentSheet ? ' active' : '');
+    btn.innerHTML = esc(s.name) + (s.count ? ` <span class="count">(${s.count})</span>` : '');
+    btn.onclick = () => switchSheet(s.name);
+    container.appendChild(btn);
+  }
+  const total = state.sheets.reduce((a, s) => a + (s.count || 0), 0);
+  document.getElementById('headerInfo').textContent = `${state.sheets.filter(s => s.count).length} áreas · ${total} ejercicios`;
+}
+
+async function switchSheet(name) {
+  state.currentSheet = name;
+  state.currentIdx = -1;
+  state.data = [];
+  state.filterKey = '';
+  state.classification = [];
+  document.getElementById('detailContent').innerHTML = '<div class="empty-state">Cargando ejercicios...</div>';
+  state.data = await api('/api/sheet/' + encodeURIComponent(name));
+  state.classification = await api('/api/classify/' + encodeURIComponent(name));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  for (const child of document.getElementById('tabs').children) {
+    if (child.textContent.trim().startsWith(name)) child.classList.add('active');
+  }
+  buildFilterOptions();
+  renderList();
+  renderDetail();
+  updateNav();
+  document.getElementById('search').value = '';
+}
+
+// === LIST ===
+function getCls(idx) { return state.classification[idx] || {}; }
+
+function clsTag(idx) {
+  const c = getCls(idx);
+  if (c.necesita_separacion) return '<span class="badge" style="background:var(--orange-bg);color:var(--orange);">🔀 separar</span>';
+  if (c.pregunta === 'falta_backslash' || c.respuesta === 'falta_backslash') return '<span class="badge" style="background:var(--red-bg);color:var(--red);">⚠️ \\</span>';
+  if (c.pregunta === 'texto_con_notacion' || c.pregunta === 'notacion_mixta') return '<span class="badge" style="background:var(--yellow-bg);color:var(--yellow);">📝 mixto</span>';
+  if (c.pasos === 'sin_explicacion') return '<span class="badge" style="background:var(--surface3);color:var(--text3);">📋 sin expl</span>';
+  if (c.pasos && c.pasos.startsWith('math_mixto')) return '<span class="badge" style="background:var(--blue-bg);color:var(--blue);">📋 math+txt</span>';
+  return '';
+}
+
+function setFilter(key) {
+  state.filterKey = key;
+  state.currentIdx = -1;
+  renderList();
+  renderDetail();
+  updateNav();
+}
+
+function buildFilterOptions() {
+  const c = state.classification;
+  if (!c.length) return;
+  const total = c.length;
+  const sep = c.filter(x => x.necesita_separacion).length;
+  const tn = c.filter(x => x.pregunta === 'texto_con_notacion' || x.pregunta === 'notacion_mixta' || x.pregunta === 'latex_mixto').length;
+  const fb = c.filter(x => x.pregunta === 'falta_backslash' || x.respuesta === 'falta_backslash').length;
+  const se = c.filter(x => x.pasos === 'sin_explicacion').length;
+  const mm = c.filter(x => x.pasos && x.pasos.startsWith('math_mixto')).length;
+  const sel = document.getElementById('filterSelect');
+  sel.innerHTML = `<option value="">📋 Todos (${total})</option>
+    ${sep ? `<option value="necesita_separacion">🔀 Separar enunciado (${sep})</option>` : ''}
+    ${tn ? `<option value="texto_con_notacion">📝 Texto + notación (${tn})</option>` : ''}
+    ${fb ? `<option value="falta_backslash">⚠️ Falta \\ (${fb})</option>` : ''}
+    ${se ? `<option value="sin_explicacion">📋 Pasos sin expl (${se})</option>` : ''}
+    ${mm ? `<option value="math_mixto">📋 Pasos math+txt (${mm})</option>` : ''}`;
+  sel.value = '';
+}
+
+function renderList() {
+  const container = document.getElementById('listItems');
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  const cls = state.classification;
+
+  // Build filtered index list
+  let indices = state.data.map((_, i) => i);
+
+  // Apply classification filter
+  if (state.filterKey) {
+    indices = indices.filter(i => {
+      const c = cls[i] || {};
+      switch (state.filterKey) {
+        case 'necesita_separacion': return c.necesita_separacion;
+        case 'texto_con_notacion': return c.pregunta === 'texto_con_notacion' || c.pregunta === 'notacion_mixta' || c.pregunta === 'latex_mixto';
+        case 'falta_backslash': return c.pregunta === 'falta_backslash' || c.respuesta === 'falta_backslash';
+        case 'sin_explicacion': return c.pasos === 'sin_explicacion';
+        case 'math_mixto': return c.pasos && c.pasos.startsWith('math_mixto');
+        default: return true;
+      }
+    });
+  }
+
+  // Apply text search
+  if (q) {
+    indices = indices.filter(i => {
+      const r = state.data[i];
+      return String(r.ID).includes(q) ||
+        (r.Pregunta || '').toLowerCase().includes(q) ||
+        (r['Tema MEP'] || '').toLowerCase().includes(q) ||
+        (r['Topic (original)'] || '').toLowerCase().includes(q);
+    });
+  }
+
+  container.innerHTML = indices.map((idx, viewIdx) => {
+    const r = state.data[idx];
+    const active = idx === state.currentIdx;
+    const flagged = hasAnyFlag(state.currentSheet, r.ID);
+    const diff = r.Dificultad || '';
+    const tag = clsTag(idx);
+    return `<div class="list-item${active ? ' active' : ''}${flagged ? ' flagged' : ''}" onclick="selectItem(${idx})">
+      <div class="li-id">${flagged ? '<span class="flag-icon">⚠️</span>' : ''}#${r.ID} · ${esc(r['Topic (original)'] || '')} ${tag ? tag : ''}<span class="badge" style="background:var(--surface3);color:var(--text2);margin-left:auto;">${esc(r.Nivel || '')}</span></div>
+      <div class="li-preview">${esc((r.Pregunta || '').substring(0, 130))}</div>
+      <div class="li-meta"><span class="badge ${diff}">${diff}</span> ${esc(r['Tema MEP'] || '').substring(0, 60)}</div>
+    </div>`;
+  }).join('');
+}
+
+let listScrollPos = 0;
+
+function selectItem(idx) {
+  state.currentIdx = idx;
+  state.editMode = false;
+  document.getElementById('editToggleBtn').textContent = '✏️ Editar';
+  document.getElementById('saveBtn').textContent = '💾 Guardar';
+  document.getElementById('saveBtn').disabled = true;
+  listScrollPos = document.querySelector('.list-inner')?.scrollTop || 0;
+  renderList();
+  document.querySelector('.list-inner').scrollTop = listScrollPos;
+  renderDetail();
+  updateNav();
+}
+
+// === FLAG TYPES ===
+const FLAG_CATEGORIES = [
+  { key: 'pregunta', label: '⚠️ Pregunta', types: ['formato', 'texto_mal_escrito', 'mezclado'] },
+  { key: 'respuesta', label: '⚠️ Respuesta', types: ['formato', 'texto_mal_escrito', 'mezclado'] },
+  { key: 'pasos', label: '⚠️ Pasos', types: ['formato', 'texto_mal_escrito', 'mezclado', 'sin_explicacion'] },
+  { key: 'formato', label: '⚠️ Formato', types: ['formato', 'texto_mal_escrito', 'mezclado'] },
+];
+const TYPE_LABELS = {
+  formato: 'Formato',
+  texto_mal_escrito: 'Texto incomprensible / mal escrito',
+  mezclado: 'Mezclado',
+  sin_explicacion: 'Sin explicación',
+};
+
+// === DETAIL ===
+function renderDetail() {
+  const r = state.data[state.currentIdx];
+  if (!r) { document.getElementById('detailContent').innerHTML = '<div class="empty-state">Selecciona un ejercicio de la lista.</div>'; return; }
+  const opts = parseOptions(r.Opciones);
+  const correctText = (r['Respuesta correcta'] || '').trim();
+  const edit = state.editMode;
+  const fmt = getFormato(r);
+
+  // Current flags for this exercise
+  const exFlags = flagsForExercise(state.currentSheet, r.ID);
+  const anyFlag = Object.keys(exFlags).length > 0;
+
+  let stepsHtml = '';
+  let rawSteps = r['Pasos solución'] || '';
+  if (rawSteps) {
+    try {
+      const parsed = JSON.parse(rawSteps);
+      if (Array.isArray(parsed) && parsed.length) {
+        stepsHtml = parsed.map((s, i) => {
+          const math = s.math || '';
+          const expl = s.expl || '';
+          const sf = fmtVal(fmt, 's', i);
+          return `<div class="ex-step">
+            <div class="step-header">
+              <span class="step-num">Paso ${i + 1} ${sf === true ? '<span class="fmt-badge katex">KaTeX</span>' : sf === false ? '<span class="fmt-badge text">Texto</span>' : ''}</span>
+            </div>
+            <div class="step-row">
+              ${math ? `<div class="step-math" id="step-math-${i}"></div>` : '<div class="step-math" style="color:var(--text3);font-style:italic;">(sin contenido matemático)</div>'}
+              <div class="step-expl" id="step-expl-${i}">${esc(expl) || '<span style="color:var(--text3);font-style:italic;">(sin explicación)</span>'}</div>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    } catch { /* plain text */ }
+  }
+  if (!stepsHtml && rawSteps) {
+    stepsHtml = `<div class="ex-step"><div class="step-row"><div class="step-expl" style="flex:1;">${esc(rawSteps)}</div></div></div>`;
+  }
+
+  // Build flags UI
+  let flagsHtml = '';
+  for (const cat of FLAG_CATEGORIES) {
+    const isActive = !!exFlags[cat.key];
+    const currentType = exFlags[cat.key] || '';
+    const optsHtml = cat.types.map(t =>
+      `<option value="${t}"${t === currentType ? ' selected' : ''}>${esc(TYPE_LABELS[t] || t)}</option>`
+    ).join('');
+    flagsHtml += `<div class="flags-row">
+      <button class="flag-toggle${isActive ? ' active' : ''}" onclick="toggleFlag('${cat.key}','${isActive ? currentType : cat.types[0]}',${!isActive})">${cat.label}</button>
+      ${isActive ? `<select class="flag-type-select" onchange="toggleFlag('${cat.key}',this.value,true)">${optsHtml}</select>
+      <button class="flag-clear" onclick="toggleFlag('${cat.key}','',false)">✕</button>` : ''}
+    </div>`;
+  }
+
+  // Raw source toggle active?
+  const showSrc = state.showRaw;
+  const qLatex = hasLatexContent(r.Pregunta);
+  const rLatex = hasLatexContent(correctText);
+
+  // Build option raw info
+  const optsRawHtml = showSrc && opts.length
+    ? `<div class="raw-block"><span class="raw-label">OPCIONES (JSON)</span>${esc(r.Opciones || '').substring(0, 3000)}</div>`
+    : '';
+
+  // Build steps raw info
+  const stepsRawHtml = showSrc && rawSteps
+    ? `<div class="raw-block"><span class="raw-label">PASOS (JSON)</span>${esc(rawSteps).substring(0, 3000)}</div>`
+    : '';
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="ex-card${anyFlag ? ' flagged' : ''}">
+      <div class="ex-header">
+        <span class="ex-id">📌 #${r.ID}</span>
+        <span class="meta-tag tema">${esc(r['Topic (original)'] || '')}</span>
+        <span class="meta-tag nivel">${esc(r['Grado MEP'] || r.Nivel || '')}</span>
+        <span class="meta-tag ${r.Dificultad || ''}">${r.Dificultad || ''}</span>
+        <span style="font-size:.72rem;color:var(--text3);margin-left:auto;">${esc(r['Tema MEP'] || '')}</span>
+      </div>
+      <div class="ex-body">
+        ${r.Enunciado ? `
+        <div class="ex-label">📄 Enunciado ${fmtBadge(fmtVal(fmt,'e'))} ${srcSpan(r.Enunciado)}</div>
+        <div class="ex-enunciado" id="fieldEnunciadoDisplay"></div>
+        ` : ''}
+        <div class="ex-label">📝 Pregunta ${latexOrFmtBadge(r.Pregunta, fmtVal(fmt,'p'))} ${srcSpan(r.Pregunta)}</div>
+        <div class="ex-question" id="fieldPreguntaDisplay"></div>
+        ${showSrc ? rawBlock(r.Pregunta, 'TEXTO CRUDO') : ''}
+
+        <div class="ex-label">🔘 Opciones ${latexBadge(r.Opciones)} ${srcSpan(r.Opciones)}</div>
+        <div class="ex-options">
+          ${opts.map((o, i) => {
+            const isCorrect = o.trim() === correctText;
+            return `<div class="ex-option${isCorrect ? ' correct' : ''}">${isCorrect ? '✅ ' : ''}<span class="opt-text">${esc(o)}</span>${showSrc ? ` <span class="src-trigger" style="font-size:.6rem;color:var(--text3);margin-left:4px;">ℹ️<span class="src-popover">${esc(o)}</span></span>` : ''}</div>`;
+          }).join('')}
+          ${opts.length === 0 ? '<div class="ex-option" style="color:var(--text3);border-style:dashed;">(sin opciones)</div>' : ''}
+        </div>
+        ${optsRawHtml}
+
+        <div class="ex-label">✅ Respuesta correcta ${latexOrFmtBadge(correctText, fmtVal(fmt,'r'))} ${srcSpan(correctText)}</div>
+        <div class="ex-answer">
+          <span class="label">RESPUESTA:</span>
+          <span class="value" id="fieldCorrectaDisplay"></span>
+        </div>
+        ${showSrc ? rawBlock(correctText, 'TEXTO CRUDO') : ''}
+
+        <div class="ex-label">📋 Pasos de solución ${hasLatexContent(rawSteps) ? latexBadge(rawSteps) : ''} ${srcSpan(rawSteps)}</div>
+        <div class="ex-steps">
+          ${stepsHtml || '<div style="color:var(--text3);font-size:.85rem;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);">(sin pasos)</div>'}
+        </div>
+        ${stepsRawHtml}
+
+        <div class="ex-label">📐 LaTeX ${latexBadge(r.LaTeX || r.Fuente)} ${srcSpan(r.LaTeX || r.Fuente)}</div>
+        <div style="padding:12px 16px;background:var(--surface2);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.82rem;color:var(--text2);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${esc(r.LaTeX || r.Fuente || '(sin campo LaTeX)')}</div>
+      </div>
+    </div>
+
+    <div class="flags-section">
+      <div class="fs-title">🏴 Clasificación de errores</div>
+      ${flagsHtml}
+    </div>
+  `;
+
+  // Render LaTeX on rich text fields (preserves HTML like <b>)
+  const fe = fmtVal(fmt, 'e');
+  const fp = fmtVal(fmt, 'p');
+  const fr = fmtVal(fmt, 'r');
+  const eDiv = document.getElementById('fieldEnunciadoDisplay');
+  if (eDiv) fe === false ? (eDiv.textContent = r.Enunciado || '') : renderRich(eDiv, r.Enunciado);
+  const qDiv = document.getElementById('fieldPreguntaDisplay');
+  if (qDiv) fp === false ? (qDiv.textContent = r.Pregunta || '') : renderRich(qDiv, r.Pregunta);
+
+  document.querySelectorAll('.ex-option .opt-text').forEach(el => {
+    renderLatex(el, el.textContent);
+  });
+
+  const ansDiv = document.getElementById('fieldCorrectaDisplay');
+  if (ansDiv) fr === false ? (ansDiv.textContent = correctText) : renderLatex(ansDiv, correctText);
+
+  // Render step math
+  if (rawSteps) {
+    try {
+      const parsed = JSON.parse(rawSteps);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((s, i) => {
+          const el = document.getElementById('step-math-' + i);
+          if (el && s.math) {
+            const sf = fmtVal(fmt, 's', i);
+            sf === false ? el.textContent = s.math : renderLatex(el, s.math);
+          }
+          const explEl = document.getElementById('step-expl-' + i);
+          if (explEl && s.expl) renderRich(explEl, s.expl);
+        });
+      }
+    } catch {}
+  }
+
+  // Make function definitions clickable for graphing
+  [eDiv, qDiv, document.getElementById('fieldCorrectaDisplay')].forEach(el => {
+    if (el) makeFunctionsClickable(el);
+  });
+}
+
+// === NAV ===
+function updateNav() {
+  const total = state.data.length;
+  const pos = state.currentIdx + 1;
+  document.getElementById('posLabel').textContent = total ? `${pos} / ${total}` : '—';
+  document.getElementById('prevBtn').disabled = state.currentIdx <= 0;
+  document.getElementById('nextBtn').disabled = state.currentIdx >= total - 1;
+}
+
+document.getElementById('prevBtn').onclick = () => { if (state.currentIdx > 0) selectItem(state.currentIdx - 1); };
+document.getElementById('nextBtn').onclick = () => { if (state.currentIdx < state.data.length - 1) selectItem(state.currentIdx + 1); };
+document.getElementById('search').oninput = () => renderList();
+
+document.getElementById('rawToggleBtn').onclick = () => {
+  state.showRaw = !state.showRaw;
+  document.getElementById('rawToggleBtn').textContent = state.showRaw ? '🔍 Ocultar raw' : '🔍 Código fuente';
+  renderDetail();
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' && e.ctrlKey) document.getElementById('prevBtn').click();
+  if (e.key === 'ArrowRight' && e.ctrlKey) document.getElementById('nextBtn').click();
+  if (e.key === 's' && e.ctrlKey) { e.preventDefault(); document.getElementById('saveBtn').click(); }
+  if (e.key === 'e' && e.ctrlKey) { e.preventDefault(); document.getElementById('editToggleBtn').click(); }
+  if (e.key === 'r' && e.ctrlKey) { e.preventDefault(); document.getElementById('rawToggleBtn').click(); }
+});
+
+// === SAVE ===
+document.getElementById('saveBtn').onclick = async () => {
+  const r = state.data[state.currentIdx];
+  if (!r) return;
+  const getText = (id) => { const el = document.getElementById(id); if (!el) return ''; return (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') ? el.value.trim() : (el.textContent?.trim() || ''); };
+  const getRich = (id) => { const el = document.getElementById(id); if (!el || !el.innerText.trim()) return ''; return el.innerHTML.trim(); };
+  const updates = {};
+  updates.Pregunta = getRich('fieldPregunta');
+  const c = getText('fieldCorrecta');
+  const l = getText('fieldLatex');
+  if (c) updates['Respuesta correcta'] = c;
+  if (l) { if (r.LaTeX !== undefined) updates.LaTeX = l; else updates.Fuente = l; }
+  // Collect steps from DOM (supports add/delete/reorder)
+  const stepEls = document.querySelectorAll('#stepsContainer .ex-step');
+  if (stepEls.length > 0) {
+    const newPasos = [];
+    stepEls.forEach(el => {
+      const mathInput = el.querySelector('.step-math-input');
+      const explInput = el.querySelector('.step-expl-input');
+      const math = mathInput ? mathInput.value.trim() : '';
+      const expl = explInput ? explInput.value.trim() : '';
+      if (math || expl) newPasos.push({ math, expl });
+    });
+    updates['Pasos solución'] = JSON.stringify(newPasos.length ? newPasos : r['Pasos solución']);
+  }
+  updates.Enunciado = getRich('fieldEnunciado');
+  // Build _formato from DOM selects
+  const fmtSelects = document.querySelectorAll('.fmt-select');
+  if (fmtSelects.length) {
+    const fmt = { s: [] };
+    const stepSeen = {};
+    fmtSelects.forEach(sel => {
+      const key = sel.dataset.fmt;
+      const val = sel.value === '' ? null : sel.value === '1';
+      if (key === 's') {
+        const si = parseInt(sel.dataset.step);
+        if (!isNaN(si)) { stepSeen[si] = true; fmt.s[si] = val; }
+      } else {
+        fmt[key] = val;
+      }
+    });
+    // Ensure all steps have an entry
+    const allStepSels = document.querySelectorAll('#stepsContainer .ex-step');
+    allStepSels.forEach((el, i) => { if (fmt.s[i] === undefined) fmt.s[i] = null; });
+    // Trim trailing nulls from fmt.s
+    while (fmt.s.length > 0 && fmt.s[fmt.s.length - 1] === null) fmt.s.pop();
+    // Remove empty arrays
+    if (fmt.s.length === 0) delete fmt.s;
+    // Only save if any value is explicitly set
+    const hasExplicit = Object.values(fmt).some(v => v !== null && v !== undefined) || (fmt.s && fmt.s.some(v => v !== null));
+    if (hasExplicit) updates._formato = JSON.stringify(fmt);
+  }
+  if (Object.keys(updates).length === 0) return;
+  try {
+    await api('/api/sheet/' + encodeURIComponent(state.currentSheet) + '/' + r.ID, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    const btn = document.getElementById('saveBtn');
+    btn.textContent = '✅ Guardado';
+    btn.disabled = true;
+    state.data = await api('/api/sheet/' + encodeURIComponent(state.currentSheet));
+    state.editMode = false;
+    document.getElementById('editToggleBtn').textContent = '✏️ Editar';
+    renderDetail();
+    renderList();
+  } catch (e) { alert('Error: ' + e.message); }
+};
+
+// === EDIT TOGGLE ===
+document.getElementById('editToggleBtn').onclick = () => {
+  state.editMode = !state.editMode;
+  document.getElementById('editToggleBtn').textContent = state.editMode ? '🔒 Vista' : '✏️ Editar';
+  if (!state.editMode) {
+    document.getElementById('saveBtn').textContent = '💾 Guardar';
+    document.getElementById('saveBtn').disabled = true;
+  }
+  // Remount detail in edit mode (simplify: switch to a pre-built edit version)
+  const r = state.data[state.currentIdx];
+  if (r && state.editMode) renderEditMode();
+  else renderDetail();
+};
+
+function renderEditMode() {
+  const r = state.data[state.currentIdx];
+  if (!r) return;
+  const opts = parseOptions(r.Opciones);
+  const correctText = (r['Respuesta correcta'] || '').trim();
+  const exFlags = flagsForExercise(state.currentSheet, r.ID);
+  const anyFlag = Object.keys(exFlags).length > 0;
+  const rawSteps = r['Pasos solución'] || '';
+  const fmt = getFormato(r);
+
+  function buildEditSteps() {
+    if (!rawSteps) return '';
+    try {
+      const parsed = JSON.parse(rawSteps);
+      if (!Array.isArray(parsed) || !parsed.length) {
+        return stepRowHtml(0, '', rawSteps);
+      }
+      return parsed.map((s, i) => stepRowHtml(i, s.math || '', s.expl || '')).join('');
+    } catch {
+      return stepRowHtml(0, '', rawSteps);
+    }
+  }
+
+  function stepRowHtml(idx, math, expl) {
+    const sf = fmtVal(fmt, 's', idx);
+    return `<div class="ex-step" data-step-idx="${idx}">
+      <div class="step-header">
+        <span class="step-num">Paso ${idx + 1}</span>
+        <select class="fmt-select" data-fmt="s" data-step="${idx}" onchange="toggleFmt(this,'s',${idx})" style="margin-left:8px;font-size:.68rem;padding:1px 4px;"><option value="" ${sf === null ? 'selected' : ''}>Auto</option><option value="1" ${sf === true ? 'selected' : ''}>KaTeX</option><option value="0" ${sf === false ? 'selected' : ''}>Texto</option></select>
+        <div class="step-controls">
+          <button onclick="stepMoveUp(this)" title="Mover arriba">⬆</button>
+          <button onclick="stepMoveDown(this)" title="Mover abajo">⬇</button>
+          <button class="del" onclick="stepDelete(this)" title="Eliminar">✕</button>
+        </div>
+      </div>
+      <div class="step-row">
+        <div class="step-math" style="flex-direction:column;align-items:stretch;gap:8px;">
+          <div class="step-math-render" id="step-math-render-${idx}"></div>
+          <textarea class="step-math-input" data-field="math" rows="2" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:8px;font-size:.82rem;font-family:var(--font-mono);resize:vertical;">${esc(math)}</textarea>
+        </div>
+        <textarea class="step-expl-input" data-field="expl" rows="3" style="width:100%;min-height:70px;padding:10px 12px;background:var(--surface);border:none;color:var(--text);font-size:.85rem;font-family:var(--font);resize:vertical;outline:none;line-height:1.5;white-space:pre-wrap;">${esc(expl)}</textarea>
+      </div>
+    </div>`;
+  }
+
+  // Build flags UI
+  let flagsHtml = '';
+  for (const cat of FLAG_CATEGORIES) {
+    const isActive = !!exFlags[cat.key];
+    const currentType = exFlags[cat.key] || '';
+    const optsHtml = cat.types.map(t =>
+      `<option value="${t}"${t === currentType ? ' selected' : ''}>${esc(TYPE_LABELS[t] || t)}</option>`
+    ).join('');
+    flagsHtml += `<div class="flags-row">
+      <button class="flag-toggle${isActive ? ' active' : ''}" onclick="toggleFlag('${cat.key}','${isActive ? currentType : cat.types[0]}',${!isActive})">${cat.label}</button>
+      ${isActive ? `<select class="flag-type-select" onchange="toggleFlag('${cat.key}',this.value,true)">${optsHtml}</select>
+      <button class="flag-clear" onclick="toggleFlag('${cat.key}','',false)">✕</button>` : ''}
+    </div>`;
+  }
+
+  const stepsContent = buildEditSteps();
+
+  document.getElementById('detailContent').innerHTML = `
+    <div class="ex-card${anyFlag ? ' flagged' : ''}">
+      <div class="ex-header">
+        <span class="ex-id">#${r.ID}</span>
+        <span class="meta-tag tema">${esc(r['Topic (original)'] || '')}</span>
+        <span class="meta-tag nivel">${esc(r['Grado MEP'] || r.Nivel || '')}</span>
+        <span class="meta-tag ${r.Dificultad || ''}">${r.Dificultad || ''}</span>
+      </div>
+      <div class="ex-body">
+        <div class="ex-label">📄 Enunciado <span style="color:var(--accent);text-transform:none;">(texto del problema, <b>B</b>old)</span> <select class="fmt-select" data-fmt="e" onchange="toggleFmt(this,'e')"><option value="" ${fmtVal(fmt,'e') === null ? 'selected' : ''}>Auto</option><option value="1" ${fmtVal(fmt,'e') === true ? 'selected' : ''}>KaTeX</option><option value="0" ${fmtVal(fmt,'e') === false ? 'selected' : ''}>Texto</option></select></div>
+        <div class="toolbar"><button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" title="Negrita (Ctrl+B)"><b>B</b></button></div>
+        <div class="ex-enunciado ex-editable" contenteditable="true" id="fieldEnunciado" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);margin-bottom:16px;white-space:pre-wrap;">${r.Enunciado || ''}</div>
+
+        <div class="ex-label">📝 Pregunta <span style="color:var(--accent);text-transform:none;">(editable, <b>B</b>old)</span> <select class="fmt-select" data-fmt="p" onchange="toggleFmt(this,'p')"><option value="" ${fmtVal(fmt,'p') === null ? 'selected' : ''}>Auto</option><option value="1" ${fmtVal(fmt,'p') === true ? 'selected' : ''}>KaTeX</option><option value="0" ${fmtVal(fmt,'p') === false ? 'selected' : ''}>Texto</option></select></div>
+        <div class="toolbar"><button type="button" onmousedown="event.preventDefault()" onclick="document.execCommand('bold')" title="Negrita (Ctrl+B)"><b>B</b></button></div>
+        <div class="ex-question ex-editable" contenteditable="true" id="fieldPregunta" style="white-space:pre-wrap;">${r.Pregunta}</div>
+
+        <div class="ex-label">🔘 Opciones <span style="color:var(--text3);text-transform:none;">(solo lectura)</span></div>
+        <div class="ex-options">
+          ${opts.map((o, i) => {
+            const isCorrect = o.trim() === correctText;
+            return `<div class="ex-option${isCorrect ? ' correct' : ''}">${isCorrect ? '✅ ' : ''}<span>${esc(o)}</span></div>`;
+          }).join('')}
+        </div>
+
+        <div class="ex-label">✅ Respuesta correcta <span style="color:var(--accent);text-transform:none;">(editable)</span> <select class="fmt-select" data-fmt="r" onchange="toggleFmt(this,'r')"><option value="" ${fmtVal(fmt,'r') === null ? 'selected' : ''}>Auto</option><option value="1" ${fmtVal(fmt,'r') === true ? 'selected' : ''}>KaTeX</option><option value="0" ${fmtVal(fmt,'r') === false ? 'selected' : ''}>Texto</option></select></div>
+        <div class="ex-answer">
+          <span class="label">RESPUESTA:</span>
+          <span class="value ex-editable" contenteditable="true" id="fieldCorrecta" style="white-space:pre-wrap;">${esc(correctText)}</span>
+        </div>
+
+        <div class="ex-label">📋 Pasos de solución <span style="color:var(--accent);text-transform:none;">(editar, reordenar)</span></div>
+        <div class="ex-steps" id="stepsContainer">
+          ${stepsContent || '<div style="color:var(--text3);font-size:.85rem;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);text-align:center;">(sin pasos)</div>'}
+        </div>
+        <button class="add-step-btn" onclick="stepAdd()">＋ Agregar paso</button>
+
+        <div class="ex-label">📐 LaTeX <span style="color:var(--accent);text-transform:none;">(editable)</span></div>
+        <textarea id="fieldLatex" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);padding:12px;font-size:.82rem;font-family:var(--font-mono);resize:vertical;white-space:pre-wrap;word-break:break-all;">${esc(r.LaTeX || r.Fuente || '')}</textarea>
+      </div>
+    </div>
+
+    <div class="flags-section">
+      <div class="fs-title">🏴 Clasificación de errores</div>
+      ${flagsHtml}
+    </div>
+  `;
+
+  // Render step math in edit mode
+  if (rawSteps) {
+    try {
+      const parsed = JSON.parse(rawSteps);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((s, i) => {
+          const el = document.getElementById('step-math-render-' + i);
+          if (el && s.math) renderLatex(el, s.math);
+        });
+      }
+    } catch {}
+  }
+
+  // Mark as dirty on edit + re-render math preview
+  document.querySelectorAll('.ex-editable, .ex-editable-expl, #fieldLatex, .step-math-input, .step-expl-input, .fmt-select').forEach(el => {
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', function() {
+      const btn = document.getElementById('saveBtn');
+      btn.textContent = '💾 Guardar';
+      btn.disabled = false;
+      // Re-render math preview for step math inputs
+      if (this.classList.contains('step-math-input')) {
+        const renderEl = this.closest('.ex-step')?.querySelector('.step-math-render');
+        if (renderEl) renderLatex(renderEl, this.value);
+      }
+    });
+  });
+}
+
+// === STEP MANAGEMENT ===
+function stepAdd() {
+  const container = document.getElementById('stepsContainer');
+  if (!container) return;
+  const count = container.children.length;
+  const idx = container.querySelectorAll('.ex-step').length;
+  const div = document.createElement('div');
+  div.className = 'ex-step';
+  div.dataset.stepIdx = idx;
+  div.innerHTML = `<div class="step-header">
+    <span class="step-num">Paso ${idx + 1}</span>
+    <div class="step-controls">
+      <button onclick="stepMoveUp(this)" title="Mover arriba">⬆</button>
+      <button onclick="stepMoveDown(this)" title="Mover abajo">⬇</button>
+      <button class="del" onclick="stepDelete(this)" title="Eliminar">✕</button>
+    </div>
+  </div>
+  <div class="step-row">
+    <div class="step-math" style="flex-direction:column;align-items:stretch;gap:8px;">
+      <div class="step-math-render"></div>
+      <textarea class="step-math-input" data-field="math" rows="2" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:8px;font-size:.82rem;font-family:var(--font-mono);resize:vertical;" placeholder="expresión matemática (opcional)"></textarea>
+    </div>
+    <textarea class="step-expl-input" data-field="expl" rows="3" style="width:100%;min-height:70px;padding:10px 12px;background:var(--surface);border:none;color:var(--text);font-size:.85rem;font-family:var(--font);resize:vertical;outline:none;line-height:1.5;white-space:pre-wrap;" placeholder="explicación del paso"></textarea>
+  </div>`;
+  container.appendChild(div);
+  if (container.querySelector('.empty-state')) container.innerHTML = '';
+  renumberSteps();
+  markDirty();
+  // Make step math input render on change
+  const mathInput = div.querySelector('.step-math-input');
+  if (mathInput) {
+    mathInput.addEventListener('input', function() {
+      // Re-render math preview
+      const renderEl = this.closest('.ex-step').querySelector('.step-math-render');
+      if (renderEl) renderLatex(renderEl, this.value);
+      markDirty();
+    });
+  }
+}
+
+function stepDelete(btn) {
+  const step = btn.closest('.ex-step');
+  if (!step) return;
+  if (confirm('¿Eliminar este paso?')) {
+    step.remove();
+    renumberSteps();
+    markDirty();
+  }
+}
+
+function stepMoveUp(btn) {
+  const step = btn.closest('.ex-step');
+  const prev = step?.previousElementSibling;
+  if (step && prev) { step.parentNode.insertBefore(step, prev); renumberSteps(); markDirty(); }
+}
+
+function stepMoveDown(btn) {
+  const step = btn.closest('.ex-step');
+  const next = step?.nextElementSibling;
+  if (step && next) { step.parentNode.insertBefore(next, step); renumberSteps(); markDirty(); }
+}
+
+function renumberSteps() {
+  document.querySelectorAll('#stepsContainer .ex-step').forEach((el, i) => {
+    const num = el.querySelector('.step-num');
+    if (num) num.textContent = 'Paso ' + (i + 1);
+  });
+}
+
+function markDirty() {
+  const btn = document.getElementById('saveBtn');
+  if (btn) { btn.textContent = '💾 Guardar'; btn.disabled = false; }
+}
+
+// === INIT ===
+(async function init() {
+  await loadFlags();
+  await loadTabs();
+  const first = state.sheets.find(s => !['Registro de Cambios', 'Próximos Pasos'].includes(s.name));
+  if (first) switchSheet(first.name);
+})();
+</script>
+</body>
+</html>
