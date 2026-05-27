@@ -109,6 +109,16 @@ function getDatabaseInfo() {
   }
 }
 
+const ACTIVE_EXERCISE_FILTER = `
+  COALESCE(e.excluded_from_practice, FALSE) = FALSE
+  AND COALESCE(e.quality_status, 'active') NOT IN ('reported', 'bad', 'inactive', 'archived')
+`;
+
+const ACTIVE_EXERCISE_FILTER_NO_ALIAS = `
+  COALESCE(excluded_from_practice, FALSE) = FALSE
+  AND COALESCE(quality_status, 'active') NOT IN ('reported', 'bad', 'inactive', 'archived')
+`;
+
 // Log database connection mode
 console.log('[DB] Mode:', process.env.DATABASE_URL ? 'DATABASE_URL env' : 'Default AivenCloud');
 console.log('[DB] Host:', getDatabaseInfo().host);
@@ -772,12 +782,13 @@ app.get('/api/refuerzo/ejercicios', authenticateToken, async (req, res) => {
       refParams.push(nivelFilter);
       refWhere += ` AND e.nivel = $${refParams.length}`;
     }
+    refWhere += ` AND ${ACTIVE_EXERCISE_FILTER}`;
     const exercises = await pool.query(
       `SELECT e.id, e.difficulty, e.question, e.math_expression, e.hint, 
               e.mana_tip, e.correct_solution, t.name as nombre_tema
-       FROM exercises e
+      FROM exercises e
        INNER JOIN topics t ON e.topic_id = t.id
-       WHERE ${refWhere}
+      WHERE ${refWhere}
        ORDER BY RANDOM()
        LIMIT 10`,
       refParams
@@ -832,12 +843,42 @@ app.get('/api/refuerzo/sugerir', authenticateToken, async (req, res) => {
 app.post('/api/reporte/registrar-ejercicio', authenticateToken, async (req, res) => {
   try {
     const { exercise_id, topic_id, correcto, tiempo_segundos, hp_antes, hp_despues, dificultad } = req.body;
+    let excludedFromScoring = false;
+    if (Number(exercise_id) > 0) {
+      const exerciseStatus = await pool.query(
+        `SELECT COALESCE(excluded_from_practice, FALSE) AS excluded_from_practice,
+                COALESCE(quality_status, 'active') AS quality_status
+         FROM exercises
+         WHERE id = $1`,
+        [exercise_id]
+      );
+      const row = exerciseStatus.rows[0];
+      excludedFromScoring = !!row && (
+        row.excluded_from_practice === true ||
+        ['reported', 'bad', 'inactive', 'archived'].includes(row.quality_status)
+      );
+    }
     
     await pool.query(
-      `INSERT INTO exercise_history (user_id, exercise_id, topic_id, correcto, tiempo_segundos, hp_antes, hp_despues, dificultad)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [req.user.id, exercise_id, topic_id, correcto, tiempo_segundos, hp_antes, hp_despues, dificultad]
+      `INSERT INTO exercise_history
+       (user_id, exercise_id, topic_id, correcto, tiempo_segundos, hp_antes, hp_despues, dificultad, excluded_from_scoring, exclusion_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        req.user.id,
+        exercise_id,
+        topic_id,
+        correcto,
+        tiempo_segundos,
+        hp_antes,
+        hp_despues,
+        dificultad,
+        excludedFromScoring,
+        excludedFromScoring ? 'Ejercicio reportado o desactivado por calidad' : null
+      ]
     );
+    if (excludedFromScoring) {
+      return res.json({ message: 'Ejercicio registrado sin afectar la calificacion', excluded_from_scoring: true });
+    }
     
     // Actualizar progreso por tema
     const topicProgress = await pool.query(
@@ -1026,6 +1067,7 @@ app.get('/api/misiones', async (req, res) => {
           params.push(topic);
           where.push(`e.topic_id = $${params.length}`);
         }
+        where.push(ACTIVE_EXERCISE_FILTER);
         const consulta = `
             SELECT 
                 e.id, 
@@ -1038,7 +1080,7 @@ app.get('/api/misiones', async (req, res) => {
                 t.name AS nombre_tema
             FROM exercises e
             INNER JOIN topics t ON e.topic_id = t.id
-            ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+            WHERE ${where.join(' AND ')}
             ORDER BY e.id ASC;
         `;
         const resultado = await pool.query(consulta, params);
@@ -1216,6 +1258,7 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
         params.push(requestedTopics);
         where.push(`topic_id = ANY($${params.length}::varchar[])`);
       }
+      where.push(ACTIVE_EXERCISE_FILTER_NO_ALIAS);
       if (!requestedTopics.some(t => String(t || '').startsWith('tec-'))) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
       if (useNivel && requestedLevels.length > 0) {
         params.push(requestedLevels);
@@ -1341,18 +1384,81 @@ app.post('/api/ai/generate-exercise', authenticateToken, async (req, res) => {
 });
 
 app.post('/api/exercises/:id/report', authenticateToken, async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { comentario } = req.body;
-    await pool.query(
-      `INSERT INTO exercise_reports (exercise_id, user_id, comentario)
-       VALUES ($1, $2, $3) ON CONFLICT (exercise_id, user_id) DO NOTHING`,
-      [id, req.user.id, comentario || null]
+    const { comentario, issue_types, severity } = req.body || {};
+    const issues = Array.isArray(issue_types) && issue_types.length > 0
+      ? issue_types.map(v => String(v || '').trim()).filter(Boolean)
+      : ['problema'];
+    const reportSeverity = severity || 'media';
+
+    await client.query('BEGIN');
+    await client.query(
+      `INSERT INTO exercise_reports
+       (exercise_id, user_id, comentario, issue_types, severity, report_status, invalidates_exercise, invalidates_attempt)
+       VALUES ($1, $2, $3, $4::jsonb, $5, 'open', TRUE, TRUE)
+       ON CONFLICT (exercise_id, user_id) DO UPDATE
+       SET comentario = COALESCE(EXCLUDED.comentario, exercise_reports.comentario),
+           issue_types = EXCLUDED.issue_types,
+           severity = EXCLUDED.severity,
+           report_status = 'open',
+           invalidates_exercise = TRUE,
+           invalidates_attempt = TRUE`,
+      [id, req.user.id, comentario || null, JSON.stringify(issues), reportSeverity]
     );
-    res.json({ ok: true });
+    await client.query(
+      `UPDATE exercises
+       SET excluded_from_practice = TRUE,
+           quality_status = CASE WHEN COALESCE(quality_status, 'active') = 'bad' THEN 'bad' ELSE 'reported' END,
+           quality_flags = (
+             SELECT jsonb_agg(DISTINCT value)
+             FROM jsonb_array_elements_text(COALESCE(quality_flags, '[]'::jsonb) || $2::jsonb) AS flags(value)
+           ),
+           quality_updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [id, JSON.stringify(issues)]
+    );
+
+    const excludedHistory = await client.query(
+      `UPDATE exercise_history
+       SET excluded_from_scoring = TRUE,
+           exclusion_reason = 'Ejercicio reportado por el usuario'
+       WHERE user_id = $1
+         AND exercise_id = $2
+         AND COALESCE(excluded_from_scoring, FALSE) = FALSE
+       RETURNING topic_id, correcto`,
+      [req.user.id, id]
+    );
+
+    const progressAdjustments = new Map();
+    for (const row of excludedHistory.rows) {
+      const current = progressAdjustments.get(row.topic_id) || { total: 0, correct: 0, fail: 0 };
+      current.total += 1;
+      current.correct += row.correcto ? 1 : 0;
+      current.fail += row.correcto ? 0 : 1;
+      progressAdjustments.set(row.topic_id, current);
+    }
+    for (const [topicId, data] of progressAdjustments.entries()) {
+      await client.query(
+        `UPDATE topic_progress
+         SET ejercicios_completados = GREATEST(ejercicios_completados - $1, 0),
+             ejercicios_correctos = GREATEST(ejercicios_correctos - $2, 0),
+             fallos_acumulados = GREATEST(fallos_acumulados - $3, 0),
+             ultima_practica = CURRENT_TIMESTAMP
+         WHERE user_id = $4 AND topic_id = $5`,
+        [data.total, data.correct, data.fail, req.user.id, topicId]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ ok: true, exercise_disabled: true, excluded_attempts: excludedHistory.rowCount });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Error al reportar ejercicio:', err);
     res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -1429,7 +1535,7 @@ app.post('/api/ai/generate-flashcards', authenticateToken, async (req, res) => {
 
     async function queryCards(useExcluded) {
       const params = [topic];
-      const where = ['topic_id = $1'];
+      const where = ['topic_id = $1', ACTIVE_EXERCISE_FILTER_NO_ALIAS];
       if (!String(topic || '').startsWith('tec-')) where.push(`NOT ${EXAM_EXERCISE_EXPR}`);
       if (req.body.nivel) {
         params.push(req.body.nivel);
@@ -2463,6 +2569,11 @@ async function initDatabase() {
         solution_steps JSONB NOT NULL, theory TEXT,
         difficulty VARCHAR(20) DEFAULT 'basico', category VARCHAR(50),
         exam_year INTEGER, source TEXT,
+        quality_status VARCHAR(20) DEFAULT 'active',
+        excluded_from_practice BOOLEAN DEFAULT FALSE,
+        quality_flags JSONB DEFAULT '[]'::jsonb,
+        quality_notes TEXT,
+        quality_updated_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS exercise_history (
@@ -2470,6 +2581,8 @@ async function initDatabase() {
         exercise_id INTEGER, topic_id VARCHAR(50) NOT NULL,
         correcto BOOLEAN NOT NULL, tiempo_segundos INTEGER,
         hp_antes INTEGER, hp_despues INTEGER, dificultad VARCHAR(20),
+        excluded_from_scoring BOOLEAN DEFAULT FALSE,
+        exclusion_reason TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )`,
       `CREATE TABLE IF NOT EXISTS topic_progress (
@@ -2563,7 +2676,12 @@ async function initDatabase() {
       `CREATE TABLE IF NOT EXISTS exercise_reports (
         id SERIAL PRIMARY KEY, exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        comentario TEXT, revisado BOOLEAN DEFAULT FALSE,
+        comentario TEXT, issue_types JSONB DEFAULT '[]'::jsonb,
+        severity VARCHAR(20) DEFAULT 'media',
+        report_status VARCHAR(20) DEFAULT 'open',
+        invalidates_exercise BOOLEAN DEFAULT FALSE,
+        invalidates_attempt BOOLEAN DEFAULT FALSE,
+        revisado BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, UNIQUE(exercise_id, user_id)
       )`,
     ];
@@ -2581,7 +2699,19 @@ async function initDatabase() {
       "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS imagen TEXT",
       "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS nivel VARCHAR(20)",
       "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS archivo_origen TEXT",
-      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb"
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS quality_status VARCHAR(20) DEFAULT 'active'",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS excluded_from_practice BOOLEAN DEFAULT FALSE",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS quality_flags JSONB DEFAULT '[]'::jsonb",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS quality_notes TEXT",
+      "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS quality_updated_at TIMESTAMP",
+      "ALTER TABLE exercise_reports ADD COLUMN IF NOT EXISTS issue_types JSONB DEFAULT '[]'::jsonb",
+      "ALTER TABLE exercise_reports ADD COLUMN IF NOT EXISTS severity VARCHAR(20) DEFAULT 'media'",
+      "ALTER TABLE exercise_reports ADD COLUMN IF NOT EXISTS report_status VARCHAR(20) DEFAULT 'open'",
+      "ALTER TABLE exercise_reports ADD COLUMN IF NOT EXISTS invalidates_exercise BOOLEAN DEFAULT FALSE",
+      "ALTER TABLE exercise_reports ADD COLUMN IF NOT EXISTS invalidates_attempt BOOLEAN DEFAULT FALSE",
+      "ALTER TABLE exercise_history ADD COLUMN IF NOT EXISTS excluded_from_scoring BOOLEAN DEFAULT FALSE",
+      "ALTER TABLE exercise_history ADD COLUMN IF NOT EXISTS exclusion_reason TEXT"
     ]) {
       try { await pool.query(col); alterCount++; } catch (e) { console.log('   ↪ skip:', e.message.substring(0,60)); }
     }

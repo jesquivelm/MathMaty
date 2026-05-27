@@ -1094,11 +1094,11 @@ function reportThis(btn) {
   fetch(`${API}/api/exercises/${id}/report`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-    body: '{}'
+    body: JSON.stringify({ issue_types: ['problema'], severity: 'media' })
   }).then(r => r.json()).then(data => {
     if (data.ok) {
       btn.style.cssText = 'color:var(--color-success);border-color:var(--color-success);background:rgba(16,185,129,.1);font-size:.78rem;padding:.2rem .5rem;border-radius:var(--radius-md);';
-      btn.innerHTML = '<i class="ti ti-check"></i> Reportado';
+      btn.innerHTML = '<i class="ti ti-check"></i> Reportado y omitido';
       btn.disabled = true;
     } else {
       btn.disabled = false;

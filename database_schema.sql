@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS exercises (
     imagen TEXT,
     nivel VARCHAR(20),
     metadata JSONB DEFAULT '{}'::jsonb,
+    quality_status VARCHAR(20) DEFAULT 'active',
+    excluded_from_practice BOOLEAN DEFAULT FALSE,
+    quality_flags JSONB DEFAULT '[]'::jsonb,
+    quality_notes TEXT,
+    quality_updated_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -68,7 +73,25 @@ CREATE TABLE IF NOT EXISTS exercise_history (
     hp_antes INTEGER,
     hp_despues INTEGER,
     dificultad VARCHAR(20),
+    excluded_from_scoring BOOLEAN DEFAULT FALSE,
+    exclusion_reason TEXT,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabla de reportes de calidad de ejercicios
+CREATE TABLE IF NOT EXISTS exercise_reports (
+    id SERIAL PRIMARY KEY,
+    exercise_id INTEGER REFERENCES exercises(id) ON DELETE CASCADE,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    comentario TEXT,
+    issue_types JSONB DEFAULT '[]'::jsonb,
+    severity VARCHAR(20) DEFAULT 'media',
+    report_status VARCHAR(20) DEFAULT 'open',
+    invalidates_exercise BOOLEAN DEFAULT FALSE,
+    invalidates_attempt BOOLEAN DEFAULT FALSE,
+    revisado BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(exercise_id, user_id)
 );
 
 -- Tabla de leaderboard global
@@ -305,7 +328,9 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_rol ON users(rol);
 CREATE INDEX IF NOT EXISTS idx_topic_progress_user ON topic_progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_exercise_history_user ON exercise_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_history_scoring ON exercise_history(user_id, excluded_from_scoring);
 CREATE INDEX IF NOT EXISTS idx_exercise_history_timestamp ON exercise_history(timestamp);
+CREATE INDEX IF NOT EXISTS idx_exercises_quality ON exercises(excluded_from_practice, quality_status);
 CREATE INDEX IF NOT EXISTS idx_leaderboard_xp ON leaderboard(xp_total DESC);
 CREATE INDEX IF NOT EXISTS idx_events_fechas ON events(fecha_inicio, fecha_fin);
 CREATE INDEX IF NOT EXISTS idx_event_participants_event ON event_participants(event_id);
