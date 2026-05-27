@@ -333,7 +333,14 @@ function hasMathSyntax(text) {
 function looksMathOnly(text) {
   const s = String(text).trim();
   if (!hasMathSyntax(s)) return false;
-  if (/\\text\s*\{/.test(s) || /\\[a-zA-Z]/.test(s)) return true;
+  if (/\\text\s*\{/.test(s)) return true;
+  if (/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(s)) return false;
+  const plain = s
+    .replace(/\\[a-zA-Z]+\s*(?:\{[^{}]*\})?/g, '')
+    .replace(/[A-Za-z]\s*\([^)]*\)/g, '')
+    .replace(/[A-Za-z0-9+\-*/=^_{}()[\],.;:<>|∞√πℝ\s]/g, '');
+  if (plain.trim()) return false;
+  if (/\\[a-zA-Z]/.test(s)) return !/[A-Za-z]{4,}\s+[A-Za-z]{4,}/.test(s);
   return !/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(s) && !/[A-Za-z]{4,}\s+[A-Za-z]{4,}/.test(s);
 }
 
@@ -626,12 +633,30 @@ function getCls(idx) { return state.classification[idx] || {}; }
 
 function clsTag(idx) {
   const c = getCls(idx);
-  if (c.necesita_separacion) return '<span class="badge" style="background:var(--orange-bg);color:var(--orange);">🔀 separar</span>';
+  if (c.necesita_separacion) return '<span class="badge" style="background:var(--orange-bg);color:var(--orange);">🔀 revisar</span>';
   if (c.pregunta === 'falta_backslash' || c.respuesta === 'falta_backslash') return '<span class="badge" style="background:var(--red-bg);color:var(--red);">⚠️ \\</span>';
   if (c.pregunta === 'texto_con_notacion' || c.pregunta === 'notacion_mixta') return '<span class="badge" style="background:var(--yellow-bg);color:var(--yellow);">📝 mixto</span>';
   if (c.pasos === 'sin_explicacion') return '<span class="badge" style="background:var(--surface3);color:var(--text3);">📋 sin expl</span>';
   if (c.pasos && c.pasos.startsWith('math_mixto')) return '<span class="badge" style="background:var(--blue-bg);color:var(--blue);">📋 math+txt</span>';
   return '';
+}
+
+function listPreview(text) {
+  return String(text || '')
+    .replace(/<\/?[^>]+>/g, '')
+    .replace(/\$\$?([^$]+?)\$\$?/g, '$1')
+    .replace(/\\dfrac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1)/($2)')
+    .replace(/\\sqrt\s*\{([^{}]+)\}/g, '√($1)')
+    .replace(/\\mathbb\s*\{R\}/g, 'ℝ')
+    .replace(/\\infty/g, '∞')
+    .replace(/\\to/g, '→')
+    .replace(/\\odot/g, '⊙')
+    .replace(/\\%/g, '%')
+    .replace(/\\([{}])/g, '$1')
+    .replace(/\s*\n+\s*/g, ' · ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 function setFilter(key) {
@@ -703,7 +728,7 @@ function renderList() {
     const tag = clsTag(idx);
     return `<div class="list-item${active ? ' active' : ''}${flagged ? ' flagged' : ''}" onclick="selectItem(${idx})">
       <div class="li-id">${flagged ? '<span class="flag-icon">⚠️</span>' : ''}#${r.ID} · ${esc(r['Topic (original)'] || '')} ${tag ? tag : ''}<span class="badge" style="background:var(--surface3);color:var(--text2);margin-left:auto;">${esc(r.Nivel || '')}</span></div>
-      <div class="li-preview">${esc((r.Pregunta || '').substring(0, 130))}</div>
+      <div class="li-preview">${esc(listPreview(r.Pregunta).substring(0, 130))}</div>
       <div class="li-meta"><span class="badge ${diff}">${diff}</span> ${esc(r['Tema MEP'] || '').substring(0, 60)}</div>
     </div>`;
   }).join('');
