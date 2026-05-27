@@ -859,6 +859,46 @@ function cleanMathDelimiters(value) {
   return trimmed.startsWith('$') && trimmed.endsWith('$') && trimmed.length > 2 ? trimmed.slice(1, -1) : text;
 }
 
+function looksLikeMath(value) {
+  return /\\[a-zA-Z]+|\^|_|[=+\-*/]|[√π∞∑∫≤≥]|\d+\s*\/\s*\d+/.test(String(value || ''));
+}
+
+function renderMathText(target, value, { displayMode = false } = {}) {
+  if (!target) return;
+  const text = String(value || '').trim();
+  target.innerHTML = '';
+  target.classList.add('math-rich-text');
+  if (!text) return;
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g).filter(Boolean);
+  if (parts.length === 1 && !/\$/.test(text) && looksLikeMath(text)) {
+    try { katex.render(cleanLatexValue(text), target, { displayMode, throwOnError: false }); return; } catch(e) {}
+  }
+  parts.forEach(part => {
+    const block = part.startsWith('$$');
+    const inline = !block && part.startsWith('$') && part.endsWith('$');
+    if (block || inline) {
+      const span = document.createElement(block ? 'div' : 'span');
+      span.className = block ? 'math-block' : 'math-inline';
+      try { katex.render(cleanLatexValue(part), span, { displayMode: block || displayMode, throwOnError: false }); }
+      catch(e) { span.textContent = cleanMathDelimiters(part); }
+      target.appendChild(span);
+      return;
+    }
+    part.split('\n').forEach((line, index) => {
+      if (index) target.appendChild(document.createElement('br'));
+      const span = document.createElement('span');
+      span.textContent = line;
+      target.appendChild(span);
+    });
+  });
+}
+
+function questionAlreadyContainsMath(question, latex) {
+  const q = String(question || '').replace(/\s+/g, '');
+  const l = String(latex || '').replace(/\s+/g, '');
+  return !!l && (q.includes(l) || /\$[^$]+\$|\\\(|\\\[/.test(String(question || '')));
+}
+
 function parseMaybeJson(value) {
   if (typeof value !== 'string') return value;
   try { return JSON.parse(value); } catch(e) { return value; }
@@ -996,15 +1036,16 @@ async function generateNewExercise() {
     state.currentExercise = data;
     document.getElementById('ex-loading').classList.add('hidden');
     document.getElementById('ex-content').classList.remove('hidden');
-    document.getElementById('ex-text').innerHTML = data.pregunta;
+    renderMathText(document.getElementById('ex-text'), data.pregunta);
     const sourceEl = document.getElementById('ex-source');
     const sourceText = formatExerciseSource(data);
     sourceEl.textContent = sourceText;
     sourceEl.style.display = sourceText ? 'block' : 'none';
     const mathEl = document.getElementById('ex-math');
     mathEl.innerHTML = '';
-    mathEl.style.display = data.latex ? 'block' : 'none';
-    if (data.latex) {
+    const showMathBlock = data.latex && !questionAlreadyContainsMath(data.pregunta, data.latex);
+    mathEl.style.display = showMathBlock ? 'block' : 'none';
+    if (showMathBlock) {
       try { katex.render(data.latex, mathEl, { displayMode: true, throwOnError: false }); } catch(e) {}
     }
     
@@ -1022,7 +1063,8 @@ async function generateNewExercise() {
     shuffled.forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
-      btn.textContent = c;
+      btn.dataset.value = c;
+      renderMathText(btn, c);
       btn.onclick = () => checkChoice(c, btn);
       area.appendChild(btn);
     });
@@ -1050,7 +1092,7 @@ function checkChoice(choice, btn) {
   const isCorrect = choice === correctAnswer;
   document.querySelectorAll('.choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if ((b.dataset.value || b.textContent) === correctAnswer) b.classList.add('correct');
   });
   
   let xpGanada = 100;
@@ -1089,26 +1131,84 @@ function showReportOption() {
 function reportThis(btn) {
   const id = btn?.dataset?.id;
   if (!id) return;
-  btn.disabled = true;
-  btn.innerHTML = '<i class="ti ti-loader"></i> Enviando...';
+  openExerciseReportModal(btn);
+}
+
+const REPORT_ISSUES = [
+  ['enunciado', 'Enunciado'],
+  ['opciones', 'Opciones'],
+  ['respuesta', 'Respuesta correcta'],
+  ['pasos', 'Pasos'],
+  ['katex', 'Formato KaTeX'],
+  ['ortografia', 'Ortografía'],
+  ['imagen', 'Imagen o gráfico'],
+  ['duplicado', 'Duplicado'],
+  ['malo', 'Ejercicio malo']
+];
+let reportTargetButton = null;
+
+function openExerciseReportModal(btn) {
+  reportTargetButton = btn;
+  const box = document.getElementById('report-issue-options');
+  if (box) {
+    box.innerHTML = REPORT_ISSUES.map(([value, label]) => `
+      <label class="report-option">
+        <input type="checkbox" value="${value}" ${value === 'malo' ? 'checked' : ''}>
+        <span>${label}</span>
+      </label>
+    `).join('');
+  }
+  const msg = document.getElementById('report-error-msg');
+  if (msg) msg.classList.add('hidden');
+  document.getElementById('report-comment').value = '';
+  document.getElementById('report-severity').value = 'bloqueante';
+  document.getElementById('report-invalidates').checked = true;
+  document.getElementById('exercise-report-modal').classList.remove('hidden');
+}
+
+function closeExerciseReportModal() {
+  document.getElementById('exercise-report-modal')?.classList.add('hidden');
+}
+
+function submitExerciseReport() {
+  const btn = reportTargetButton;
+  const id = btn?.dataset?.id;
+  if (!id) return;
+  const submit = document.getElementById('report-submit-btn');
+  const msg = document.getElementById('report-error-msg');
+  const issues = [...document.querySelectorAll('#report-issue-options input:checked')].map(i => i.value);
+  if (!issues.length) {
+    msg.textContent = 'Selecciona al menos un tipo de problema.';
+    msg.classList.remove('hidden');
+    return;
+  }
+  submit.disabled = true;
+  submit.innerHTML = '<i class="ti ti-loader"></i> Enviando...';
   fetch(`${API}/api/exercises/${id}/report`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.token}` },
-    body: JSON.stringify({ issue_types: ['problema'], severity: 'media' })
+    body: JSON.stringify({
+      issue_types: issues,
+      severity: document.getElementById('report-severity').value,
+      comentario: document.getElementById('report-comment').value,
+      invalidates_exercise: document.getElementById('report-invalidates').checked
+    })
   }).then(r => r.json()).then(data => {
     if (data.ok) {
+      closeExerciseReportModal();
       btn.style.cssText = 'color:var(--color-success);border-color:var(--color-success);background:rgba(16,185,129,.1);font-size:.78rem;padding:.2rem .5rem;border-radius:var(--radius-md);';
       btn.innerHTML = '<i class="ti ti-check"></i> Reportado y omitido';
       btn.disabled = true;
     } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="ti ti-flag"></i> Reportar error';
-      alert('Error: ' + (data.error || 'desconocido'));
+      msg.textContent = 'Error: ' + (data.error || 'desconocido');
+      msg.classList.remove('hidden');
     }
   }).catch(() => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="ti ti-flag"></i> Reportar error';
-    alert('Error al enviar reporte');
+    msg.textContent = 'Error al enviar reporte';
+    msg.classList.remove('hidden');
+  }).finally(() => {
+    submit.disabled = false;
+    submit.innerHTML = 'Enviar reporte';
   });
 }
 
@@ -1133,7 +1233,7 @@ function showExerciseResolution() {
       </div>`;
     }).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      renderMathText(document.getElementById(`step-math-${i}`), cleanLatexValue(p.math), { displayMode: looksLikeMath(p.math) });
     });
     // Show theory if available
     if (state.currentExercise.theory) {
@@ -1542,15 +1642,16 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     rememberExerciseId(data.id);
     document.getElementById('mission-loading').classList.add('hidden');
     document.getElementById('mission-content').classList.remove('hidden');
-    document.getElementById('mission-text').innerHTML = data.pregunta;
+    renderMathText(document.getElementById('mission-text'), data.pregunta);
     const sourceEl = document.getElementById('mission-source');
     const sourceText = formatExerciseSource(data);
     sourceEl.textContent = sourceText;
     sourceEl.style.display = sourceText ? 'block' : 'none';
     const mathEl = document.getElementById('mission-math');
     mathEl.innerHTML = '';
-    mathEl.style.display = data.latex ? 'block' : 'none';
-    if (data.latex) {
+    const showMathBlock = data.latex && !questionAlreadyContainsMath(data.pregunta, data.latex);
+    mathEl.style.display = showMathBlock ? 'block' : 'none';
+    if (showMathBlock) {
       try { katex.render(data.latex, mathEl, { displayMode: true, throwOnError: false }); } catch(e) {}
     }
     
@@ -1575,7 +1676,8 @@ async function loadMissionExercise(topicId, attemptedTopics = []) {
     shuffleArray(data.opciones).forEach(c => {
       const btn = document.createElement('button');
       btn.className = 'choice-btn';
-      btn.textContent = c;
+      btn.dataset.value = c;
+      renderMathText(btn, c);
       btn.onclick = () => checkMissionChoice(c, btn);
       area.appendChild(btn);
     });
@@ -1594,7 +1696,7 @@ function checkMissionChoice(choice, btn) {
   const isCorrect = choice === correctAnswer;
   document.querySelectorAll('#mission-choices .choice-btn').forEach(b => {
     b.disabled = true;
-    if (b.textContent === correctAnswer) b.classList.add('correct');
+    if ((b.dataset.value || b.textContent) === correctAnswer) b.classList.add('correct');
   });
   
   const penalty = state.missionState.mission.hpPenalty;
@@ -1626,7 +1728,7 @@ function checkMissionChoice(choice, btn) {
       </div>
     `).join('');
     state.currentExercise.pasos.forEach((p, i) => {
-      try { katex.render(cleanLatexValue(p.math), document.getElementById(`mission-step-math-${i}`), { throwOnError: false }); } catch(e) {}
+      renderMathText(document.getElementById(`mission-step-math-${i}`), cleanLatexValue(p.math), { displayMode: looksLikeMath(p.math) });
     });
   }
   document.getElementById('mission-action').classList.remove('hidden');

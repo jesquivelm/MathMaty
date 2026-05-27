@@ -980,6 +980,23 @@ h4 { font-size: 0.9rem; font-weight: 600; }
 }
 .modal-close-x:hover { background: rgba(239,68,68,0.15); color: var(--color-error); }
 
+.report-modal-card { max-width: 620px; width: 92%; max-height: 90vh; overflow-y: auto; }
+.report-section { margin: 1rem 0; }
+.report-label { display: block; margin-bottom: .45rem; color: var(--color-text-secondary); font-size: .82rem; font-weight: 700; }
+.report-options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .5rem; }
+.report-option { display: flex; align-items: center; gap: .45rem; padding: .65rem .75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-hover); font-size: .86rem; cursor: pointer; }
+.report-option input { accent-color: var(--color-primary); }
+.report-select, .report-textarea { width: 100%; color: var(--color-text-primary); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: .7rem .8rem; }
+.report-textarea { resize: vertical; line-height: 1.5; }
+.report-check { display: flex; align-items: center; gap: .5rem; font-size: .86rem; color: var(--color-text-primary); }
+.report-check input { accent-color: var(--color-warning); }
+.report-error { color: var(--color-error); font-size: .82rem; margin-top: .5rem; }
+.report-actions { display: flex; justify-content: flex-end; gap: .65rem; margin-top: 1rem; }
+.math-rich-text { white-space: normal; line-height: 1.75; }
+.math-rich-text .math-line { margin: .2rem 0; }
+.math-rich-text .math-block { display: block; margin: .5rem 0; overflow-x: auto; }
+.choice-btn .katex { font-size: 1.02em; }
+
 /* Canvas */
 /* Whiteboard - Movable Window */
 #whiteboard-modal {

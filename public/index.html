@@ -194,6 +194,41 @@
     <!-- Profile Modal -->
     <div id="profile-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1005;display:flex;align-items:center;justify-content:center;"></div>
 
+    <!-- Exercise Report Modal -->
+    <div id="exercise-report-modal" class="modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:1006;display:flex;align-items:center;justify-content:center;">
+        <div class="card report-modal-card">
+            <div class="modal-header-sticky">
+                <h2><i class="ti ti-flag"></i> Reportar ejercicio</h2>
+                <button class="modal-close-x" onclick="closeExerciseReportModal()">&times;</button>
+            </div>
+            <div class="report-section">
+                <label class="report-label">Tipo de problema</label>
+                <div class="report-options-grid" id="report-issue-options"></div>
+            </div>
+            <div class="report-section">
+                <label class="report-label" for="report-severity">Severidad</label>
+                <select id="report-severity" class="report-select">
+                    <option value="media">Revisar</option>
+                    <option value="alta">Grave</option>
+                    <option value="bloqueante">Mala / no debe aparecer</option>
+                </select>
+            </div>
+            <label class="report-check">
+                <input type="checkbox" id="report-invalidates" checked>
+                Omitir de futuras pruebas hasta revisión
+            </label>
+            <div class="report-section">
+                <label class="report-label" for="report-comment">Detalle</label>
+                <textarea id="report-comment" class="report-textarea" rows="4" placeholder="Describe qué está mal."></textarea>
+            </div>
+            <div id="report-error-msg" class="report-error hidden"></div>
+            <div class="report-actions">
+                <button class="btn btn-outline" onclick="closeExerciseReportModal()">Cancelar</button>
+                <button class="btn btn-primary" id="report-submit-btn" onclick="submitExerciseReport()">Enviar reporte</button>
+            </div>
+        </div>
+    </div>
+
     <script src="math-keyboard.js"></script>
     <script src="math-graph.js"></script>
     <script src="games.js"></script>
