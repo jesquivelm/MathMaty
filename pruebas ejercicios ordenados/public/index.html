@@ -333,6 +333,8 @@ function hasMathSyntax(text) {
 function looksMathOnly(text) {
   const s = String(text).trim();
   if (!hasMathSyntax(s)) return false;
+  if (/[¿¡]/.test(s)) return false;
+  if (/\b(Si|De|Del|El|La|Los|Las|Un|Una|Para|Determine|Calcule|Considere|Cuantos|Cuántos|Cual|Cuál|Verdadero|Falso|Interes|Interés|Dominio|Rango|Sinonimo|Sinónimo|Antonimo|Antónimo)\b/i.test(s)) return false;
   if (/\\text\s*\{/.test(s)) return true;
   if (/[áéíóúüñÁÉÍÓÚÜÑ¿¡]/.test(s)) return false;
   const plain = s
