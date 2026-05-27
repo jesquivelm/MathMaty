@@ -227,7 +227,7 @@
       <button class="save-btn" id="saveBtn" disabled>💾 Guardar</button>
     </div>
     <div id="detailContent">
-      <div class="empty-state">Selecciona un ejercicio de la lista para verlo aquí con renderizado LaTeX.</div>
+      <div class="empty-state">Selecciona un ejercicio de la lista para verlo aquí con renderizado KaTeX.</div>
     </div>
   </div>
 </div>
@@ -291,7 +291,7 @@ function updateFlagsCount() {
 }
 
 // === LATEX RENDER ===
-const LATEX_CMDS = ['sqrt','frac','sum','int','lim','log','ln','sin','cos','tan',
+const LATEX_CMDS = ['sqrt','dfrac','frac','sum','int','lim','log','ln','sin','cos','tan',
   'csc','sec','cot','cdot','times','div','alpha','beta','gamma','theta','pi',
   'infty','cup','cap','subset','supset','subseteq','supseteq','ge','le','ne',
   'approx','equiv','rightarrow','leftarrow','Rightarrow','Leftarrow','partial',
@@ -302,7 +302,7 @@ const SUBSCRIPT_MAP = {'₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'
 function autoFixLaTeX(text) {
   let r = text;
   for (const cmd of LATEX_CMDS) {
-    r = r.replace(new RegExp('(?<!\\\\)' + cmd + '(?=\\s*\\{)', 'g'), '\\' + cmd);
+    r = r.replace(new RegExp('(?<![\\\\A-Za-z])' + cmd + '(?=\\s*\\{)', 'g'), '\\' + cmd);
   }
   return r;
 }
@@ -316,6 +316,7 @@ function normalizeMathText(text) {
   let r = String(text);
   r = normalizeScriptChars(r, '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁽⁾ⁿ', SUPERSCRIPT_MAP, '^');
   r = normalizeScriptChars(r, '₀₁₂₃₄₅₆₇₈₉₊₋₍₎', SUBSCRIPT_MAP, '_');
+  r = r.replace(/(^|[^\w\\])([+-]?(?:\d+(?:\.\d+)?|[A-Za-z]))\s*\/\s*\(([^()]+)\)/g, '$1\\dfrac{$2}{$3}');
   r = r.replace(/√\s*\(([^)]+)\)/g, '\\sqrt{$1}');
   r = r.replace(/√\s*([A-Za-z0-9]+)/g, '\\sqrt{$1}');
   r = r.replace(/≤/g, '\\le ').replace(/≥/g, '\\ge ').replace(/≠/g, '\\ne ');
@@ -447,9 +448,9 @@ function hasSuspiciousLatex(text) {
 
 function latexBadge(text) {
   if (hasLatexContent(text))
-    return '<span class="latex-badge yes">LaTeX ✓</span>';
+    return '<span class="latex-badge yes">KaTeX ✓</span>';
   if (hasSuspiciousLatex(text))
-    return '<span class="latex-badge warn" title="Parece que falta \\ o $...$ — esto debería ser LaTeX">⚠️ ¿LaTeX?</span>';
+    return '<span class="latex-badge warn" title="Parece que falta \\ o $...$ — esto debería renderizarse con KaTeX">⚠️ ¿KaTeX?</span>';
   return '<span class="latex-badge no">Solo texto</span>';
 }
 
@@ -848,7 +849,7 @@ function renderDetail() {
         </div>
         ${stepsRawHtml}
 
-        <div class="ex-label">📐 LaTeX ${latexBadge(r.LaTeX || r.Fuente)} ${srcSpan(r.LaTeX || r.Fuente)}</div>
+        <div class="ex-label">📐 KaTeX ${latexBadge(r.LaTeX || r.Fuente)} ${srcSpan(r.LaTeX || r.Fuente)}</div>
         <div style="padding:12px 16px;background:var(--surface2);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:.82rem;color:var(--text2);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${esc(r.LaTeX || r.Fuente || '(sin campo LaTeX)')}</div>
       </div>
     </div>
@@ -1109,7 +1110,7 @@ function renderEditMode() {
         </div>
         <button class="add-step-btn" onclick="stepAdd()">＋ Agregar paso</button>
 
-        <div class="ex-label">📐 LaTeX <span style="color:var(--accent);text-transform:none;">(editable)</span></div>
+        <div class="ex-label">📐 KaTeX <span style="color:var(--accent);text-transform:none;">(editable)</span></div>
         <textarea id="fieldLatex" rows="2" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);padding:12px;font-size:.82rem;font-family:var(--font-mono);resize:vertical;white-space:pre-wrap;word-break:break-all;">${esc(r.LaTeX || r.Fuente || '')}</textarea>
       </div>
     </div>
