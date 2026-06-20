@@ -417,13 +417,16 @@ async function loadDoomVideosFromServer() {
     if (r.ok) {
       const raw = await r.json();
       // Fix Cloudinary URLs for iOS Safari — must end in .mp4
-      window._doomVideos = {};
+      const fixed = {};
       for (const key in raw) {
-        window._doomVideos[key] = fixVideoUrl(raw[key]);
+        fixed[key] = fixVideoUrl(raw[key]);
       }
+      _doomVideos = fixed;
+      window._doomVideos = fixed;
     }
   } catch(e) {
     console.warn('No se pudieron cargar los doom videos:', e.message);
+    _doomVideos = {};
     window._doomVideos = {};
   }
 }
